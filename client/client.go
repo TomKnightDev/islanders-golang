@@ -7,8 +7,11 @@ import (
 	"log"
 	"net/url"
 
+	"github.com/gabstv/ebiten-imgui/renderer"
 	"github.com/gorilla/websocket"
-	messages "github.com/tomknightdev/socketio-game-test/messages"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/inkyblackness/imgui-go/v4"
+	"github.com/tomknightdev/socketio-game-test/messages"
 )
 
 var addr = flag.String("addr", "localhost:8000", "http service address")
@@ -20,24 +23,78 @@ type client struct {
 
 var player = client{}
 
-func main() {
-	err := connectToServer()
-	if err != nil {
-		log.Fatalf("failed to connect to server: %s", err)
-	}
-
-	if err := gameLoop(); err != nil {
-		log.Fatalf("error in game loop: %s", err)
-	}
+type Game struct {
+	mgr          *renderer.Manager
+	name         string
+	connected    bool
+	sendChan     chan string
+	recvChan     chan string
+	message      string
+	recvMessages []string
 }
 
-func connectToServer() error {
-	fmt.Println("Client starting...")
+func (g *Game) Update() error {
+	g.mgr.Update(1.0 / 60.0)
+	g.mgr.BeginFrame()
+	{
+		imgui.Text("Hello, world!")
+		if !g.connected {
+			imgui.InputText("Name", &g.name)
+			if imgui.Button("Connect") {
 
-	var username string
-	fmt.Print("Enter your username:")
-	fmt.Scanln(&username)
-	player.username = username
+				err := connectToServer(g)
+				if err != nil {
+					log.Fatalf("failed to connect to server: %s", err)
+				}
+				g.connected = true
+				go gameLoop(g)
+			}
+		} else {
+			imgui.InputText("Name", &g.message)
+			if imgui.Button("Send") {
+				g.sendChan <- g.message
+			}
+
+			for _, m := range g.recvMessages {
+				imgui.Text(m)
+			}
+		}
+	}
+	g.mgr.EndFrame()
+
+	return nil
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+	g.mgr.Draw(screen)
+}
+
+func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+	g.mgr.SetDisplaySize(float32(800), float32(600))
+	return 800, 600
+}
+
+func main() {
+	mgr := renderer.New(nil)
+
+	game := &Game{
+		mgr:      mgr,
+		sendChan: make(chan string),
+		recvChan: make(chan string),
+	}
+	// Specify the window size as you like. Here, a doubled size is specified.
+	ebiten.SetWindowSize(800, 600)
+	ebiten.SetWindowTitle("Your game's title")
+	// Call ebiten.RunGame to start your game loop.
+	if err := ebiten.RunGame(game); err != nil {
+		log.Fatal(err)
+	}
+
+}
+
+func connectToServer(g *Game) error {
+	fmt.Println("Client starting...")
+	player.username = g.name
 
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "/connect"}
 
@@ -70,7 +127,7 @@ func connectToServer() error {
 	return nil
 }
 
-func gameLoop() error {
+func gameLoop(g *Game) error {
 	u := url.URL{Scheme: "ws", Host: *addr, Path: "/game"}
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -99,17 +156,17 @@ func gameLoop() error {
 				fmt.Printf("unmarshal error:", err, glm, message)
 			}
 
+			g.recvMessages = append(g.recvMessages, fmt.Sprint(glm.ClientId, glm.Message))
 			fmt.Println(glm.ClientId, glm.Message)
 		}
 	}()
 
 	// Send
 	for {
-		var message string
-		fmt.Scanln(&message)
+		msg := <-g.sendChan
 		glm := &messages.GameLoopMessage{
 			ClientId: player.id,
-			Message:  message,
+			Message:  msg,
 		}
 		c.WriteJSON(glm)
 	}
