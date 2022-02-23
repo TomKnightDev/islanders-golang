@@ -14,8 +14,26 @@ type Entity interface {
 
 type Game struct {
 	playerName string
+	serverAddr string
 	connected  bool
-	entities   []Entity
+	Entities   []Entity
+}
+
+func (g *Game) Update() error {
+	for _, e := range g.Entities {
+		e.Update()
+	}
+	return nil
+}
+
+func (g *Game) Draw(screen *ebiten.Image) {
+	for _, e := range g.Entities {
+		e.Draw(screen)
+	}
+}
+
+func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
+	return 800, 600
 }
 
 func main() {
@@ -24,16 +42,17 @@ func main() {
 	mm := gui.NewMainMenu()
 
 	go func() {
+		game.serverAddr = <-mm.Connect
 		game.playerName = <-mm.Connect
 		err := connectToServer(game)
 		if err != nil {
 			log.Fatalf("failed to connect %s to server: %s", game.playerName, err)
 		}
 		game.connected = true
-		go gameLoop(game)
+		go chatLoop(game)
 	}()
 
-	game.entities = append(game.entities, mm)
+	game.Entities = append(game.Entities, mm)
 
 	ebiten.SetWindowSize(800, 600)
 	ebiten.SetWindowTitle("Dungeon Crawl")
@@ -42,15 +61,4 @@ func main() {
 		log.Fatal(err)
 	}
 
-}
-
-func RemoveEntity(game *Game, i int) {
-	if i >= len(game.entities) {
-		return
-	}
-
-	game.entities[i] = game.entities[len(game.entities)-1]
-	game.entities = game.entities[:len(game.entities)-1]
-
-	// return append(scenes[:s], scenes[s+1:]...)
 }

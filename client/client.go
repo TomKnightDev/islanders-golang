@@ -2,18 +2,16 @@ package main
 
 import (
 	"encoding/json"
-	"flag"
 	"fmt"
 	"log"
 	"net/url"
 
 	"github.com/gorilla/websocket"
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/tomknightdev/socketio-game-test/client/gui"
 	"github.com/tomknightdev/socketio-game-test/messages"
 )
 
-var addr = flag.String("addr", "localhost:8000", "http service address")
+var addr string //= flag.String("addr", "localhost:8000", "http service address")
 
 type client struct {
 	id       uint16
@@ -22,28 +20,13 @@ type client struct {
 
 var player = client{}
 
-func (g *Game) Update() error {
-	for _, e := range g.entities {
-		e.Update()
-	}
-	return nil
-}
-
-func (g *Game) Draw(screen *ebiten.Image) {
-	for _, e := range g.entities {
-		e.Draw(screen)
-	}
-}
-
-func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return 800, 600
-}
-
 func connectToServer(g *Game) error {
 	fmt.Println("Client starting...")
 	player.username = g.playerName
 
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/connect"}
+	addr = g.serverAddr
+
+	u := url.URL{Scheme: "ws", Host: addr, Path: "/connect"}
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {
@@ -74,11 +57,11 @@ func connectToServer(g *Game) error {
 	return nil
 }
 
-func gameLoop(g *Game) error {
+func chatLoop(g *Game) error {
 	chat := gui.NewChat()
-	g.entities = append(g.entities, chat)
+	g.Entities = append(g.Entities, chat)
 
-	u := url.URL{Scheme: "ws", Host: *addr, Path: "/game"}
+	u := url.URL{Scheme: "ws", Host: addr, Path: "/game"}
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	if err != nil {

@@ -5,13 +5,14 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 
 	"github.com/gorilla/websocket"
 	"github.com/tomknightdev/socketio-game-test/messages"
 )
 
-var addr = flag.String("addr", "localhost:8000", "http service address")
+var addr = flag.String("addr", GetOutboundIP().String()+":8285", "http service address")
 
 var upgrader = websocket.Upgrader{} // use default options
 
@@ -23,6 +24,18 @@ type client struct {
 	connection *websocket.Conn
 }
 
+func GetOutboundIP() net.IP {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+
+	return localAddr.IP
+}
+
 func main() {
 	flag.Parse()
 	log.SetFlags(0)
@@ -30,6 +43,7 @@ func main() {
 	http.HandleFunc("/connect", connect)
 	http.HandleFunc("/game", gameLoop)
 
+	fmt.Printf(*addr)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }
 

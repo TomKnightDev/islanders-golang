@@ -11,6 +11,7 @@ type MainMenu struct {
 	playerName string
 	Connect    chan string
 	connected  bool
+	server     string
 }
 
 func NewMainMenu() *MainMenu {
@@ -34,8 +35,10 @@ func (mm *MainMenu) Update() error {
 	mm.mgr.Update(1.0 / 60.0)
 	mm.mgr.BeginFrame()
 	{
+		imgui.InputText("Server", &mm.server)
 		imgui.InputText("Name", &mm.playerName)
 		if imgui.Button("Connect") {
+			mm.Connect <- mm.server
 			mm.Connect <- mm.playerName
 			mm.connected = true
 		}
