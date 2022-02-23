@@ -18,8 +18,10 @@ func NewMainMenu() *MainMenu {
 	mgr := renderer.New(nil)
 
 	mm := &MainMenu{
-		mgr:     mgr,
-		Connect: make(chan string),
+		mgr:        mgr,
+		Connect:    make(chan string),
+		playerName: "Tom",
+		server:     "192.168.1.98:8285",
 	}
 
 	mm.mgr.SetDisplaySize(float32(800), float32(600))

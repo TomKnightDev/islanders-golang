@@ -1,12 +1,16 @@
 package entities
 
-func RemoveEntity(game *main.Game, i int) {
-	if i >= len(game.Entities) {
-		return
-	}
+// import (
+// 	client "github.com/tomknightdev/socketio-game-test/client"
+// )
 
-	game.Entities[i] = game.Entities[len(game.Entities)-1]
-	game.Entities = game.Entities[:len(game.Entities)-1]
+// func RemoveEntity(game *client.Game, i int) {
+// 	if i >= len(game.Entities) {
+// 		return
+// 	}
 
-	// return append(scenes[:s], scenes[s+1:]...)
-}
+// 	game.Entities[i] = game.Entities[len(game.Entities)-1]
+// 	game.Entities = game.Entities[:len(game.Entities)-1]
+
+// 	// return append(scenes[:s], scenes[s+1:]...)
+// }

@@ -19,9 +19,10 @@ var upgrader = websocket.Upgrader{} // use default options
 var clients = []*client{}
 
 type client struct {
-	id         uint16
-	username   string
-	connection *websocket.Conn
+	id             uint16
+	username       string
+	chatConnection *websocket.Conn
+	gameConnection *websocket.Conn
 }
 
 func GetOutboundIP() net.IP {
@@ -41,6 +42,7 @@ func main() {
 	log.SetFlags(0)
 
 	http.HandleFunc("/connect", connect)
+	http.HandleFunc("/chat", chatLoop)
 	http.HandleFunc("/game", gameLoop)
 
 	fmt.Printf(*addr)
@@ -106,25 +108,67 @@ func gameLoop(w http.ResponseWriter, r *http.Request) {
 			break
 		}
 
-		var glm = &messages.GameLoopMessage{}
-		if err = json.Unmarshal(message, glm); err != nil {
+		var gameMessage = &messages.GameLoopMessage{}
+		if err = json.Unmarshal(message, gameMessage); err != nil {
+			log.Print(err)
+			continue
+		}
+
+		if gameMessage.ClientPos[0] == -1 {
+			cc, err := getClient(gameMessage.ClientId)
+			if err != nil {
+				fmt.Print(err)
+				continue
+			}
+			cc.gameConnection = c
+		}
+
+		// fmt.Println(gameMessage)
+
+		for _, client := range clients {
+			err = client.gameConnection.WriteJSON(gameMessage)
+			if err != nil {
+				log.Println("game write:", err)
+				break
+			}
+		}
+	}
+}
+
+func chatLoop(w http.ResponseWriter, r *http.Request) {
+	c, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Print("upgrade:", err)
+		return
+	}
+	defer c.Close()
+
+	for {
+		_, message, err := c.ReadMessage()
+		if err != nil {
+			log.Println("game read:", err)
+			break
+		}
+
+		var chatMessage = &messages.ChatLoopMessage{}
+		if err = json.Unmarshal(message, chatMessage); err != nil {
 			log.Print(err)
 			continue
 		}
 
 		log.Printf("game recv: %s", message)
 
-		if glm.Message == "connected" {
-			cc, err := getClient(glm.ClientId)
+		if chatMessage.Message == "connected" {
+			cc, err := getClient(chatMessage.ClientId)
 			if err != nil {
 				fmt.Print(err)
 				continue
 			}
-			cc.connection = c
+			cc.chatConnection = c
 		}
 
 		for _, client := range clients {
-			err = client.connection.WriteJSON(glm)
+			err = client.chatConnection.WriteJSON(chatMessage)
 			if err != nil {
 				log.Println("game write:", err)
 				break

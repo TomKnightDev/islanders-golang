@@ -17,9 +17,16 @@ type Game struct {
 	serverAddr string
 	connected  bool
 	Entities   []Entity
+	Player     Entity
 }
 
 func (g *Game) Update() error {
+	if g.Player != nil {
+		if err := g.Player.Update(); err != nil {
+			log.Print(err)
+		}
+	}
+
 	for _, e := range g.Entities {
 		e.Update()
 	}
@@ -27,6 +34,9 @@ func (g *Game) Update() error {
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
+	if g.Player != nil {
+		g.Player.Draw(screen)
+	}
 	for _, e := range g.Entities {
 		e.Draw(screen)
 	}
@@ -50,12 +60,14 @@ func main() {
 		}
 		game.connected = true
 		go chatLoop(game)
+		go gameLoop(game)
 	}()
 
 	game.Entities = append(game.Entities, mm)
 
 	ebiten.SetWindowSize(800, 600)
 	ebiten.SetWindowTitle("Dungeon Crawl")
+	ebiten.NewImage(100, 100)
 
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
