@@ -13,7 +13,7 @@ type Chat struct {
 	RecvMessages []string
 }
 
-func NewChat() *Chat {
+func NewChat(screenWidth, screenHeight int) *Chat {
 	mgr := renderer.New(nil)
 
 	chat := &Chat{
@@ -21,7 +21,7 @@ func NewChat() *Chat {
 		SendChan: make(chan string),
 	}
 
-	chat.mgr.SetDisplaySize(float32(800), float32(600))
+	chat.mgr.SetDisplaySize(float32(screenWidth), float32(screenHeight))
 
 	return chat
 }

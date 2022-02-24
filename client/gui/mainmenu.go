@@ -14,7 +14,7 @@ type MainMenu struct {
 	server     string
 }
 
-func NewMainMenu() *MainMenu {
+func NewMainMenu(screenWidth, screenHeight int) *MainMenu {
 	mgr := renderer.New(nil)
 
 	mm := &MainMenu{
@@ -24,7 +24,7 @@ func NewMainMenu() *MainMenu {
 		server:     "192.168.1.98:8285",
 	}
 
-	mm.mgr.SetDisplaySize(float32(800), float32(600))
+	mm.mgr.SetDisplaySize(float32(screenWidth), float32(screenHeight))
 
 	return mm
 }

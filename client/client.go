@@ -116,6 +116,10 @@ func gameLoop(g *Game) error {
 				fmt.Printf("unmarshal error:", err, glm, message)
 			}
 
+			if glm.ClientId == client.Player.Id {
+				continue
+			}
+
 			// Update information about other players
 			e := func(glm messages.GameLoopMessage) *entities.NetworkPlayer {
 				for _, e := range client.NetworkPlayers {
@@ -150,7 +154,7 @@ func gameLoop(g *Game) error {
 }
 
 func chatLoop(g *Game) error {
-	chat := gui.NewChat()
+	chat := gui.NewChat(screenWidth, screenHeight)
 	g.Entities = append(g.Entities, chat)
 
 	u := url.URL{Scheme: "ws", Host: addr, Path: "/chat"}

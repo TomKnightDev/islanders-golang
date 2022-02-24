@@ -7,6 +7,11 @@ import (
 	"github.com/tomknightdev/socketio-game-test/client/gui"
 )
 
+var (
+	screenWidth  = 1920
+	screenHeight = 1080
+)
+
 type Entity interface {
 	Update() error
 	Draw(*ebiten.Image)
@@ -42,14 +47,14 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 }
 
-func (g *Game) Layout(outsideWidth, outsideHeight int) (screenWidth, screenHeight int) {
-	return 800, 600
+func (g *Game) Layout(outsideWidth, outsideHeight int) (sc, sh int) {
+	return screenWidth, screenHeight
 }
 
 func main() {
 	game := &Game{}
 
-	mm := gui.NewMainMenu()
+	mm := gui.NewMainMenu(screenWidth, screenHeight)
 
 	go func() {
 		game.serverAddr = <-mm.Connect
@@ -65,7 +70,7 @@ func main() {
 
 	game.Entities = append(game.Entities, mm)
 
-	ebiten.SetWindowSize(800, 600)
+	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("Dungeon Crawl")
 	ebiten.NewImage(100, 100)
 
