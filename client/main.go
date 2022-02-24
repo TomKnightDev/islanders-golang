@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
+
 	"github.com/tomknightdev/socketio-game-test/client/gui"
 )
 
@@ -18,11 +19,12 @@ type Entity interface {
 }
 
 type Game struct {
-	playerName string
-	serverAddr string
-	connected  bool
-	Entities   []Entity
-	Player     Entity
+	playerName  string
+	serverAddr  string
+	connected   bool
+	Environment []Entity
+	Entities    []Entity
+	Player      Entity
 }
 
 func (g *Game) Update() error {
@@ -31,19 +33,24 @@ func (g *Game) Update() error {
 			log.Print(err)
 		}
 	}
-
 	for _, e := range g.Entities {
+		e.Update()
+	}
+	for _, e := range g.Environment {
 		e.Update()
 	}
 	return nil
 }
 
 func (g *Game) Draw(screen *ebiten.Image) {
-	if g.Player != nil {
-		g.Player.Draw(screen)
+	for _, e := range g.Environment {
+		e.Draw(screen)
 	}
 	for _, e := range g.Entities {
 		e.Draw(screen)
+	}
+	if g.Player != nil {
+		g.Player.Draw(screen)
 	}
 }
 
@@ -72,7 +79,8 @@ func main() {
 
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("Dungeon Crawl")
-	ebiten.NewImage(100, 100)
+	ebiten.SetWindowResizable(true)
+	ebiten.NewImage(256, 256)
 
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)

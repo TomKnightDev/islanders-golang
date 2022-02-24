@@ -41,6 +41,14 @@ func (p *Player) Update() error {
 		y += 1
 	}
 
+	if p.Position[0]+x < 0 || p.Position[0]+x > 256 {
+		x = 0
+	}
+
+	if p.Position[1]+y < 0 || p.Position[1]+y > 256 {
+		y = 0
+	}
+
 	p.Position[0] += x
 	p.Position[1] += y
 

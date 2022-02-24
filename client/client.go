@@ -18,9 +18,12 @@ import (
 )
 
 var (
-	//go:embed resources/tileset.png
-	tileset    []byte
-	TilesImage *ebiten.Image
+	//go:embed resources/characters.png
+	characters      []byte
+	CharactersImage *ebiten.Image
+	//go:embed resources/environments.png
+	environments      []byte
+	EnvironmentsImage *ebiten.Image
 )
 
 var addr string //= flag.String("addr", "localhost:8000", "http service address")
@@ -38,18 +41,23 @@ func init() {
 	client.SendChan = make(chan f64.Vec2)
 	client.RecvChan = make(chan string)
 
-	img, err := png.Decode(bytes.NewReader(tileset))
+	img, err := png.Decode(bytes.NewReader(characters))
 	if err != nil {
 		log.Fatal(err)
 	}
-	TilesImage = ebiten.NewImageFromImage(img)
+	CharactersImage = ebiten.NewImageFromImage(img)
 
+	img, err = png.Decode(bytes.NewReader(environments))
+	if err != nil {
+		log.Fatal(err)
+	}
+	EnvironmentsImage = ebiten.NewImageFromImage(img)
 }
 
 func connectToServer(g *Game) error {
 	fmt.Println("Client starting...")
 
-	client.Player = entities.NewPlayer(TilesImage)
+	client.Player = entities.NewPlayer(CharactersImage)
 	g.Player = client.Player
 
 	client.Player.Username = g.playerName
@@ -88,6 +96,9 @@ func connectToServer(g *Game) error {
 }
 
 func gameLoop(g *Game) error {
+	world := entities.NewWorld(EnvironmentsImage)
+	g.Environment = append(g.Entities, world)
+
 	u := url.URL{Scheme: "ws", Host: addr, Path: "/game"}
 
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
@@ -132,7 +143,7 @@ func gameLoop(g *Game) error {
 
 			// If doesn't exist, create it
 			if e == nil {
-				e = entities.NewNetworkPlayer(TilesImage)
+				e = entities.NewNetworkPlayer(CharactersImage)
 				e.Id = glm.ClientId
 				client.NetworkPlayers = append(client.NetworkPlayers, e)
 				g.Entities = append(g.Entities, e)
