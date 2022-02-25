@@ -178,6 +178,9 @@ func serverLoop() {
 
 		for _, c := range Server.clients {
 			c.mu.Lock()
+			if c.gameConnection == nil {
+				continue
+			}
 			err := c.gameConnection.WriteJSON(glm)
 			if err != nil {
 				log.Println("game write:", err)
