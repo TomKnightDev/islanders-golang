@@ -108,9 +108,14 @@ func gameLoop(g *Game) error {
 	defer c.Close()
 
 	// Announce connection
+	em := &messages.EntityMessage{
+		EntityId:  client.Player.Id,
+		EntityPos: f64.Vec2{-1, 0},
+	}
 	glm := &messages.GameLoopMessage{
-		ClientId:  client.Player.Id,
-		ClientPos: f64.Vec2{-1, 0},
+		EntityMessages: []messages.EntityMessage{
+			*em,
+		},
 	}
 	c.WriteJSON(glm)
 
@@ -119,7 +124,12 @@ func gameLoop(g *Game) error {
 		for {
 			_, message, err := c.ReadMessage()
 			if err != nil {
-				fmt.Printf("error in reading message: %s", err)
+				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					log.Printf("error: %v", err)
+				} else {
+					fmt.Printf("error in reading message: %s", err)
+				}
+				break
 			}
 
 			var glm = &messages.GameLoopMessage{}
@@ -127,39 +137,44 @@ func gameLoop(g *Game) error {
 				fmt.Printf("unmarshal error:", err, glm, message)
 			}
 
-			if glm.ClientId == client.Player.Id {
-				continue
-			}
-
-			// Update information about other players
-			e := func(glm messages.GameLoopMessage) *entities.NetworkPlayer {
-				for _, e := range client.NetworkPlayers {
-					if e.Id == glm.ClientId {
-						return e
+			for _, em := range glm.EntityMessages {
+				// Update information about other players
+				e := func(m messages.EntityMessage) *entities.NetworkPlayer {
+					for _, e := range client.NetworkPlayers {
+						if e.Id == m.EntityId {
+							return e
+						}
 					}
+					return nil
+				}(em)
+
+				// If doesn't exist, create it
+				if e == nil {
+					e = entities.NewNetworkPlayer(CharactersImage, em.EntityTile)
+					e.Id = em.EntityId
+					client.NetworkPlayers = append(client.NetworkPlayers, e)
+					g.Entities = append(g.Entities, e)
 				}
-				return nil
-			}(*glm)
 
-			// If doesn't exist, create it
-			if e == nil {
-				e = entities.NewNetworkPlayer(CharactersImage)
-				e.Id = glm.ClientId
-				client.NetworkPlayers = append(client.NetworkPlayers, e)
-				g.Entities = append(g.Entities, e)
+				e.Position = em.EntityPos
 			}
-
-			e.Position = glm.ClientPos
 		}
 	}()
 
 	// Send
 	for {
 		pos := <-client.Player.SendChan
-		glm := &messages.GameLoopMessage{
-			ClientId:  client.Player.Id,
-			ClientPos: pos,
+		em := &messages.EntityMessage{
+			EntityId:   client.Player.Id,
+			EntityPos:  pos,
+			EntityTile: f64.Vec2{0, 0},
 		}
+		glm := &messages.GameLoopMessage{
+			EntityMessages: []messages.EntityMessage{
+				*em,
+			},
+		}
+
 		c.WriteJSON(glm)
 	}
 }

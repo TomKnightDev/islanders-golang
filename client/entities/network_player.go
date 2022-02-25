@@ -14,9 +14,9 @@ type NetworkPlayer struct {
 	Position  f64.Vec2
 }
 
-func NewNetworkPlayer(tilesImage *ebiten.Image) *NetworkPlayer {
+func NewNetworkPlayer(tilesImage *ebiten.Image, tile f64.Vec2) *NetworkPlayer {
 	p := &NetworkPlayer{
-		imageTile: tilesImage.SubImage(image.Rect(8, 0, 16, 8)).(*ebiten.Image),
+		imageTile: tilesImage.SubImage(image.Rect(int(tile[0]), int(tile[1]), int(tile[0])+8, int(tile[1])+8)).(*ebiten.Image),
 	}
 
 	return p

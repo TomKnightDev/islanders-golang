@@ -16,6 +16,11 @@ type ChatLoopMessage struct {
 }
 
 type GameLoopMessage struct {
-	ClientId  uint16   `json:"clientId"`
-	ClientPos f64.Vec2 `json:"clientPos"`
+	EntityMessages []EntityMessage `json:"entityMessages"`
+}
+
+type EntityMessage struct {
+	EntityId   uint16   `json:"entityId"`
+	EntityPos  f64.Vec2 `json:"entityPos"`
+	EntityTile f64.Vec2 `json:"entityTile"`
 }
