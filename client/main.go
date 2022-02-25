@@ -9,8 +9,8 @@ import (
 )
 
 var (
-	screenWidth  = 1920
-	screenHeight = 1080
+	screenWidth  = 1024
+	screenHeight = 768
 )
 
 type Entity interface {
@@ -71,7 +71,7 @@ func main() {
 			log.Fatalf("failed to connect %s to server: %s", game.playerName, err)
 		}
 		game.connected = true
-		// go chatLoop(game)
+		go chatLoop(game)
 		go gameLoop(game)
 	}()
 

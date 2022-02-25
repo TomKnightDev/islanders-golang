@@ -31,7 +31,7 @@ func (p *NetworkPlayer) Draw(screen *ebiten.Image) {
 	m := ebiten.GeoM{}
 
 	m.Translate(p.Position[0], p.Position[1])
-	m.Scale(4, 4)
+	m.Scale(2, 2)
 
 	screen.DrawImage(p.imageTile, &ebiten.DrawImageOptions{
 		GeoM: m,

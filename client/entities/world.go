@@ -29,7 +29,7 @@ func (w *World) Draw(screen *ebiten.Image) {
 			m := ebiten.GeoM{}
 
 			m.Translate(float64(x*8), float64(y*8))
-			m.Scale(4, 4)
+			m.Scale(2, 2)
 
 			sx := 6 * 8
 			sy := 4 * 8
