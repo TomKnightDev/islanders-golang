@@ -4,6 +4,7 @@ import (
 	"image"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/tomknightdev/socketio-game-test/messages"
 	"golang.org/x/image/math/f64"
 )
 
@@ -12,13 +13,13 @@ type Player struct {
 	Id        uint16
 	Username  string
 	Position  f64.Vec2
-	SendChan  chan f64.Vec2
+	SendChan  chan messages.UpdateContents
 }
 
 func NewPlayer(tilesImage *ebiten.Image) *Player {
 	p := &Player{
 		imageTile: tilesImage.SubImage(image.Rect(0, 0, 8, 8)).(*ebiten.Image),
-		SendChan:  make(chan f64.Vec2),
+		SendChan:  make(chan messages.UpdateContents),
 	}
 
 	return p
@@ -53,7 +54,10 @@ func (p *Player) Update() error {
 	p.Position[1] += y
 
 	if x != 0 || y != 0 {
-		p.SendChan <- p.Position
+		p.SendChan <- messages.UpdateContents{
+			Pos:  p.Position,
+			Tile: f64.Vec2{0, 0},
+		}
 	}
 
 	return nil

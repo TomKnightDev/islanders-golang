@@ -7,21 +7,22 @@ import (
 )
 
 type MainMenu struct {
-	mgr        *renderer.Manager
-	playerName string
-	Connect    chan string
-	connected  bool
-	server     string
+	mgr       *renderer.Manager
+	username  string
+	password  string
+	Connect   chan string
+	connected bool
+	server    string
 }
 
 func NewMainMenu(screenWidth, screenHeight int) *MainMenu {
 	mgr := renderer.New(nil)
 
 	mm := &MainMenu{
-		mgr:        mgr,
-		Connect:    make(chan string),
-		playerName: "Tom",
-		server:     "192.168.1.98:8285",
+		mgr:      mgr,
+		Connect:  make(chan string),
+		username: "Tom",
+		server:   "192.168.1.98:8285",
 	}
 
 	mm.mgr.SetDisplaySize(float32(screenWidth), float32(screenHeight))
@@ -38,10 +39,12 @@ func (mm *MainMenu) Update() error {
 	mm.mgr.BeginFrame()
 	{
 		imgui.InputText("Server", &mm.server)
-		imgui.InputText("Name", &mm.playerName)
+		imgui.InputText("Username", &mm.username)
+		imgui.InputText("Password", &mm.password)
 		if imgui.Button("Connect") {
 			mm.Connect <- mm.server
-			mm.Connect <- mm.playerName
+			mm.Connect <- mm.username
+			mm.Connect <- mm.password
 			mm.connected = true
 		}
 	}

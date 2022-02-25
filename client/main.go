@@ -8,23 +8,21 @@ import (
 	"github.com/tomknightdev/socketio-game-test/client/gui"
 )
 
-var (
-	screenWidth  = 1024
-	screenHeight = 768
-)
-
 type Entity interface {
 	Update() error
 	Draw(*ebiten.Image)
 }
 
 type Game struct {
-	playerName  string
-	serverAddr  string
-	connected   bool
-	Environment []Entity
-	Entities    []Entity
-	Player      Entity
+	username     string
+	password     string
+	serverAddr   string
+	Gui          []Entity
+	Environment  []Entity
+	Entities     []Entity
+	Player       Entity
+	screenWidth  int
+	screenHeight int
 }
 
 func (g *Game) Update() error {
@@ -32,6 +30,9 @@ func (g *Game) Update() error {
 		if err := g.Player.Update(); err != nil {
 			log.Print(err)
 		}
+	}
+	for _, gui := range g.Gui {
+		gui.Update()
 	}
 	for _, e := range g.Entities {
 		e.Update()
@@ -49,35 +50,41 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, e := range g.Entities {
 		e.Draw(screen)
 	}
+	for _, gui := range g.Gui {
+		gui.Draw(screen)
+	}
 	if g.Player != nil {
 		g.Player.Draw(screen)
 	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (sc, sh int) {
-	return screenWidth, screenHeight
+	return g.screenWidth, g.screenHeight
 }
 
 func main() {
-	game := &Game{}
+	game := &Game{
+		screenWidth:  1024,
+		screenHeight: 768,
+	}
 
-	mm := gui.NewMainMenu(screenWidth, screenHeight)
+	mm := gui.NewMainMenu(game.screenWidth, game.screenHeight)
 
 	go func() {
 		game.serverAddr = <-mm.Connect
-		game.playerName = <-mm.Connect
+		game.username = <-mm.Connect
+		game.password = <-mm.Connect
 		err := connectToServer(game)
 		if err != nil {
-			log.Fatalf("failed to connect %s to server: %s", game.playerName, err)
+			log.Fatalf("Failed to connect %s to server: %s", game.username, err)
 		}
-		game.connected = true
-		go chatLoop(game)
-		go gameLoop(game)
+		// go chatLoop(game)
+		// go gameLoop(game)
 	}()
 
-	game.Entities = append(game.Entities, mm)
+	game.Gui = append(game.Gui, mm)
 
-	ebiten.SetWindowSize(screenWidth, screenHeight)
+	ebiten.SetWindowSize(game.screenWidth, game.screenHeight)
 	ebiten.SetWindowTitle("Dungeon Crawl")
 	ebiten.SetWindowResizable(true)
 	ebiten.NewImage(256, 256)
