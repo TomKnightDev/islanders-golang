@@ -127,7 +127,7 @@ func gameLoop(g *Game) error {
 				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 					log.Printf("error: %v", err)
 				} else {
-					fmt.Printf("error in reading message: %s", err)
+					fmt.Printf("error in reading message: %v %s", err, message)
 				}
 				break
 			}

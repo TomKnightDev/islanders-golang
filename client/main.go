@@ -71,7 +71,7 @@ func main() {
 			log.Fatalf("failed to connect %s to server: %s", game.playerName, err)
 		}
 		game.connected = true
-		go chatLoop(game)
+		// go chatLoop(game)
 		go gameLoop(game)
 	}()
 

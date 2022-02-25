@@ -120,6 +120,7 @@ func gameLoop(w http.ResponseWriter, r *http.Request) {
 
 		for _, em := range gameMessage.EntityMessages {
 			client := Server.clients[em.EntityId]
+			client.mu.Lock()
 
 			if em.EntityPos[0] == -1 {
 				client.gameConnection = c
@@ -127,18 +128,20 @@ func gameLoop(w http.ResponseWriter, r *http.Request) {
 
 			// Update server side position of client
 			client.position = em.EntityPos
+			client.mu.Unlock()
 
 			for _, c := range Server.clients {
 				// This is the client sending the message
 				if c.id == client.id {
 					continue
 				}
-
+				c.mu.Lock()
 				err = c.gameConnection.WriteJSON(gameMessage)
 				if err != nil {
 					log.Println("game write:", err)
 					break
 				}
+				c.mu.Unlock()
 			}
 		}
 	}
@@ -148,7 +151,7 @@ func serverLoop() {
 	for {
 		time.Sleep(50 * time.Millisecond)
 
-		if len(Server.enemies) < 10 {
+		if len(Server.enemies) < 100 {
 			// Create enemy
 			enemy := NewEntity(f64.Vec2{0, 6 * 8}, f64.Vec2{rand.Float64() * (256 - 100), rand.Float64() * (256 - 100)})
 			Server.enemies = append(Server.enemies, enemy)
@@ -158,8 +161,11 @@ func serverLoop() {
 		glm := messages.GameLoopMessage{}
 
 		if len(Server.clients) > 0 {
+			Server.clients[0].mu.Lock()
+			pos := Server.clients[0].position
+			Server.clients[0].mu.Unlock()
 			for _, e := range Server.enemies {
-				e.Move(Server.clients[0].position)
+				e.Move(pos)
 				entityMessage := &messages.EntityMessage{
 					EntityId:   e.id,
 					EntityPos:  e.pos,
