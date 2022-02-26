@@ -15,9 +15,9 @@ import (
 
 var upgrader = websocket.Upgrader{} // use default options
 
-var Server = server{}
+var ServerInstance = &Server{}
 
-type server struct {
+type Server struct {
 	clientsById       map[uint16]*client
 	clientsByUsername map[string]*client
 	enemies           []*Entity
@@ -33,10 +33,10 @@ type client struct {
 }
 
 func init() {
-	Server.clientsById = make(map[uint16]*client)
-	Server.clientsByUsername = make(map[string]*client)
+	ServerInstance.clientsById = make(map[uint16]*client)
+	ServerInstance.clientsByUsername = make(map[string]*client)
 
-	// go serverLoop()
+	go serverLoop()
 }
 
 func connect(w http.ResponseWriter, r *http.Request) {
@@ -48,19 +48,22 @@ func connect(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	message := &messages.Message{}
+	var clientId uint16
 
 	for {
 		err := conn.ReadJSON(message)
 		if err != nil {
 			log.Println("Connect read error:", err)
+			ServerInstance.clientsById[clientId].conn = nil
 			break
 		}
 
-		log.Printf("%s message recieved: %v", message.MessageType, message)
+		// log.Printf("%s message recieved: %v", message.MessageType, message)
 
 		switch message.MessageType {
 		case messages.ConnectRequestMessage:
-			if err := connectClient(message, conn); err != nil {
+			_, err = connectClient(message, conn)
+			if err != nil {
 				conn.WriteJSON(messages.NewFailedToConnectMessage(err))
 			}
 		case messages.ChatMessage:
@@ -73,7 +76,7 @@ func connect(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func connectClient(message *messages.Message, conn *websocket.Conn) error {
+func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, error) {
 	messageContents := message.Contents.(map[string]interface{})
 
 	fmt.Printf("%v", messageContents)
@@ -82,42 +85,52 @@ func connectClient(message *messages.Message, conn *websocket.Conn) error {
 	password := messageContents["password"].(string)
 
 	// Check to see if this c has connect previously
-	c, found := Server.clientsByUsername[username]
+	c, found := ServerInstance.clientsByUsername[username]
 
 	// If the client was found, check password
 	if found {
+		c.mu.Lock()
 		if c.password != password {
-			return fmt.Errorf("incorrect password")
+			return 0, fmt.Errorf("incorrect password")
 		}
 		c.conn = conn
-		return nil
+
+		// Send reponse to client
+		conn.WriteJSON(messages.NewConnectResponseMessage(messages.ConnectResponseContents{
+			ClientId: c.id,
+			Pos:      c.position,
+		}))
+		c.mu.Unlock()
+		return c.id, nil
 	}
 
 	// Client wasn't found so create it
 	newClient := &client{
-		id:       uint16(len(Server.clientsById)),
+		id:       uint16(len(ServerInstance.clientsById)),
 		username: username,
 		password: password,
 		conn:     conn,
 	}
 
 	// Add the client to server maps
-	Server.clientsById[newClient.id] = newClient
-	Server.clientsByUsername[newClient.username] = newClient
+	ServerInstance.clientsById[newClient.id] = newClient
+	ServerInstance.clientsByUsername[newClient.username] = newClient
 
 	// Send reponse to client
-	conn.WriteJSON(messages.NewConnectResponseMessage(newClient.id))
-
-	return nil
+	conn.WriteJSON(messages.NewConnectResponseMessage(messages.ConnectResponseContents{
+		ClientId: newClient.id,
+		Pos:      f64.Vec2{1, 1},
+	}))
+	return newClient.id, nil
 }
 
 func handleChatMessage(message *messages.Message) {
-	sender := Server.clientsById[message.ClientId].username
+	sender := ServerInstance.clientsById[message.ClientId].username
 	messageContents := message.Contents.(string)
 
 	// Send the message to all clients
 	m := messages.NewChatMessage(message.ClientId, fmt.Sprintf("%s: %s", sender, messageContents))
-	for _, client := range Server.clientsByUsername {
+	for _, client := range ServerInstance.clientsById {
 		if err := client.conn.WriteJSON(m); err != nil {
 			log.Panicf("Failed to send message to: %s - %v", client.username, err)
 		}
@@ -131,7 +144,7 @@ func handleUpdateMessage(message *messages.Message) error {
 	tile := messageContents["tile"].([]interface{})
 
 	// Find the client to update
-	client, found := Server.clientsById[message.ClientId]
+	client, found := ServerInstance.clientsById[message.ClientId]
 	if !found {
 		log.Printf("Client with id %d not found", message.ClientId)
 	}
@@ -142,12 +155,14 @@ func handleUpdateMessage(message *messages.Message) error {
 	client.mu.Unlock()
 
 	// Update all the other clients
-	for _, c := range Server.clientsById {
+	for _, c := range ServerInstance.clientsById {
 		if c.id == message.ClientId {
 			continue
 		}
 
+		c.mu.Lock()
 		c.conn.WriteJSON(message)
+		c.mu.Unlock()
 	}
 
 	return nil
@@ -157,20 +172,20 @@ func serverLoop() {
 	for {
 		time.Sleep(50 * time.Millisecond)
 
-		if len(Server.enemies) < 10 {
+		if len(ServerInstance.enemies) < 100 {
 			// Create enemy
-			enemy := NewEntity(f64.Vec2{0, 6 * 8}, f64.Vec2{rand.Float64() * (256 - 100), rand.Float64() * (256 - 100)})
-			Server.enemies = append(Server.enemies, enemy)
+			enemy := NewEntity(f64.Vec2{0, 6 * 8}, f64.Vec2{rand.Float64() * (512 - 100), rand.Float64() * (512 - 100)})
+			ServerInstance.enemies = append(ServerInstance.enemies, enemy)
 		}
 
 		// Update client with enemy positions
-		message := []messages.ServerEntityUpdateContents{}
+		contents := []messages.ServerEntityUpdateContents{}
 
-		if len(Server.clientsById) > 0 {
-			pos := Server.clientsById[0].position
-			for _, e := range Server.enemies {
+		if len(ServerInstance.clientsById) > 0 {
+			pos := ServerInstance.clientsById[0].position
+			for _, e := range ServerInstance.enemies {
 				e.Move(pos)
-				message = append(message, messages.ServerEntityUpdateContents{
+				contents = append(contents, messages.ServerEntityUpdateContents{
 					EntityId: e.id,
 					Pos:      e.pos,
 					Tile:     e.tile,
@@ -178,12 +193,17 @@ func serverLoop() {
 			}
 		}
 
-		for _, c := range Server.clientsById {
+		message := messages.NewServerEntityUpdateMessage(contents)
+
+		for _, c := range ServerInstance.clientsById {
+			if c.conn == nil {
+				continue
+			}
 			c.mu.Lock()
 			err := c.conn.WriteJSON(message)
 			if err != nil {
 				log.Println("game write:", err)
-				break
+				c.conn = nil
 			}
 			c.mu.Unlock()
 		}

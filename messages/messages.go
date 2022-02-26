@@ -55,10 +55,15 @@ func NewConnectRequestMessage(connectContents ConnectRequestContents) *Message {
 	return m
 }
 
-func NewConnectResponseMessage(clientId uint16) *Message {
+type ConnectResponseContents struct {
+	ClientId uint16   `json:"clientId"`
+	Pos      f64.Vec2 `json:"pos"`
+}
+
+func NewConnectResponseMessage(contents ConnectResponseContents) *Message {
 	m := &Message{
 		MessageType: ConnectResponseMessage,
-		Contents:    clientId,
+		Contents:    contents,
 	}
 
 	return m

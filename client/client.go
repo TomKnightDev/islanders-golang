@@ -13,6 +13,7 @@ import (
 	"github.com/tomknightdev/socketio-game-test/client/entities"
 	"github.com/tomknightdev/socketio-game-test/client/gui"
 	"github.com/tomknightdev/socketio-game-test/messages"
+	"golang.org/x/image/math/f64"
 )
 
 var (
@@ -29,7 +30,7 @@ var addr string //= flag.String("addr", "localhost:8000", "http service address"
 type Client struct {
 	SendChan       chan *messages.Message
 	RecvChan       chan *messages.Message
-	NetworkPlayers []*entities.NetworkPlayer
+	NetworkPlayers map[uint16]*entities.NetworkPlayer
 	Player         *entities.Player
 }
 
@@ -39,6 +40,7 @@ var client = &Client{}
 func init() {
 	client.SendChan = make(chan *messages.Message)
 	client.RecvChan = make(chan *messages.Message)
+	client.NetworkPlayers = make(map[uint16]*entities.NetworkPlayer)
 
 	img, err := png.Decode(bytes.NewReader(characters))
 	if err != nil {
@@ -82,7 +84,7 @@ func connectToServer(g *Game) error {
 			message := &messages.Message{}
 			err := conn.ReadJSON(message)
 			if err != nil {
-				log.Println("Connect read error:", err)
+				log.Println("Read error:", err)
 				break
 			}
 
@@ -95,7 +97,9 @@ func connectToServer(g *Game) error {
 			case messages.ChatMessage:
 				receiveChatMessage(message)
 			case messages.UpdateMessage:
+				receiveUpdateMessage(message, g)
 			case messages.ServerEntityUpdateMessage:
+				receiveEntityUpdateMessage(message, g)
 			}
 		}
 	}()
@@ -110,12 +114,16 @@ func connectToServer(g *Game) error {
 }
 
 func handleConnectResponse(message *messages.Message, g *Game) {
-	// If successful, the we receive our server client id
-	messageContents := message.Contents.(float64)
+	// If successful, the we receive our server client id and spawn position
+	messageContents := message.Contents.(map[string]interface{})
+
+	clientId := messageContents["clientId"].(float64)
+	pos := messageContents["pos"].([]interface{})
 
 	client.Player = entities.NewPlayer(CharactersImage)
 	client.Player.Username = g.username
-	client.Player.Id = uint16(messageContents)
+	client.Player.Id = uint16(clientId)
+	client.Player.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
 
 	go func(client *Client) {
 		for {
@@ -140,6 +148,51 @@ func handleConnectResponse(message *messages.Message, g *Game) {
 			client.SendChan <- messages.NewChatMessage(client.Player.Id, message)
 		}
 	}(client, ChatWindow)
+}
+
+func receiveUpdateMessage(message *messages.Message, g *Game) {
+	messageContents := message.Contents.(map[string]interface{})
+
+	pos := messageContents["pos"].([]interface{})
+	tile := messageContents["tile"].([]interface{})
+
+	newtworkClient, found := client.NetworkPlayers[message.ClientId]
+
+	if found {
+		newtworkClient.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
+		newtworkClient.Tile = f64.Vec2{tile[0].(float64), tile[1].(float64)}
+		return
+	}
+
+	newtworkClient = entities.NewNetworkPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
+	newtworkClient.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
+	client.NetworkPlayers[message.ClientId] = newtworkClient
+	g.Entities[message.ClientId] = newtworkClient
+}
+
+func receiveEntityUpdateMessage(message *messages.Message, g *Game) {
+	contents := message.Contents.([]interface{})
+
+	for _, content := range contents {
+		c := content.(map[string]interface{})
+
+		entityId := c["entityId"].(interface{}).(float64)
+		pos := c["pos"].([]interface{})
+		tile := c["tile"].([]interface{})
+
+		np, found := client.NetworkPlayers[uint16(entityId)]
+
+		if found {
+			np.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
+			np.Tile = f64.Vec2{tile[0].(float64), tile[1].(float64)}
+			continue
+		}
+
+		np = entities.NewNetworkPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
+		np.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
+		client.NetworkPlayers[uint16(entityId)] = np
+		g.Entities = append(g.Entities, np)
+	}
 }
 
 func receiveChatMessage(message *messages.Message) {

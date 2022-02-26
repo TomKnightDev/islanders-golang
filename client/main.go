@@ -64,8 +64,8 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (sc, sh int) {
 
 func main() {
 	game := &Game{
-		screenWidth:  1024,
-		screenHeight: 768,
+		screenWidth:  800,
+		screenHeight: 600,
 	}
 
 	mm := gui.NewMainMenu(game.screenWidth, game.screenHeight)
@@ -87,10 +87,9 @@ func main() {
 	ebiten.SetWindowSize(game.screenWidth, game.screenHeight)
 	ebiten.SetWindowTitle("Dungeon Crawl")
 	ebiten.SetWindowResizable(true)
-	ebiten.NewImage(256, 256)
+	ebiten.NewImage(512, 512)
 
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
 	}
-
 }

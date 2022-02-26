@@ -3,15 +3,14 @@ package main
 import "golang.org/x/image/math/f64"
 
 type Entity struct {
-	id        uint16
-	tile      f64.Vec2
-	pos       f64.Vec2
-	targetPos f64.Vec2
+	id   uint16
+	tile f64.Vec2
+	pos  f64.Vec2
 }
 
 func NewEntity(tile f64.Vec2, pos f64.Vec2) *Entity {
 	e := &Entity{
-		id:   100 + uint16(len(Server.enemies)),
+		id:   100 + uint16(len(ServerInstance.enemies)),
 		tile: tile,
 		pos:  pos,
 	}
