@@ -1,10 +1,10 @@
-package entities
+package utils
 
 // import (
 // 	client "github.com/tomknightdev/socketio-game-test/client"
 // )
 
-// func RemoveEntity(game *client.Game, i int) {
+// func RemoveEntity(collection *, i int) {
 // 	if i >= len(game.Entities) {
 // 		return
 // 	}

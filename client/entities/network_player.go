@@ -12,6 +12,7 @@ type NetworkPlayer struct {
 	Id        uint16
 	Username  string
 	Position  f64.Vec2
+	Tile      f64.Vec2
 }
 
 func NewNetworkPlayer(tilesImage *ebiten.Image, tile f64.Vec2) *NetworkPlayer {
