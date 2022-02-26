@@ -156,12 +156,14 @@ func handleUpdateMessage(message *messages.Message) error {
 
 	// Update all the other clients
 	for _, c := range ServerInstance.clientsById {
-		if c.id == message.ClientId {
+		if c.id == message.ClientId || c.conn == nil {
 			continue
 		}
 
 		c.mu.Lock()
-		c.conn.WriteJSON(message)
+		if err := c.conn.WriteJSON(message); err != nil {
+			return err
+		}
 		c.mu.Unlock()
 	}
 
