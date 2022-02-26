@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -37,7 +36,7 @@ func init() {
 	Server.clientsById = make(map[uint16]*client)
 	Server.clientsByUsername = make(map[string]*client)
 
-	go serverLoop()
+	// go serverLoop()
 }
 
 func connect(w http.ResponseWriter, r *http.Request) {
@@ -48,17 +47,13 @@ func connect(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
+	message := &messages.Message{}
+
 	for {
-		_, readMessage, err := conn.ReadMessage()
+		err := conn.ReadJSON(message)
 		if err != nil {
 			log.Println("Connect read error:", err)
 			break
-		}
-
-		var message = &messages.Message{}
-		if err = json.Unmarshal(readMessage, message); err != nil {
-			log.Print(err)
-			continue
 		}
 
 		log.Printf("%s message recieved: %v", message.MessageType, message)
@@ -79,14 +74,19 @@ func connect(w http.ResponseWriter, r *http.Request) {
 }
 
 func connectClient(message *messages.Message, conn *websocket.Conn) error {
-	messageContents := message.Contents.(*messages.ConnectRequestContents)
+	messageContents := message.Contents.(map[string]interface{})
+
+	fmt.Printf("%v", messageContents)
+
+	username := messageContents["username"].(string)
+	password := messageContents["password"].(string)
 
 	// Check to see if this c has connect previously
-	c, found := Server.clientsByUsername[messageContents.Username]
+	c, found := Server.clientsByUsername[username]
 
 	// If the client was found, check password
 	if found {
-		if c.password != messageContents.Password {
+		if c.password != password {
 			return fmt.Errorf("incorrect password")
 		}
 		c.conn = conn
@@ -96,8 +96,9 @@ func connectClient(message *messages.Message, conn *websocket.Conn) error {
 	// Client wasn't found so create it
 	newClient := &client{
 		id:       uint16(len(Server.clientsById)),
-		username: messageContents.Username,
-		password: messageContents.Password,
+		username: username,
+		password: password,
+		conn:     conn,
 	}
 
 	// Add the client to server maps
@@ -115,15 +116,19 @@ func handleChatMessage(message *messages.Message) {
 	messageContents := message.Contents.(string)
 
 	// Send the message to all clients
+	m := messages.NewChatMessage(message.ClientId, fmt.Sprintf("%s: %s", sender, messageContents))
 	for _, client := range Server.clientsByUsername {
-		if err := client.conn.WriteJSON(messages.NewChatMessage(message.ClientId, fmt.Sprintf("%s: %s", sender, messageContents))); err != nil {
+		if err := client.conn.WriteJSON(m); err != nil {
 			log.Panicf("Failed to send message to: %s - %v", client.username, err)
 		}
 	}
 }
 
-func handleUpdateMessage(message *messages.Message) {
-	messageContents := message.Contents.(messages.UpdateContents)
+func handleUpdateMessage(message *messages.Message) error {
+	messageContents := message.Contents.(map[string]interface{})
+
+	pos := messageContents["pos"].([]interface{})
+	tile := messageContents["tile"].([]interface{})
 
 	// Find the client to update
 	client, found := Server.clientsById[message.ClientId]
@@ -132,8 +137,8 @@ func handleUpdateMessage(message *messages.Message) {
 	}
 
 	client.mu.Lock()
-	client.position = messageContents.Pos
-	client.tile = messageContents.Tile
+	client.position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
+	client.tile = f64.Vec2{tile[0].(float64), tile[1].(float64)}
 	client.mu.Unlock()
 
 	// Update all the other clients
@@ -144,6 +149,8 @@ func handleUpdateMessage(message *messages.Message) {
 
 		c.conn.WriteJSON(message)
 	}
+
+	return nil
 }
 
 func serverLoop() {

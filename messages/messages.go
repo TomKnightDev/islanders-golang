@@ -27,7 +27,7 @@ import "golang.org/x/image/math/f64"
 
 type MessageType string
 
-var (
+const (
 	ConnectRequestMessage     MessageType = "connectRequestMessage"
 	ConnectResponseMessage    MessageType = "connectResponseMessage"
 	FailedToConnectMessage    MessageType = "failedToConnectMessage"

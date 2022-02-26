@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	_ "embed"
-	"encoding/json"
 	"fmt"
 	"image/png"
 	"log"
@@ -35,7 +34,7 @@ type Client struct {
 }
 
 var ChatWindow = &gui.Chat{}
-var client = Client{}
+var client = &Client{}
 
 func init() {
 	client.SendChan = make(chan *messages.Message)
@@ -80,15 +79,11 @@ func connectToServer(g *Game) error {
 	// Receive
 	go func() {
 		for {
-			_, readMessage, err := conn.ReadMessage()
-			if err != nil {
-				log.Printf("Failed to read message: %v", err)
-				continue
-			}
-
 			message := &messages.Message{}
-			if err = json.Unmarshal(readMessage, message); err != nil {
-				log.Printf("Failed to unmarshal message: %v", err)
+			err := conn.ReadJSON(message)
+			if err != nil {
+				log.Println("Connect read error:", err)
+				break
 			}
 
 			switch message.MessageType {
@@ -116,15 +111,17 @@ func connectToServer(g *Game) error {
 
 func handleConnectResponse(message *messages.Message, g *Game) {
 	// If successful, the we receive our server client id
-	messageContents := message.Contents.(uint16)
+	messageContents := message.Contents.(float64)
 
 	client.Player = entities.NewPlayer(CharactersImage)
 	client.Player.Username = g.username
-	client.Player.Id = messageContents
+	client.Player.Id = uint16(messageContents)
 
-	go func(client Client) {
-		message := <-client.Player.SendChan
-		client.SendChan <- messages.NewUpdateMessage(client.Player.Id, message)
+	go func(client *Client) {
+		for {
+			message := <-client.Player.SendChan
+			client.SendChan <- messages.NewUpdateMessage(client.Player.Id, message)
+		}
 	}(client)
 
 	g.Player = client.Player
@@ -137,9 +134,11 @@ func handleConnectResponse(message *messages.Message, g *Game) {
 	g.Gui = append(g.Gui, ChatWindow)
 
 	// Messages from chat send channel will be forwarded to the client send channel
-	go func(client Client, chat *gui.Chat) {
-		message := <-chat.SendChan
-		client.SendChan <- messages.NewChatMessage(client.Player.Id, message)
+	go func(client *Client, chat *gui.Chat) {
+		for {
+			message := <-chat.SendChan
+			client.SendChan <- messages.NewChatMessage(client.Player.Id, message)
+		}
 	}(client, ChatWindow)
 }
 
