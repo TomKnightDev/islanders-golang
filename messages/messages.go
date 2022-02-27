@@ -2,29 +2,6 @@ package messages
 
 import "golang.org/x/image/math/f64"
 
-// type ConnectRequest struct {
-// 	Username string `json:"username"`
-// }
-
-// type ConnectResponse struct {
-// 	ClientId uint16 `json:"clientId"`
-// }
-
-// type ChatLoopMessage struct {
-// 	ClientId uint16 `json:"clientId"`
-// 	Message  string `json:"message"`
-// }
-
-// type GameLoopMessage struct {
-// 	EntityMessages []EntityMessage `json:"entityMessages"`
-// }
-
-// type EntityMessage struct {
-// 	EntityId   uint16   `json:"entityId"`
-// 	EntityPos  f64.Vec2 `json:"entityPos"`
-// 	EntityTile f64.Vec2 `json:"entityTile"`
-// }
-
 type MessageType string
 
 const (
@@ -58,6 +35,7 @@ func NewConnectRequestMessage(connectContents ConnectRequestContents) *Message {
 type ConnectResponseContents struct {
 	ClientId uint16   `json:"clientId"`
 	Pos      f64.Vec2 `json:"pos"`
+	Tile     f64.Vec2 `json:"tile"`
 }
 
 func NewConnectResponseMessage(contents ConnectResponseContents) *Message {
@@ -89,8 +67,9 @@ func NewChatMessage(clientId uint16, message string) *Message {
 }
 
 type UpdateContents struct {
-	Pos  f64.Vec2 `json:"pos"`
-	Tile f64.Vec2 `json:"tile"`
+	Pos          f64.Vec2 `json:"pos"`
+	Tile         f64.Vec2 `json:"tile"`
+	Disconnected bool     `json:"disconnected"`
 }
 
 func NewUpdateMessage(clientId uint16, contents UpdateContents) *Message {

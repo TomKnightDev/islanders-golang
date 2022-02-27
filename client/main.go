@@ -19,7 +19,7 @@ type Game struct {
 	serverAddr   string
 	Gui          []Entity
 	Environment  []Entity
-	Entities     []Entity
+	Entities     map[uint16]Entity
 	Player       Entity
 	screenWidth  int
 	screenHeight int
@@ -66,6 +66,7 @@ func main() {
 	game := &Game{
 		screenWidth:  800,
 		screenHeight: 600,
+		Entities:     make(map[uint16]Entity),
 	}
 
 	mm := gui.NewMainMenu(game.screenWidth, game.screenHeight)

@@ -54,7 +54,7 @@ func connect(w http.ResponseWriter, r *http.Request) {
 		err := conn.ReadJSON(message)
 		if err != nil {
 			log.Println("Connect read error:", err)
-			ServerInstance.clientsById[clientId].conn = nil
+			disconnectClient(clientId)
 			break
 		}
 
@@ -62,7 +62,7 @@ func connect(w http.ResponseWriter, r *http.Request) {
 
 		switch message.MessageType {
 		case messages.ConnectRequestMessage:
-			_, err = connectClient(message, conn)
+			clientId, err = connectClient(message, conn)
 			if err != nil {
 				conn.WriteJSON(messages.NewFailedToConnectMessage(err))
 			}
@@ -101,6 +101,12 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 			Pos:      c.position,
 		}))
 		c.mu.Unlock()
+
+		// Update all other clients
+		handleUpdateMessage(messages.NewUpdateMessage(c.id, messages.UpdateContents{
+			Pos:  c.position,
+			Tile: c.tile,
+		}))
 		return c.id, nil
 	}
 
@@ -120,7 +126,15 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 	conn.WriteJSON(messages.NewConnectResponseMessage(messages.ConnectResponseContents{
 		ClientId: newClient.id,
 		Pos:      f64.Vec2{1, 1},
+		Tile:     f64.Vec2{0, 0},
 	}))
+
+	// Update all other clients
+	sendUpdateToClients(messages.NewUpdateMessage(newClient.id, messages.UpdateContents{
+		Pos:  f64.Vec2{1, 1},
+		Tile: f64.Vec2{0, 0},
+	}))
+
 	return newClient.id, nil
 }
 
@@ -154,6 +168,12 @@ func handleUpdateMessage(message *messages.Message) error {
 	client.tile = f64.Vec2{tile[0].(float64), tile[1].(float64)}
 	client.mu.Unlock()
 
+	sendUpdateToClients(message)
+
+	return nil
+}
+
+func sendUpdateToClients(message *messages.Message) error {
 	// Update all the other clients
 	for _, c := range ServerInstance.clientsById {
 		if c.id == message.ClientId || c.conn == nil {
@@ -166,7 +186,6 @@ func handleUpdateMessage(message *messages.Message) error {
 		}
 		c.mu.Unlock()
 	}
-
 	return nil
 }
 
@@ -205,103 +224,35 @@ func serverLoop() {
 			err := c.conn.WriteJSON(message)
 			if err != nil {
 				log.Println("game write:", err)
-				c.conn = nil
+				disconnectClient(c.id)
 			}
 			c.mu.Unlock()
 		}
 	}
 }
 
-// func gameLoop(w http.ResponseWriter, r *http.Request) {
-// 	c, err := upgrader.Upgrade(w, r, nil)
-// 	if err != nil {
-// 		log.Print("upgrade:", err)
-// 		return
-// 	}
-// 	defer c.Close()
+func disconnectClient(clientId uint16) {
+	client, found := ServerInstance.clientsById[clientId]
 
-// 	for {
-// 		_, message, err := c.ReadMessage()
-// 		if err != nil {
-// 			log.Println("game read:", err)
-// 			break
-// 		}
+	if !found {
+		log.Printf("Client %d not found", clientId)
+	}
 
-// 		var gameMessage = &messages.GameLoopMessage{}
-// 		if err = json.Unmarshal(message, gameMessage); err != nil {
-// 			log.Print(err)
-// 			continue
-// 		}
+	client.mu.Lock()
+	client.conn = nil
+	client.mu.Unlock()
 
-// 		for _, em := range gameMessage.EntityMessages {
-// 			client := Server.clients[em.EntityId]
-// 			client.mu.Lock()
+	// Update all the other clients
+	message := messages.NewUpdateMessage(clientId, messages.UpdateContents{
+		Disconnected: true,
+	})
 
-// 			if em.EntityPos[0] == -1 {
-// 				client.gameConnection = c
-// 			}
-
-// 			// Update server side position of client
-// 			client.position = em.EntityPos
-// 			client.mu.Unlock()
-
-// 			for _, c := range Server.clients {
-// 				// This is the client sending the message
-// 				if c.id == client.id {
-// 					continue
-// 				}
-// 				c.mu.Lock()
-// 				err = c.gameConnection.WriteJSON(gameMessage)
-// 				if err != nil {
-// 					log.Println("game write:", err)
-// 					break
-// 				}
-// 				c.mu.Unlock()
-// 			}
-// 		}
-// 	}
-// }
-
-// func chatLoop(w http.ResponseWriter, r *http.Request) {
-// 	c, err := upgrader.Upgrade(w, r, nil)
-// 	if err != nil {
-// 		log.Print("upgrade:", err)
-// 		return
-// 	}
-// 	defer c.Close()
-
-// 	for {
-// 		_, message, err := c.ReadMessage()
-// 		if err != nil {
-// 			log.Println("game read:", err)
-// 			break
-// 		}
-
-// 		var chatMessage = &messages.ChatLoopMessage{}
-// 		if err = json.Unmarshal(message, chatMessage); err != nil {
-// 			log.Print(err)
-// 			continue
-// 		}
-
-// 		log.Printf("game recv: %s", message)
-
-// 		if chatMessage.Message == "connected" {
-// 			cc := Server.clients[chatMessage.ClientId]
-// 			if err != nil {
-// 				fmt.Print(err)
-// 				continue
-// 			}
-// 			cc.mu.Lock()
-// 			cc.chatConnection = c
-// 			cc.mu.Unlock()
-// 		}
-
-// 		for _, client := range Server.clients {
-// 			err = client.chatConnection.WriteJSON(chatMessage)
-// 			if err != nil {
-// 				log.Println("game write:", err)
-// 				break
-// 			}
-// 		}
-// 	}
-// }
+	for _, c := range ServerInstance.clientsById {
+		if c.conn == nil {
+			continue
+		}
+		c.mu.Lock()
+		c.conn.WriteJSON(message)
+		c.mu.Unlock()
+	}
+}

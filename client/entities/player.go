@@ -16,9 +16,9 @@ type Player struct {
 	SendChan  chan messages.UpdateContents
 }
 
-func NewPlayer(tilesImage *ebiten.Image) *Player {
+func NewPlayer(tilesImage *ebiten.Image, tile f64.Vec2) *Player {
 	p := &Player{
-		imageTile: tilesImage.SubImage(image.Rect(0, 0, 8, 8)).(*ebiten.Image),
+		imageTile: tilesImage.SubImage(image.Rect(int(tile[0]), int(tile[1]), int(tile[0])+8, int(tile[0])+8)).(*ebiten.Image),
 		SendChan:  make(chan messages.UpdateContents),
 	}
 

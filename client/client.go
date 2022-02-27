@@ -119,8 +119,9 @@ func handleConnectResponse(message *messages.Message, g *Game) {
 
 	clientId := messageContents["clientId"].(float64)
 	pos := messageContents["pos"].([]interface{})
+	tile := messageContents["tile"].([]interface{})
 
-	client.Player = entities.NewPlayer(CharactersImage)
+	client.Player = entities.NewPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
 	client.Player.Username = g.username
 	client.Player.Id = uint16(clientId)
 	client.Player.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
@@ -136,7 +137,7 @@ func handleConnectResponse(message *messages.Message, g *Game) {
 
 	// Now logged in, build world
 	world := entities.NewWorld(EnvironmentsImage)
-	g.Environment = append(g.Entities, world)
+	g.Environment = append(g.Environment, world)
 
 	ChatWindow = gui.NewChat(g.screenWidth, g.screenHeight)
 	g.Gui = append(g.Gui, ChatWindow)
@@ -152,6 +153,13 @@ func handleConnectResponse(message *messages.Message, g *Game) {
 
 func receiveUpdateMessage(message *messages.Message, g *Game) {
 	messageContents := message.Contents.(map[string]interface{})
+
+	disconnected := messageContents["disconnected"].(bool)
+
+	if disconnected {
+		removeNetworkPlayer(message.ClientId, g)
+		return
+	}
 
 	pos := messageContents["pos"].([]interface{})
 	tile := messageContents["tile"].([]interface{})
@@ -191,7 +199,7 @@ func receiveEntityUpdateMessage(message *messages.Message, g *Game) {
 		np = entities.NewNetworkPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
 		np.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
 		client.NetworkPlayers[uint16(entityId)] = np
-		g.Entities = append(g.Entities, np)
+		g.Entities[uint16(entityId)] = np
 	}
 }
 
@@ -199,4 +207,9 @@ func receiveChatMessage(message *messages.Message) {
 	messageContents := message.Contents.(string)
 
 	ChatWindow.RecvMessages = append(ChatWindow.RecvMessages, messageContents)
+}
+
+func removeNetworkPlayer(clientId uint16, g *Game) {
+	delete(g.Entities, clientId)
+	delete(client.NetworkPlayers, clientId)
 }
