@@ -7,12 +7,13 @@ import (
 )
 
 type MainMenu struct {
-	mgr       *renderer.Manager
-	username  string
-	password  string
-	Connect   chan string
-	connected bool
-	server    string
+	mgr             *renderer.Manager
+	username        string
+	password        string
+	Connect         chan string
+	Connected       bool
+	server          string
+	FailedToConnect []string
 }
 
 func NewMainMenu(screenWidth, screenHeight int) *MainMenu {
@@ -31,13 +32,22 @@ func NewMainMenu(screenWidth, screenHeight int) *MainMenu {
 }
 
 func (mm *MainMenu) Update() error {
-	if mm.connected {
+	if mm.Connected {
 		return nil
 	}
 
 	mm.mgr.Update(1.0 / 60.0)
 	mm.mgr.BeginFrame()
 	{
+		flags := imgui.WindowFlagsNone
+		// flags |= imgui.WindowFlagsNoTitleBar
+		flags |= imgui.WindowFlagsNoResize
+		flags |= imgui.WindowFlagsNoCollapse
+
+		imgui.SetNextWindowPos(imgui.Vec2{100, 100})
+		imgui.SetNextWindowSize(imgui.Vec2{600, 400})
+		imgui.BeginV("Main Menu", nil, flags)
+
 		imgui.InputText("Server", &mm.server)
 		imgui.InputText("Username", &mm.username)
 		imgui.InputText("Password", &mm.password)
@@ -45,8 +55,11 @@ func (mm *MainMenu) Update() error {
 			mm.Connect <- mm.server
 			mm.Connect <- mm.username
 			mm.Connect <- mm.password
-			mm.connected = true
 		}
+		for _, m := range mm.FailedToConnect {
+			imgui.Text(m)
+		}
+		imgui.End()
 	}
 	mm.mgr.EndFrame()
 

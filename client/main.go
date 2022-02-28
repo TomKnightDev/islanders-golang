@@ -14,15 +14,16 @@ type Entity interface {
 }
 
 type Game struct {
-	username     string
-	password     string
-	serverAddr   string
-	Gui          []Entity
-	Environment  []Entity
-	Entities     map[uint16]Entity
-	Player       Entity
-	screenWidth  int
-	screenHeight int
+	username             string
+	password             string
+	serverAddr           string
+	Gui                  []Entity
+	Environment          []Entity
+	Entities             map[uint16]Entity
+	Player               Entity
+	screenWidth          int
+	screenHeight         int
+	ConnectFailedMessage chan string
 }
 
 func (g *Game) Update() error {
@@ -64,12 +65,18 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (sc, sh int) {
 
 func main() {
 	game := &Game{
-		screenWidth:  800,
-		screenHeight: 600,
-		Entities:     make(map[uint16]Entity),
+		screenWidth:          800,
+		screenHeight:         600,
+		Entities:             make(map[uint16]Entity),
+		ConnectFailedMessage: make(chan string),
 	}
 
 	mm := gui.NewMainMenu(game.screenWidth, game.screenHeight)
+
+	go func() {
+		m := <-game.ConnectFailedMessage
+		mm.FailedToConnect = append(mm.FailedToConnect, m)
+	}()
 
 	go func() {
 		game.serverAddr = <-mm.Connect

@@ -7,6 +7,7 @@ import (
 	"image/png"
 	"log"
 	"net/url"
+	"reflect"
 
 	"github.com/gorilla/websocket"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -85,21 +86,26 @@ func connectToServer(g *Game) error {
 			err := conn.ReadJSON(message)
 			if err != nil {
 				log.Println("Read error:", err)
-				break
 			}
 
 			switch message.MessageType {
 			case messages.ConnectResponseMessage:
 				handleConnectResponse(message, g)
+				removeGui(&gui.MainMenu{}, g)
 			case messages.FailedToConnectMessage:
-				err := message.Contents.(error)
-				log.Printf("Failed to connect to server: %v", err)
+				messageContents := message.Contents.(string)
+				g.ConnectFailedMessage <- messageContents
+				err = fmt.Errorf("failed to connect")
 			case messages.ChatMessage:
 				receiveChatMessage(message)
 			case messages.UpdateMessage:
 				receiveUpdateMessage(message, g)
 			case messages.ServerEntityUpdateMessage:
 				receiveEntityUpdateMessage(message, g)
+			}
+
+			if err != nil {
+				break
 			}
 		}
 	}()
@@ -212,4 +218,18 @@ func receiveChatMessage(message *messages.Message) {
 func removeNetworkPlayer(clientId uint16, g *Game) {
 	delete(g.Entities, clientId)
 	delete(client.NetworkPlayers, clientId)
+}
+
+func removeGui(guiType Entity, g *Game) {
+	gt := reflect.TypeOf(guiType)
+
+	index := 0
+
+	for i, g := range g.Gui {
+		if gt == reflect.TypeOf(g) {
+			index = i
+		}
+	}
+
+	g.Gui = append(g.Gui[:index], g.Gui[index+1:]...)
 }

@@ -36,7 +36,7 @@ func init() {
 	ServerInstance.clientsById = make(map[uint16]*client)
 	ServerInstance.clientsByUsername = make(map[string]*client)
 
-	go serverLoop()
+	// go serverLoop()
 }
 
 func connect(w http.ResponseWriter, r *http.Request) {
@@ -64,7 +64,8 @@ func connect(w http.ResponseWriter, r *http.Request) {
 		case messages.ConnectRequestMessage:
 			clientId, err = connectClient(message, conn)
 			if err != nil {
-				conn.WriteJSON(messages.NewFailedToConnectMessage(err))
+				conn.WriteJSON(messages.NewFailedToConnectMessage(err.Error()))
+				conn.Close()
 			}
 		case messages.ChatMessage:
 			handleChatMessage(message)
@@ -89,18 +90,28 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 
 	// If the client was found, check password
 	if found {
-		c.mu.Lock()
 		if c.password != password {
 			return 0, fmt.Errorf("incorrect password")
 		}
+		c.mu.Lock()
 		c.conn = conn
 
 		// Send reponse to client
 		conn.WriteJSON(messages.NewConnectResponseMessage(messages.ConnectResponseContents{
 			ClientId: c.id,
 			Pos:      c.position,
+			Tile:     c.tile,
 		}))
 		c.mu.Unlock()
+
+		// Update client of all other clients
+		for _, oc := range ServerInstance.clientsById {
+			conn.WriteJSON(messages.NewUpdateMessage(oc.id, messages.UpdateContents{
+				Pos:          oc.position,
+				Tile:         oc.tile,
+				Disconnected: oc.conn == nil,
+			}))
+		}
 
 		// Update all other clients
 		handleUpdateMessage(messages.NewUpdateMessage(c.id, messages.UpdateContents{
@@ -128,6 +139,18 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 		Pos:      f64.Vec2{1, 1},
 		Tile:     f64.Vec2{0, 0},
 	}))
+
+	// Update client of all other clients
+	for _, oc := range ServerInstance.clientsById {
+		if oc.id == newClient.id {
+			continue
+		}
+		conn.WriteJSON(messages.NewUpdateMessage(oc.id, messages.UpdateContents{
+			Pos:          oc.position,
+			Tile:         oc.tile,
+			Disconnected: oc.conn == nil,
+		}))
+	}
 
 	// Update all other clients
 	sendUpdateToClients(messages.NewUpdateMessage(newClient.id, messages.UpdateContents{
@@ -191,7 +214,7 @@ func sendUpdateToClients(message *messages.Message) error {
 
 func serverLoop() {
 	for {
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(25 * time.Millisecond)
 
 		if len(ServerInstance.enemies) < 100 {
 			// Create enemy

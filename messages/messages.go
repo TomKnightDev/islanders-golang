@@ -47,7 +47,7 @@ func NewConnectResponseMessage(contents ConnectResponseContents) *Message {
 	return m
 }
 
-func NewFailedToConnectMessage(failedMessage error) *Message {
+func NewFailedToConnectMessage(failedMessage string) *Message {
 	m := &Message{
 		MessageType: FailedToConnectMessage,
 		Contents:    failedMessage,
