@@ -70,6 +70,7 @@ type UpdateContents struct {
 	Pos          f64.Vec2 `json:"pos"`
 	Tile         f64.Vec2 `json:"tile"`
 	Disconnected bool     `json:"disconnected"`
+	Username     string   `json:"username"`
 }
 
 func NewUpdateMessage(clientId uint16, contents UpdateContents) *Message {

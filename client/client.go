@@ -173,19 +173,21 @@ func receiveUpdateMessage(message *messages.Message, g *Game) {
 
 	pos := messageContents["pos"].([]interface{})
 	tile := messageContents["tile"].([]interface{})
+	username := messageContents["username"].(string)
 
-	newtworkClient, found := client.NetworkPlayers[message.ClientId]
+	networkClient, found := client.NetworkPlayers[message.ClientId]
 
 	if found {
-		newtworkClient.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
-		newtworkClient.Tile = f64.Vec2{tile[0].(float64), tile[1].(float64)}
+		networkClient.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
+		networkClient.Tile = f64.Vec2{tile[0].(float64), tile[1].(float64)}
 		return
 	}
 
-	newtworkClient = entities.NewNetworkPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
-	newtworkClient.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
-	client.NetworkPlayers[message.ClientId] = newtworkClient
-	g.Entities[message.ClientId] = newtworkClient
+	networkClient = entities.NewNetworkPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
+	networkClient.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
+	networkClient.Username = username
+	client.NetworkPlayers[message.ClientId] = networkClient
+	g.Entities[message.ClientId] = networkClient
 }
 
 func receiveEntityUpdateMessage(message *messages.Message, g *Game) {

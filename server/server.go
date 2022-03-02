@@ -113,13 +113,15 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 				Pos:          oc.position,
 				Tile:         oc.tile,
 				Disconnected: oc.conn == nil,
+				Username:     oc.username,
 			}))
 		}
 
 		// Update all other clients
 		sendUpdateToClients(messages.NewUpdateMessage(c.id, messages.UpdateContents{
-			Pos:  c.position,
-			Tile: c.tile,
+			Pos:      c.position,
+			Tile:     c.tile,
+			Username: c.username,
 		}))
 		return c.id, nil
 	}
@@ -152,13 +154,15 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 			Pos:          oc.position,
 			Tile:         oc.tile,
 			Disconnected: oc.conn == nil,
+			Username:     oc.username,
 		}))
 	}
 
 	// Update all other clients
 	sendUpdateToClients(messages.NewUpdateMessage(newClient.id, messages.UpdateContents{
-		Pos:  f64.Vec2{1, 1},
-		Tile: f64.Vec2{0, 0},
+		Pos:      f64.Vec2{1, 1},
+		Tile:     f64.Vec2{0, 0},
+		Username: newClient.username,
 	}))
 
 	return newClient.id, nil

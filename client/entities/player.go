@@ -2,10 +2,20 @@ package entities
 
 import (
 	"image"
+	"image/color"
+	"log"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
+	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/tomknightdev/socketio-game-test/messages"
+	"golang.org/x/image/font"
+	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/f64"
+)
+
+var (
+	mplusNormalFont font.Face
 )
 
 type Player struct {
@@ -14,6 +24,23 @@ type Player struct {
 	Username  string
 	Position  f64.Vec2
 	SendChan  chan messages.UpdateContents
+}
+
+func init() {
+	tt, err := opentype.Parse(fonts.MPlus1pRegular_ttf)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	const dpi = 72
+	mplusNormalFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
+		Size:    12,
+		DPI:     dpi,
+		Hinting: font.HintingFull,
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func NewPlayer(tilesImage *ebiten.Image, tile f64.Vec2) *Player {
@@ -72,4 +99,7 @@ func (p *Player) Draw(screen *ebiten.Image) {
 	screen.DrawImage(p.imageTile, &ebiten.DrawImageOptions{
 		GeoM: m,
 	})
+
+	text.Draw(screen, p.Username, mplusNormalFont, int(p.Position[0]-2)*2, int(p.Position[1]-2)*2, color.White)
+
 }
