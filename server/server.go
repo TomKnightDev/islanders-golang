@@ -36,7 +36,7 @@ func init() {
 	ServerInstance.clientsById = make(map[uint16]*client)
 	ServerInstance.clientsByUsername = make(map[string]*client)
 
-	// go serverLoop()
+	go serverLoop()
 }
 
 func connect(w http.ResponseWriter, r *http.Request) {
@@ -106,6 +106,9 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 
 		// Update client of all other clients
 		for _, oc := range ServerInstance.clientsById {
+			if oc.id == c.id {
+				continue
+			}
 			conn.WriteJSON(messages.NewUpdateMessage(oc.id, messages.UpdateContents{
 				Pos:          oc.position,
 				Tile:         oc.tile,
@@ -114,7 +117,7 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 		}
 
 		// Update all other clients
-		handleUpdateMessage(messages.NewUpdateMessage(c.id, messages.UpdateContents{
+		sendUpdateToClients(messages.NewUpdateMessage(c.id, messages.UpdateContents{
 			Pos:  c.position,
 			Tile: c.tile,
 		}))

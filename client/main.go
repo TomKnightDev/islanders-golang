@@ -74,20 +74,24 @@ func main() {
 	mm := gui.NewMainMenu(game.screenWidth, game.screenHeight)
 
 	go func() {
-		m := <-game.ConnectFailedMessage
-		mm.FailedToConnect = append(mm.FailedToConnect, m)
+		for {
+			m := <-game.ConnectFailedMessage
+			mm.FailedToConnect = append(mm.FailedToConnect, m)
+		}
 	}()
 
 	go func() {
-		game.serverAddr = <-mm.Connect
-		game.username = <-mm.Connect
-		game.password = <-mm.Connect
-		err := connectToServer(game)
-		if err != nil {
-			log.Fatalf("Failed to connect %s to server: %s", game.username, err)
+		for {
+			game.serverAddr = <-mm.Connect
+			game.username = <-mm.Connect
+			game.password = <-mm.Connect
+			err := connectToServer(game)
+			if err != nil {
+				log.Printf("Failed to connect %s to server: %s", game.username, err)
+			} else {
+				return
+			}
 		}
-		// go chatLoop(game)
-		// go gameLoop(game)
 	}()
 
 	game.Gui = append(game.Gui, mm)

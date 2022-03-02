@@ -12,8 +12,6 @@ var addr = flag.String("addr", GetOutboundIP().String()+":8285", "http service a
 
 func main() {
 	http.HandleFunc("/connect", connect)
-	// http.HandleFunc("/chat", chatLoop)
-	// http.HandleFunc("/game", gameLoop)
 
 	fmt.Printf(*addr)
 	log.Fatal(http.ListenAndServe(*addr, nil))

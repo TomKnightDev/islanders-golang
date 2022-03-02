@@ -39,8 +39,7 @@ var ChatWindow = &gui.Chat{}
 var client = &Client{}
 
 func init() {
-	client.SendChan = make(chan *messages.Message)
-	client.RecvChan = make(chan *messages.Message)
+
 	client.NetworkPlayers = make(map[uint16]*entities.NetworkPlayer)
 
 	img, err := png.Decode(bytes.NewReader(characters))
@@ -58,6 +57,9 @@ func init() {
 
 func connectToServer(g *Game) error {
 	fmt.Println("Client starting...")
+
+	client.SendChan = make(chan *messages.Message)
+	client.RecvChan = make(chan *messages.Message)
 
 	addr = g.serverAddr
 
@@ -95,7 +97,9 @@ func connectToServer(g *Game) error {
 			case messages.FailedToConnectMessage:
 				messageContents := message.Contents.(string)
 				g.ConnectFailedMessage <- messageContents
-				err = fmt.Errorf("failed to connect")
+				client.SendChan <- messages.NewFailedToConnectMessage(messageContents)
+				log.Printf("failed to connect: %s", messageContents)
+				return
 			case messages.ChatMessage:
 				receiveChatMessage(message)
 			case messages.UpdateMessage:
@@ -104,15 +108,15 @@ func connectToServer(g *Game) error {
 				receiveEntityUpdateMessage(message, g)
 			}
 
-			if err != nil {
-				break
-			}
 		}
 	}()
 
 	// Send
 	for {
 		message := <-client.SendChan
+		if message.MessageType == messages.FailedToConnectMessage {
+			return fmt.Errorf("failed to connect: %v", message)
+		}
 		if err := conn.WriteJSON(message); err != nil {
 			log.Printf("Failed to send message: %v - %v", message, err)
 		}
