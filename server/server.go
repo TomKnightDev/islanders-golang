@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/solarlune/resolv"
 	"github.com/tomknightdev/socketio-game-test/messages"
 	"golang.org/x/image/math/f64"
 )
@@ -21,6 +22,7 @@ type Server struct {
 	clientsById       map[uint16]*client
 	clientsByUsername map[string]*client
 	enemies           []*Entity
+	Space             *resolv.Space
 }
 type client struct {
 	id       uint16
@@ -30,11 +32,13 @@ type client struct {
 	tile     f64.Vec2
 	mu       sync.Mutex
 	conn     *websocket.Conn
+	collider *resolv.Object
 }
 
 func init() {
 	ServerInstance.clientsById = make(map[uint16]*client)
 	ServerInstance.clientsByUsername = make(map[string]*client)
+	ServerInstance.Space = resolv.NewSpace(512, 512, 8, 8)
 
 	go serverLoop()
 }
@@ -132,7 +136,10 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 		username: username,
 		password: password,
 		conn:     conn,
+		collider: resolv.NewObject(1, 1, 16, 16),
 	}
+
+	ServerInstance.Space.Add(newClient.collider)
 
 	// Add the client to server maps
 	ServerInstance.clientsById[newClient.id] = newClient
@@ -227,6 +234,7 @@ func serverLoop() {
 			// Create enemy
 			enemy := NewEntity(f64.Vec2{0, 6 * 8}, f64.Vec2{rand.Float64() * (512 - 100), rand.Float64() * (512 - 100)})
 			ServerInstance.enemies = append(ServerInstance.enemies, enemy)
+			ServerInstance.Space.Add(enemy.collider)
 		}
 
 		// Update client with enemy positions

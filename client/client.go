@@ -196,7 +196,7 @@ func receiveEntityUpdateMessage(message *messages.Message, g *Game) {
 	for _, content := range contents {
 		c := content.(map[string]interface{})
 
-		entityId := c["entityId"].(interface{}).(float64)
+		entityId := c["entityId"].(float64)
 		pos := c["pos"].([]interface{})
 		tile := c["tile"].([]interface{})
 

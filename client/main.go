@@ -65,8 +65,8 @@ func (g *Game) Layout(outsideWidth, outsideHeight int) (sc, sh int) {
 
 func main() {
 	game := &Game{
-		screenWidth:          800,
-		screenHeight:         600,
+		screenWidth:          1024,
+		screenHeight:         768,
 		Entities:             make(map[uint16]Entity),
 		ConnectFailedMessage: make(chan string),
 	}

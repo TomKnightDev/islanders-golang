@@ -4,6 +4,7 @@ import (
 	"image"
 
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/tomknightdev/socketio-game-test/client/settings"
 )
 
 type World struct {
@@ -29,7 +30,7 @@ func (w *World) Draw(screen *ebiten.Image) {
 			m := ebiten.GeoM{}
 
 			m.Translate(float64(x*8), float64(y*8))
-			m.Scale(2, 2)
+			m.Scale(settings.Scale, settings.Scale)
 
 			sx := 6 * 8
 			sy := 4 * 8

@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text"
+	"github.com/tomknightdev/socketio-game-test/client/settings"
 	"github.com/tomknightdev/socketio-game-test/messages"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
@@ -94,12 +95,12 @@ func (p *Player) Draw(screen *ebiten.Image) {
 	m := ebiten.GeoM{}
 
 	m.Translate(p.Position[0], p.Position[1])
-	m.Scale(2, 2)
+	m.Scale(settings.Scale, settings.Scale)
 
 	screen.DrawImage(p.imageTile, &ebiten.DrawImageOptions{
 		GeoM: m,
 	})
 
-	text.Draw(screen, p.Username, mplusNormalFont, int(p.Position[0]-2)*2, int(p.Position[1]-2)*2, color.White)
+	text.Draw(screen, p.Username, mplusNormalFont, int(p.Position[0]*settings.Scale), int(p.Position[1]*settings.Scale), color.White)
 
 }
