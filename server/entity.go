@@ -20,6 +20,8 @@ func NewEntity(tile f64.Vec2, pos f64.Vec2) *Entity {
 		collider: resolv.NewObject(pos[0], pos[1], 8, 8),
 	}
 
+	e.collider.SetShape(resolv.NewCircle(8, 8, 8))
+
 	return e
 }
 
@@ -48,7 +50,7 @@ func (e *Entity) Move(targetPos f64.Vec2) {
 	}
 }
 
-func checkForCollision(e *Entity, x float64, y float64) bool {
+func checkForCollision(e *Entity, x, y float64) bool {
 	if collision := e.collider.Check(x, y); collision != nil {
 		return true
 	}

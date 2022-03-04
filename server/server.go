@@ -139,6 +139,8 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 		collider: resolv.NewObject(1, 1, 16, 16),
 	}
 
+	newClient.collider.SetShape(resolv.NewCircle(8, 8, 8))
+
 	ServerInstance.Space.Add(newClient.collider)
 
 	// Add the client to server maps
