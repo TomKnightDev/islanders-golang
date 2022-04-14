@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/hajimehoshi/ebiten/v2"
+	camera "github.com/melonfunction/ebiten-camera"
 	"github.com/tomknightdev/socketio-game-test/client/entities"
 	"github.com/tomknightdev/socketio-game-test/client/gui"
 	"github.com/tomknightdev/socketio-game-test/resources"
@@ -24,6 +25,8 @@ var (
 	//go:embed resources/environments.png
 	environments      []byte
 	EnvironmentsImage *ebiten.Image
+
+	cam *camera.Camera
 )
 
 var addr string //= flag.String("addr", "localhost:8000", "http service address")

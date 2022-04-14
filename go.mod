@@ -7,6 +7,7 @@ require (
 	github.com/gorilla/websocket v1.4.2
 	github.com/hajimehoshi/ebiten/v2 v2.2.5
 	github.com/inkyblackness/imgui-go/v4 v4.4.0
+	github.com/melonfunction/ebiten-camera v0.0.0-20220108183711-5c8a2c471904
 	github.com/solarlune/resolv v0.5.1
 	golang.org/x/image v0.0.0-20210628002857-a66eb6448b8d
 )
