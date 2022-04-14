@@ -13,7 +13,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/tomknightdev/socketio-game-test/client/entities"
 	"github.com/tomknightdev/socketio-game-test/client/gui"
-	"github.com/tomknightdev/socketio-game-test/messages"
+	"github.com/tomknightdev/socketio-game-test/resources"
 	"golang.org/x/image/math/f64"
 )
 
@@ -29,8 +29,8 @@ var (
 var addr string //= flag.String("addr", "localhost:8000", "http service address")
 
 type Client struct {
-	SendChan       chan *messages.Message
-	RecvChan       chan *messages.Message
+	SendChan       chan *resources.Message
+	RecvChan       chan *resources.Message
 	NetworkPlayers map[uint16]*entities.NetworkPlayer
 	Player         *entities.Player
 }
@@ -58,8 +58,8 @@ func init() {
 func connectToServer(g *Game) error {
 	fmt.Println("Client starting...")
 
-	client.SendChan = make(chan *messages.Message)
-	client.RecvChan = make(chan *messages.Message)
+	client.SendChan = make(chan *resources.Message)
+	client.RecvChan = make(chan *resources.Message)
 
 	addr = g.serverAddr
 
@@ -72,7 +72,7 @@ func connectToServer(g *Game) error {
 	defer conn.Close()
 
 	// Send connection request
-	connectRequest := messages.NewConnectRequestMessage(messages.ConnectRequestContents{
+	connectRequest := resources.NewConnectRequestMessage(resources.ConnectRequestContents{
 		Username: g.username,
 		Password: g.password,
 	})
@@ -84,27 +84,27 @@ func connectToServer(g *Game) error {
 	// Receive
 	go func() {
 		for {
-			message := &messages.Message{}
+			message := &resources.Message{}
 			err := conn.ReadJSON(message)
 			if err != nil {
 				log.Println("Read error:", err)
 			}
 
 			switch message.MessageType {
-			case messages.ConnectResponseMessage:
+			case resources.ConnectResponseMessage:
 				handleConnectResponse(message, g)
 				removeGui(&gui.MainMenu{}, g)
-			case messages.FailedToConnectMessage:
+			case resources.FailedToConnectMessage:
 				messageContents := message.Contents.(string)
 				g.ConnectFailedMessage <- messageContents
-				client.SendChan <- messages.NewFailedToConnectMessage(messageContents)
+				client.SendChan <- resources.NewFailedToConnectMessage(messageContents)
 				log.Printf("failed to connect: %s", messageContents)
 				return
-			case messages.ChatMessage:
+			case resources.ChatMessage:
 				receiveChatMessage(message)
-			case messages.UpdateMessage:
+			case resources.UpdateMessage:
 				receiveUpdateMessage(message, g)
-			case messages.ServerEntityUpdateMessage:
+			case resources.ServerEntityUpdateMessage:
 				receiveEntityUpdateMessage(message, g)
 			}
 
@@ -114,7 +114,7 @@ func connectToServer(g *Game) error {
 	// Send
 	for {
 		message := <-client.SendChan
-		if message.MessageType == messages.FailedToConnectMessage {
+		if message.MessageType == resources.FailedToConnectMessage {
 			return fmt.Errorf("failed to connect: %v", message)
 		}
 		if err := conn.WriteJSON(message); err != nil {
@@ -123,13 +123,14 @@ func connectToServer(g *Game) error {
 	}
 }
 
-func handleConnectResponse(message *messages.Message, g *Game) {
+func handleConnectResponse(message *resources.Message, g *Game) {
 	// If successful, the we receive our server client id and spawn position
 	messageContents := message.Contents.(map[string]interface{})
 
 	clientId := messageContents["clientId"].(float64)
 	pos := messageContents["pos"].([]interface{})
 	tile := messageContents["tile"].([]interface{})
+	worldMap := resources.WorldMapWebSocketMessageConvert(messageContents["world"].(map[string]interface{}))
 
 	client.Player = entities.NewPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
 	client.Player.Username = g.username
@@ -139,14 +140,14 @@ func handleConnectResponse(message *messages.Message, g *Game) {
 	go func(client *Client) {
 		for {
 			message := <-client.Player.SendChan
-			client.SendChan <- messages.NewUpdateMessage(client.Player.Id, message)
+			client.SendChan <- resources.NewUpdateMessage(client.Player.Id, message)
 		}
 	}(client)
 
 	g.Player = client.Player
 
 	// Now logged in, build world
-	world := entities.NewWorld(EnvironmentsImage)
+	world := entities.NewWorld(EnvironmentsImage, *worldMap)
 	g.Environment = append(g.Environment, world)
 
 	ChatWindow = gui.NewChat(g.screenWidth, g.screenHeight)
@@ -156,12 +157,12 @@ func handleConnectResponse(message *messages.Message, g *Game) {
 	go func(client *Client, chat *gui.Chat) {
 		for {
 			message := <-chat.SendChan
-			client.SendChan <- messages.NewChatMessage(client.Player.Id, message)
+			client.SendChan <- resources.NewChatMessage(client.Player.Id, message)
 		}
 	}(client, ChatWindow)
 }
 
-func receiveUpdateMessage(message *messages.Message, g *Game) {
+func receiveUpdateMessage(message *resources.Message, g *Game) {
 	messageContents := message.Contents.(map[string]interface{})
 
 	disconnected := messageContents["disconnected"].(bool)
@@ -190,7 +191,7 @@ func receiveUpdateMessage(message *messages.Message, g *Game) {
 	g.Entities[message.ClientId] = networkClient
 }
 
-func receiveEntityUpdateMessage(message *messages.Message, g *Game) {
+func receiveEntityUpdateMessage(message *resources.Message, g *Game) {
 	contents := message.Contents.([]interface{})
 
 	for _, content := range contents {
@@ -215,7 +216,7 @@ func receiveEntityUpdateMessage(message *messages.Message, g *Game) {
 	}
 }
 
-func receiveChatMessage(message *messages.Message) {
+func receiveChatMessage(message *resources.Message) {
 	messageContents := message.Contents.(string)
 
 	ChatWindow.RecvMessages = append(ChatWindow.RecvMessages, messageContents)

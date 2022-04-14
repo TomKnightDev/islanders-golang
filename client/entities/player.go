@@ -9,7 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/tomknightdev/socketio-game-test/client/settings"
-	"github.com/tomknightdev/socketio-game-test/messages"
+	"github.com/tomknightdev/socketio-game-test/resources"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/f64"
@@ -24,7 +24,7 @@ type Player struct {
 	Id        uint16
 	Username  string
 	Position  f64.Vec2
-	SendChan  chan messages.UpdateContents
+	SendChan  chan resources.UpdateContents
 }
 
 func init() {
@@ -47,7 +47,7 @@ func init() {
 func NewPlayer(tilesImage *ebiten.Image, tile f64.Vec2) *Player {
 	p := &Player{
 		imageTile: tilesImage.SubImage(image.Rect(int(tile[0]), int(tile[1]), int(tile[0])+8, int(tile[0])+8)).(*ebiten.Image),
-		SendChan:  make(chan messages.UpdateContents),
+		SendChan:  make(chan resources.UpdateContents),
 	}
 
 	return p
@@ -82,7 +82,7 @@ func (p *Player) Update() error {
 	p.Position[1] += y
 
 	if x != 0 || y != 0 {
-		p.SendChan <- messages.UpdateContents{
+		p.SendChan <- resources.UpdateContents{
 			Pos:  p.Position,
 			Tile: f64.Vec2{0, 0},
 		}

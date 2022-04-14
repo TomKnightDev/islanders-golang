@@ -1,6 +1,8 @@
-package messages
+package resources
 
-import "golang.org/x/image/math/f64"
+import (
+	"golang.org/x/image/math/f64"
+)
 
 type MessageType string
 
@@ -36,6 +38,7 @@ type ConnectResponseContents struct {
 	ClientId uint16   `json:"clientId"`
 	Pos      f64.Vec2 `json:"pos"`
 	Tile     f64.Vec2 `json:"tile"`
+	WorldMap WorldMap `json:"world"`
 }
 
 func NewConnectResponseMessage(contents ConnectResponseContents) *Message {

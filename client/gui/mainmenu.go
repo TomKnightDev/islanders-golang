@@ -51,7 +51,7 @@ func NewMainMenu(screenWidth, screenHeight int) *MainMenu {
 		mgr:      mgr,
 		Connect:  make(chan string),
 		username: "Tom",
-		server:   "192.168.1.98:8285",
+		server:   "192.168.1.128:8285",
 	}
 
 	mm.mgr.SetDisplaySize(float32(screenWidth), float32(screenHeight))

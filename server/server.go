@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
@@ -8,15 +9,20 @@ import (
 	"sync"
 	"time"
 
+	_ "embed"
+
 	"github.com/gorilla/websocket"
 	"github.com/solarlune/resolv"
-	"github.com/tomknightdev/socketio-game-test/messages"
+	"github.com/tomknightdev/socketio-game-test/resources"
 	"golang.org/x/image/math/f64"
 )
 
-var upgrader = websocket.Upgrader{} // use default options
-
-var ServerInstance = &Server{}
+var (
+	//go:embed resources/worldMap.json
+	worldMapJson   []byte
+	ServerInstance = &Server{}
+	upgrader       = websocket.Upgrader{} // use default options
+)
 
 type Server struct {
 	clientsById       map[uint16]*client
@@ -40,7 +46,7 @@ func init() {
 	ServerInstance.clientsByUsername = make(map[string]*client)
 	ServerInstance.Space = resolv.NewSpace(512, 512, 8, 8)
 
-	go serverLoop()
+	// go serverLoop()
 }
 
 func connect(w http.ResponseWriter, r *http.Request) {
@@ -51,7 +57,7 @@ func connect(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	message := &messages.Message{}
+	message := &resources.Message{}
 	var clientId uint16
 
 	for {
@@ -65,15 +71,15 @@ func connect(w http.ResponseWriter, r *http.Request) {
 		// log.Printf("%s message recieved: %v", message.MessageType, message)
 
 		switch message.MessageType {
-		case messages.ConnectRequestMessage:
-			clientId, err = connectClient(message, conn)
+		case resources.ConnectRequestMessage:
+			clientId, err = handleConnectRequest(message, conn)
 			if err != nil {
-				conn.WriteJSON(messages.NewFailedToConnectMessage(err.Error()))
+				conn.WriteJSON(resources.NewFailedToConnectMessage(err.Error()))
 				conn.Close()
 			}
-		case messages.ChatMessage:
+		case resources.ChatMessage:
 			handleChatMessage(message)
-		case messages.UpdateMessage:
+		case resources.UpdateMessage:
 			handleUpdateMessage(message)
 		default:
 			log.Printf("Message type: %s not handled", message.MessageType)
@@ -81,7 +87,7 @@ func connect(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, error) {
+func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uint16, error) {
 	messageContents := message.Contents.(map[string]interface{})
 
 	fmt.Printf("%v", messageContents)
@@ -101,7 +107,7 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 		c.conn = conn
 
 		// Send reponse to client
-		conn.WriteJSON(messages.NewConnectResponseMessage(messages.ConnectResponseContents{
+		conn.WriteJSON(resources.NewConnectResponseMessage(resources.ConnectResponseContents{
 			ClientId: c.id,
 			Pos:      c.position,
 			Tile:     c.tile,
@@ -113,7 +119,7 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 			if oc.id == c.id {
 				continue
 			}
-			conn.WriteJSON(messages.NewUpdateMessage(oc.id, messages.UpdateContents{
+			conn.WriteJSON(resources.NewUpdateMessage(oc.id, resources.UpdateContents{
 				Pos:          oc.position,
 				Tile:         oc.tile,
 				Disconnected: oc.conn == nil,
@@ -122,7 +128,7 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 		}
 
 		// Update all other clients
-		sendUpdateToClients(messages.NewUpdateMessage(c.id, messages.UpdateContents{
+		sendUpdateToClients(resources.NewUpdateMessage(c.id, resources.UpdateContents{
 			Pos:      c.position,
 			Tile:     c.tile,
 			Username: c.username,
@@ -147,11 +153,17 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 	ServerInstance.clientsById[newClient.id] = newClient
 	ServerInstance.clientsByUsername[newClient.username] = newClient
 
+	wm := resources.WorldMap{}
+	if err := json.Unmarshal(worldMapJson, &wm); err != nil {
+		log.Fatal(err)
+	}
+
 	// Send reponse to client
-	conn.WriteJSON(messages.NewConnectResponseMessage(messages.ConnectResponseContents{
+	conn.WriteJSON(resources.NewConnectResponseMessage(resources.ConnectResponseContents{
 		ClientId: newClient.id,
 		Pos:      f64.Vec2{1, 1},
 		Tile:     f64.Vec2{0, 0},
+		WorldMap: wm,
 	}))
 
 	// Update client of all other clients
@@ -159,7 +171,7 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 		if oc.id == newClient.id {
 			continue
 		}
-		conn.WriteJSON(messages.NewUpdateMessage(oc.id, messages.UpdateContents{
+		conn.WriteJSON(resources.NewUpdateMessage(oc.id, resources.UpdateContents{
 			Pos:          oc.position,
 			Tile:         oc.tile,
 			Disconnected: oc.conn == nil,
@@ -168,7 +180,7 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 	}
 
 	// Update all other clients
-	sendUpdateToClients(messages.NewUpdateMessage(newClient.id, messages.UpdateContents{
+	sendUpdateToClients(resources.NewUpdateMessage(newClient.id, resources.UpdateContents{
 		Pos:      f64.Vec2{1, 1},
 		Tile:     f64.Vec2{0, 0},
 		Username: newClient.username,
@@ -177,12 +189,12 @@ func connectClient(message *messages.Message, conn *websocket.Conn) (uint16, err
 	return newClient.id, nil
 }
 
-func handleChatMessage(message *messages.Message) {
+func handleChatMessage(message *resources.Message) {
 	sender := ServerInstance.clientsById[message.ClientId].username
 	messageContents := message.Contents.(string)
 
 	// Send the message to all clients
-	m := messages.NewChatMessage(message.ClientId, fmt.Sprintf("%s: %s", sender, messageContents))
+	m := resources.NewChatMessage(message.ClientId, fmt.Sprintf("%s: %s", sender, messageContents))
 	for _, client := range ServerInstance.clientsById {
 		if err := client.conn.WriteJSON(m); err != nil {
 			log.Panicf("Failed to send message to: %s - %v", client.username, err)
@@ -190,7 +202,7 @@ func handleChatMessage(message *messages.Message) {
 	}
 }
 
-func handleUpdateMessage(message *messages.Message) error {
+func handleUpdateMessage(message *resources.Message) error {
 	messageContents := message.Contents.(map[string]interface{})
 
 	pos := messageContents["pos"].([]interface{})
@@ -212,7 +224,7 @@ func handleUpdateMessage(message *messages.Message) error {
 	return nil
 }
 
-func sendUpdateToClients(message *messages.Message) error {
+func sendUpdateToClients(message *resources.Message) error {
 	// Update all the other clients
 	for _, c := range ServerInstance.clientsById {
 		if c.id == message.ClientId || c.conn == nil {
@@ -240,13 +252,13 @@ func serverLoop() {
 		}
 
 		// Update client with enemy positions
-		contents := []messages.ServerEntityUpdateContents{}
+		contents := []resources.ServerEntityUpdateContents{}
 
 		if len(ServerInstance.clientsById) > 0 {
 			pos := ServerInstance.clientsById[0].position
 			for _, e := range ServerInstance.enemies {
 				e.Move(pos)
-				contents = append(contents, messages.ServerEntityUpdateContents{
+				contents = append(contents, resources.ServerEntityUpdateContents{
 					EntityId: e.id,
 					Pos:      e.pos,
 					Tile:     e.tile,
@@ -254,7 +266,7 @@ func serverLoop() {
 			}
 		}
 
-		message := messages.NewServerEntityUpdateMessage(contents)
+		message := resources.NewServerEntityUpdateMessage(contents)
 
 		for _, c := range ServerInstance.clientsById {
 			if c.conn == nil {
@@ -283,7 +295,7 @@ func disconnectClient(clientId uint16) {
 	client.mu.Unlock()
 
 	// Update all the other clients
-	message := messages.NewUpdateMessage(clientId, messages.UpdateContents{
+	message := resources.NewUpdateMessage(clientId, resources.UpdateContents{
 		Disconnected: true,
 	})
 
