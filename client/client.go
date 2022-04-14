@@ -135,10 +135,14 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	tile := messageContents["tile"].([]interface{})
 	worldMap := resources.WorldMapWebSocketMessageConvert(messageContents["world"].(map[string]interface{}))
 
+	// Create camera
+	cam = camera.NewCamera(g.screenWidth, g.screenHeight, 0, 0, 0, 1)
+
 	client.Player = entities.NewPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
 	client.Player.Username = g.username
 	client.Player.Id = uint16(clientId)
 	client.Player.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
+	client.Player.Cam = cam
 
 	go func(client *Client) {
 		for {
@@ -151,6 +155,7 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 
 	// Now logged in, build world
 	world := entities.NewWorld(EnvironmentsImage, *worldMap)
+	world.Cam = cam
 	g.Environment = append(g.Environment, world)
 
 	ChatWindow = gui.NewChat(g.screenWidth, g.screenHeight)
@@ -163,6 +168,7 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 			client.SendChan <- resources.NewChatMessage(client.Player.Id, message)
 		}
 	}(client, ChatWindow)
+
 }
 
 func receiveUpdateMessage(message *resources.Message, g *Game) {
@@ -190,6 +196,7 @@ func receiveUpdateMessage(message *resources.Message, g *Game) {
 	networkClient = entities.NewNetworkPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
 	networkClient.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
 	networkClient.Username = username
+	networkClient.Cam = cam
 	client.NetworkPlayers[message.ClientId] = networkClient
 	g.Entities[message.ClientId] = networkClient
 }

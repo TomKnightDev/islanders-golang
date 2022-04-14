@@ -51,11 +51,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	for _, e := range g.Entities {
 		e.Draw(screen)
 	}
-	for _, gui := range g.Gui {
-		gui.Draw(screen)
-	}
 	if g.Player != nil {
 		g.Player.Draw(screen)
+	}
+	for _, gui := range g.Gui {
+		gui.Draw(screen)
 	}
 }
 
