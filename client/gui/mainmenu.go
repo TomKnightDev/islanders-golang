@@ -44,8 +44,7 @@ func init() {
 	}
 }
 
-func NewMainMenu(screenWidth, screenHeight int) *MainMenu {
-	mgr := renderer.New(nil)
+func NewMainMenu(screenWidth, screenHeight int, mgr *renderer.Manager) *MainMenu {
 
 	mm := &MainMenu{
 		mgr:      mgr,
@@ -53,8 +52,6 @@ func NewMainMenu(screenWidth, screenHeight int) *MainMenu {
 		username: "Tom",
 		server:   "192.168.1.128:8285",
 	}
-
-	mm.mgr.SetDisplaySize(float32(screenWidth), float32(screenHeight))
 
 	return mm
 }
@@ -64,32 +61,27 @@ func (mm *MainMenu) Update() error {
 		return nil
 	}
 
-	mm.mgr.Update(1.0 / 60.0)
-	mm.mgr.BeginFrame()
-	{
-		flags := imgui.WindowFlagsNone
-		// flags |= imgui.WindowFlagsNoTitleBar
-		flags |= imgui.WindowFlagsNoResize
-		flags |= imgui.WindowFlagsNoCollapse
+	flags := imgui.WindowFlagsNone
+	// flags |= imgui.WindowFlagsNoTitleBar
+	flags |= imgui.WindowFlagsNoResize
+	flags |= imgui.WindowFlagsNoCollapse
 
-		imgui.SetNextWindowPos(imgui.Vec2{100, 100})
-		imgui.SetNextWindowSize(imgui.Vec2{600, 400})
-		imgui.BeginV("Main Menu", nil, flags)
+	imgui.SetNextWindowPos(imgui.Vec2{100, 100})
+	imgui.SetNextWindowSize(imgui.Vec2{600, 400})
+	imgui.BeginV("Main Menu", nil, flags)
 
-		imgui.InputText("Server", &mm.server)
-		imgui.InputText("Username", &mm.username)
-		imgui.InputText("Password", &mm.password)
-		if imgui.Button("Connect") {
-			mm.Connect <- mm.server
-			mm.Connect <- mm.username
-			mm.Connect <- mm.password
-		}
-		for _, m := range mm.FailedToConnect {
-			imgui.Text(m)
-		}
-		imgui.End()
+	imgui.InputText("Server", &mm.server)
+	imgui.InputText("Username", &mm.username)
+	imgui.InputText("Password", &mm.password)
+	if imgui.Button("Connect") {
+		mm.Connect <- mm.server
+		mm.Connect <- mm.username
+		mm.Connect <- mm.password
 	}
-	mm.mgr.EndFrame()
+	for _, m := range mm.FailedToConnect {
+		imgui.Text(m)
+	}
+	imgui.End()
 
 	return nil
 }

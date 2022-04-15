@@ -119,6 +119,8 @@ func (p *Player) Draw(screen *ebiten.Image) {
 	// Draw to screen and zoom
 	p.Cam.Blit(screen)
 
+	// text.Draw(screen, p.Username, mplusNormalFont, int(p.Position[0]+float64(16)/2), int(p.Position[1]+float64(16)/2), color.White)
+
 	text.DrawWithOptions(screen, p.Username, mplusNormalFont, p.Cam.GetTranslation(p.Position[0], p.Position[1]))
 
 }

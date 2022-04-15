@@ -39,6 +39,7 @@ type Client struct {
 }
 
 var ChatWindow = &gui.Chat{}
+var InfoWindow = &gui.Info{}
 var client = &Client{}
 
 func init() {
@@ -136,7 +137,7 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	worldMap := resources.WorldMapWebSocketMessageConvert(messageContents["world"].(map[string]interface{}))
 
 	// Create camera
-	cam = camera.NewCamera(g.screenWidth, g.screenHeight, 0, 0, 0, 1)
+	cam = camera.NewCamera(g.screenWidth, g.screenHeight, pos[0].(float64), pos[1].(float64), 0, 1)
 
 	client.Player = entities.NewPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
 	client.Player.Username = g.username
@@ -158,8 +159,12 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	world.Cam = cam
 	g.Environment = append(g.Environment, world)
 
-	ChatWindow = gui.NewChat(g.screenWidth, g.screenHeight)
+	// Add gui
+	ChatWindow = gui.NewChat(g.screenWidth, g.screenHeight, g.renderMgr)
 	g.Gui = append(g.Gui, ChatWindow)
+
+	InfoWindow = gui.NewInfo(g.screenWidth, g.screenHeight, client.Player, g.renderMgr)
+	g.Gui = append(g.Gui, InfoWindow)
 
 	// Messages from chat send channel will be forwarded to the client send channel
 	go func(client *Client, chat *gui.Chat) {

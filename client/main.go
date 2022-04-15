@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 
+	"github.com/gabstv/ebiten-imgui/renderer"
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/tomknightdev/socketio-game-test/client/gui"
@@ -24,6 +25,7 @@ type Game struct {
 	screenWidth          int
 	screenHeight         int
 	ConnectFailedMessage chan string
+	renderMgr            *renderer.Manager
 }
 
 func (g *Game) Update() error {
@@ -32,9 +34,16 @@ func (g *Game) Update() error {
 			log.Print(err)
 		}
 	}
-	for _, gui := range g.Gui {
-		gui.Update()
+
+	g.renderMgr.Update(1.0 / 60.0)
+	g.renderMgr.BeginFrame()
+	{
+		for _, gui := range g.Gui {
+			gui.Update()
+		}
 	}
+	g.renderMgr.EndFrame()
+
 	for _, e := range g.Entities {
 		e.Update()
 	}
@@ -69,9 +78,12 @@ func main() {
 		screenHeight:         768,
 		Entities:             make(map[uint16]Entity),
 		ConnectFailedMessage: make(chan string),
+		renderMgr:            renderer.New(nil),
 	}
 
-	mm := gui.NewMainMenu(game.screenWidth, game.screenHeight)
+	game.renderMgr.SetDisplaySize(float32(game.screenWidth), float32(game.screenHeight))
+
+	mm := gui.NewMainMenu(game.screenWidth, game.screenHeight, game.renderMgr)
 
 	go func() {
 		for {
