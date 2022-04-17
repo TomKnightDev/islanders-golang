@@ -29,26 +29,28 @@ func (w *World) Update() error {
 
 func (w *World) Draw(screen *ebiten.Image) {
 	// Tile coords
-	sx := 6 * 8
-	sy := 4 * 8
+	// sx := 6 * 8
+	// sy := 4 * 8
 
 	w.Cam.Surface.Clear()
 
-	for x := 0; x <= w.worldMap.Width; x++ {
-		for y := 0; y <= w.worldMap.Height; y++ {
-			// m := ebiten.GeoM{}
+	tiles := [100][100]int{}
+	for i, t := range w.worldMap.Layers[0].Data {
+		tiles[i%100][i/100] = t
+	}
 
-			// m.Translate(float64(x*8), float64(y*8))
-			// m.Scale(settings.Scale, settings.Scale)
+	for y := 0; y < w.worldMap.Height; y++ {
+		for x := 0; x < w.worldMap.Width; x++ {
+			tileIndex := tiles[x][y]
 
-			// screen.DrawImage(w.imageTile.SubImage(image.Rect(sx, sy, sx+8, sy+8)).(*ebiten.Image),
-			// 	&ebiten.DrawImageOptions{
-			// 		GeoM: m,
-			// 	})
+			quotient := tileIndex / 16
+			rem := tileIndex % 16
+			tileXStart := (rem - 1) * 8
+			tileYStart := quotient * 8
+			tile := w.imageTile.SubImage(image.Rect(tileXStart, tileYStart, tileXStart+8, tileYStart+8))
 
 			// Draw tiles
-			w.Cam.Surface.DrawImage(w.imageTile.SubImage(image.Rect(sx, sy, sx+8, sy+8)).(*ebiten.Image), w.Cam.GetTranslation(float64(x*8), float64(y*8)))
-
+			w.Cam.Surface.DrawImage(tile.(*ebiten.Image), w.Cam.GetTranslation(float64(x*8), float64(y*8)))
 		}
 	}
 
