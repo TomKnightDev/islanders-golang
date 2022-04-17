@@ -98,6 +98,12 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 	// Check to see if this c has connect previously
 	c, found := ServerInstance.clientsByUsername[username]
 
+	// Get world map
+	wm := resources.WorldMap{}
+	if err := json.Unmarshal(worldMapJson, &wm); err != nil {
+		log.Fatal(err)
+	}
+
 	// If the client was found, check password
 	if found {
 		if c.password != password {
@@ -111,6 +117,7 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 			ClientId: c.id,
 			Pos:      c.position,
 			Tile:     c.tile,
+			WorldMap: wm,
 		}))
 		c.mu.Unlock()
 
@@ -152,11 +159,6 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 	// Add the client to server maps
 	ServerInstance.clientsById[newClient.id] = newClient
 	ServerInstance.clientsByUsername[newClient.username] = newClient
-
-	wm := resources.WorldMap{}
-	if err := json.Unmarshal(worldMapJson, &wm); err != nil {
-		log.Fatal(err)
-	}
 
 	// Send reponse to client
 	conn.WriteJSON(resources.NewConnectResponseMessage(resources.ConnectResponseContents{
