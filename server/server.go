@@ -44,7 +44,7 @@ type client struct {
 func init() {
 	ServerInstance.clientsById = make(map[uint16]*client)
 	ServerInstance.clientsByUsername = make(map[string]*client)
-	ServerInstance.Space = resolv.NewSpace(512, 512, 8, 8)
+	ServerInstance.Space = resolv.NewSpace(800, 800, 8, 8)
 
 	// go serverLoop()
 }
