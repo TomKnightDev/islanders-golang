@@ -24,4 +24,6 @@ jobs:
         go get
         
     - name: Build Server
-      run: go build -v .
+      run: |
+        cd server
+        go build -v .
