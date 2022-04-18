@@ -9,7 +9,6 @@ COPY go.sum ./
 RUN go mod download
 
 COPY /server ./server
-COPY /messages ./messages
 COPY /resources ./resources
 
 RUN go build -o /islanders-server ./server
