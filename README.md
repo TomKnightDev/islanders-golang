@@ -1,4 +1,4 @@
-# A Game
+# Islanders
 
 A game developed in Go.
 
@@ -18,9 +18,16 @@ docker build -t gameserver .
 docker run -d gameserver
 ```
 
-To run the client/server:
+To run the server:
 
 ```bash
 cd server
+go run .
+```
+
+To run the client:
+
+```bash
+cd client
 go run .
 ```
