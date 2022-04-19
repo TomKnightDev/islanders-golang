@@ -1,4 +1,4 @@
-module github.com/tomknightdev/socketio-game-test
+module github.com/tomknightdev/islanders-golang
 
 go 1.17
 

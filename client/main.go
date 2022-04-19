@@ -6,7 +6,7 @@ import (
 	"github.com/gabstv/ebiten-imgui/renderer"
 	"github.com/hajimehoshi/ebiten/v2"
 
-	"github.com/tomknightdev/socketio-game-test/client/gui"
+	"github.com/tomknightdev/islanders-golang/client/gui"
 )
 
 type Entity interface {
@@ -109,7 +109,7 @@ func main() {
 	game.Gui = append(game.Gui, mm)
 
 	ebiten.SetWindowSize(game.screenWidth, game.screenHeight)
-	ebiten.SetWindowTitle("Dungeon Crawl")
+	ebiten.SetWindowTitle("Islanders")
 	ebiten.SetWindowResizable(true)
 	ebiten.NewImage(800, 800)
 

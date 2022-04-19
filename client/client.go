@@ -12,9 +12,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/hajimehoshi/ebiten/v2"
 	camera "github.com/melonfunction/ebiten-camera"
-	"github.com/tomknightdev/socketio-game-test/client/entities"
-	"github.com/tomknightdev/socketio-game-test/client/gui"
-	"github.com/tomknightdev/socketio-game-test/resources"
+	"github.com/tomknightdev/islanders-golang/client/entities"
+	"github.com/tomknightdev/islanders-golang/client/gui"
+	"github.com/tomknightdev/islanders-golang/resources"
 	"golang.org/x/image/math/f64"
 )
 

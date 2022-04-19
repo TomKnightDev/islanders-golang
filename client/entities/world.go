@@ -5,7 +5,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 	camera "github.com/melonfunction/ebiten-camera"
-	shared_resources "github.com/tomknightdev/socketio-game-test/resources"
+	shared_resources "github.com/tomknightdev/islanders-golang/resources"
 )
 
 type World struct {

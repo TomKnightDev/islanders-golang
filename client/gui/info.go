@@ -6,7 +6,7 @@ import (
 	"github.com/gabstv/ebiten-imgui/renderer"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/inkyblackness/imgui-go/v4"
-	"github.com/tomknightdev/socketio-game-test/client/entities"
+	"github.com/tomknightdev/islanders-golang/client/entities"
 )
 
 type Info struct {

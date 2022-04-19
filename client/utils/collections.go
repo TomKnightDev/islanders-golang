@@ -1,7 +1,7 @@
 package utils
 
 // import (
-// 	client "github.com/tomknightdev/socketio-game-test/client"
+// 	client "github.com/tomknightdev/islanders-golang/client"
 // )
 
 // func RemoveEntity(collection *, i int) {

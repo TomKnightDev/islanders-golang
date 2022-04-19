@@ -13,7 +13,7 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/solarlune/resolv"
-	"github.com/tomknightdev/socketio-game-test/resources"
+	"github.com/tomknightdev/islanders-golang/resources"
 	"golang.org/x/image/math/f64"
 )
 
@@ -197,9 +197,13 @@ func handleChatMessage(message *resources.Message) {
 
 	// Send the message to all clients
 	m := resources.NewChatMessage(message.ClientId, fmt.Sprintf("%s: %s", sender, messageContents))
-	for _, client := range ServerInstance.clientsById {
-		if err := client.conn.WriteJSON(m); err != nil {
-			log.Panicf("Failed to send message to: %s - %v", client.username, err)
+	for _, c := range ServerInstance.clientsById {
+		if c.conn == nil {
+			continue
+		}
+
+		if err := c.conn.WriteJSON(m); err != nil {
+			log.Panicf("Failed to send message to: %s - %v", c.username, err)
 		}
 	}
 }

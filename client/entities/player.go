@@ -9,7 +9,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text"
 	camera "github.com/melonfunction/ebiten-camera"
-	"github.com/tomknightdev/socketio-game-test/resources"
+	"github.com/tomknightdev/islanders-golang/resources"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/f64"
