@@ -4,6 +4,7 @@ import (
 	"log"
 
 	"github.com/gabstv/ebiten-imgui/renderer"
+	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 
 	"github.com/tomknightdev/islanders-golang/client/gui"
@@ -20,7 +21,7 @@ type Game struct {
 	serverAddr           string
 	Gui                  []Entity
 	Environment          []Entity
-	Entities             map[uint16]Entity
+	Entities             map[uuid.UUID]Entity
 	Player               Entity
 	screenWidth          int
 	screenHeight         int
@@ -76,7 +77,7 @@ func main() {
 	game := &Game{
 		screenWidth:          1920,
 		screenHeight:         1080,
-		Entities:             make(map[uint16]Entity),
+		Entities:             make(map[uuid.UUID]Entity),
 		ConnectFailedMessage: make(chan string),
 		renderMgr:            renderer.New(nil),
 	}

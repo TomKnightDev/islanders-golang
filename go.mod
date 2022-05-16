@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	github.com/gabstv/ebiten-imgui v0.4.0
+	github.com/google/uuid v1.3.0
 	github.com/gorilla/websocket v1.4.2
 	github.com/hajimehoshi/ebiten/v2 v2.2.5
 	github.com/inkyblackness/imgui-go/v4 v4.4.0

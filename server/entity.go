@@ -1,20 +1,27 @@
 package main
 
 import (
+	"log"
+
+	"github.com/google/uuid"
 	"github.com/solarlune/resolv"
 	"golang.org/x/image/math/f64"
 )
 
 type Entity struct {
-	id       uint16
+	id       uuid.UUID
 	tile     f64.Vec2
 	pos      f64.Vec2
 	collider *resolv.Object
 }
 
 func NewEntity(tile f64.Vec2, pos f64.Vec2) *Entity {
+	id, err := uuid.NewRandom()
+	if err != nil {
+		log.Printf("failed to create uuid %s", err)
+	}
 	e := &Entity{
-		id:       100 + uint16(len(ServerInstance.enemies)),
+		id:       id,
 		tile:     tile,
 		pos:      pos,
 		collider: resolv.NewObject(pos[0], pos[1], 8, 8),

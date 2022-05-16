@@ -1,6 +1,7 @@
 package resources
 
 import (
+	"github.com/google/uuid"
 	"golang.org/x/image/math/f64"
 )
 
@@ -18,7 +19,7 @@ const (
 type Message struct {
 	MessageType MessageType `json:"messageType"`
 	Contents    interface{} `json:"contents"`
-	ClientId    uint16      `json:"clientId"`
+	ClientId    uuid.UUID   `json:"clientId"`
 }
 
 type ConnectRequestContents struct {
@@ -35,10 +36,10 @@ func NewConnectRequestMessage(connectContents ConnectRequestContents) *Message {
 }
 
 type ConnectResponseContents struct {
-	ClientId uint16   `json:"clientId"`
-	Pos      f64.Vec2 `json:"pos"`
-	Tile     f64.Vec2 `json:"tile"`
-	WorldMap WorldMap `json:"world"`
+	ClientId uuid.UUID `json:"clientId"`
+	Pos      f64.Vec2  `json:"pos"`
+	Tile     f64.Vec2  `json:"tile"`
+	WorldMap WorldMap  `json:"world"`
 }
 
 func NewConnectResponseMessage(contents ConnectResponseContents) *Message {
@@ -59,7 +60,7 @@ func NewFailedToConnectMessage(failedMessage string) *Message {
 	return m
 }
 
-func NewChatMessage(clientId uint16, message string) *Message {
+func NewChatMessage(clientId uuid.UUID, message string) *Message {
 	m := &Message{
 		MessageType: ChatMessage,
 		Contents:    message,
@@ -76,7 +77,7 @@ type UpdateContents struct {
 	Username     string   `json:"username"`
 }
 
-func NewUpdateMessage(clientId uint16, contents UpdateContents) *Message {
+func NewUpdateMessage(clientId uuid.UUID, contents UpdateContents) *Message {
 	m := &Message{
 		MessageType: UpdateMessage,
 		Contents:    contents,
@@ -87,9 +88,9 @@ func NewUpdateMessage(clientId uint16, contents UpdateContents) *Message {
 }
 
 type ServerEntityUpdateContents struct {
-	EntityId uint16   `json:"entityId"`
-	Pos      f64.Vec2 `json:"pos"`
-	Tile     f64.Vec2 `json:"tile"`
+	EntityId uuid.UUID `json:"entityId"`
+	Pos      f64.Vec2  `json:"pos"`
+	Tile     f64.Vec2  `json:"tile"`
 }
 
 func NewServerEntityUpdateMessage(contents []ServerEntityUpdateContents) *Message {

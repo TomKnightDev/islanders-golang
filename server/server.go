@@ -11,6 +11,7 @@ import (
 
 	_ "embed"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/solarlune/resolv"
 	"github.com/tomknightdev/islanders-golang/resources"
@@ -25,13 +26,14 @@ var (
 )
 
 type Server struct {
-	clientsById       map[uint16]*client
+	clientsById       map[uuid.UUID]*client
 	clientsByUsername map[string]*client
 	enemies           []*Entity
+	projectiles       []*Entity
 	Space             *resolv.Space
 }
 type client struct {
-	id       uint16
+	id       uuid.UUID
 	username string
 	password string
 	position f64.Vec2
@@ -42,7 +44,7 @@ type client struct {
 }
 
 func init() {
-	ServerInstance.clientsById = make(map[uint16]*client)
+	ServerInstance.clientsById = make(map[uuid.UUID]*client)
 	ServerInstance.clientsByUsername = make(map[string]*client)
 	ServerInstance.Space = resolv.NewSpace(800, 800, 8, 8)
 
@@ -58,7 +60,7 @@ func connect(w http.ResponseWriter, r *http.Request) {
 	defer conn.Close()
 
 	message := &resources.Message{}
-	var clientId uint16
+	var clientId uuid.UUID
 
 	for {
 		err := conn.ReadJSON(message)
@@ -87,7 +89,7 @@ func connect(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uint16, error) {
+func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uuid.UUID, error) {
 	messageContents := message.Contents.(map[string]interface{})
 
 	fmt.Printf("%v", messageContents)
@@ -107,7 +109,7 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 	// If the client was found, check password
 	if found {
 		if c.password != password {
-			return 0, fmt.Errorf("incorrect password")
+			return uuid.New(), fmt.Errorf("incorrect password")
 		}
 		c.mu.Lock()
 		c.conn = conn
@@ -144,8 +146,12 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 	}
 
 	// Client wasn't found so create it
+	id, err := uuid.NewUUID()
+	if err != nil {
+		log.Printf("failed to create uuid %s", err)
+	}
 	newClient := &client{
-		id:       uint16(len(ServerInstance.clientsById)),
+		id:       id,
 		username: username,
 		password: password,
 		conn:     conn,
@@ -250,7 +256,7 @@ func serverLoop() {
 	for {
 		time.Sleep(25 * time.Millisecond)
 
-		if len(ServerInstance.enemies) < 100 {
+		if len(ServerInstance.enemies) < 1 {
 			// Create enemy
 			enemy := NewEntity(f64.Vec2{0, 6 * 8}, f64.Vec2{rand.Float64() * (512 - 100), rand.Float64() * (512 - 100)})
 			ServerInstance.enemies = append(ServerInstance.enemies, enemy)
@@ -261,14 +267,17 @@ func serverLoop() {
 		contents := []resources.ServerEntityUpdateContents{}
 
 		if len(ServerInstance.clientsById) > 0 {
-			pos := ServerInstance.clientsById[0].position
-			for _, e := range ServerInstance.enemies {
-				e.Move(pos)
-				contents = append(contents, resources.ServerEntityUpdateContents{
-					EntityId: e.id,
-					Pos:      e.pos,
-					Tile:     e.tile,
-				})
+			for _, c := range ServerInstance.clientsById {
+				pos := c.position
+				for _, e := range ServerInstance.enemies {
+					e.Move(pos)
+					contents = append(contents, resources.ServerEntityUpdateContents{
+						EntityId: e.id,
+						Pos:      e.pos,
+						Tile:     e.tile,
+					})
+				}
+				break
 			}
 		}
 
@@ -289,7 +298,7 @@ func serverLoop() {
 	}
 }
 
-func disconnectClient(clientId uint16) {
+func disconnectClient(clientId uuid.UUID) {
 	client, found := ServerInstance.clientsById[clientId]
 
 	if !found {

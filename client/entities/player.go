@@ -5,6 +5,7 @@ import (
 	"image/color"
 	"log"
 
+	"github.com/google/uuid"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text"
@@ -20,12 +21,14 @@ var (
 )
 
 type Player struct {
-	imageTile *ebiten.Image
-	Id        uint16
-	Username  string
-	Position  f64.Vec2
-	SendChan  chan resources.UpdateContents
-	Cam       *camera.Camera
+	imageTile       *ebiten.Image
+	Id              uuid.UUID
+	Username        string
+	Position        f64.Vec2
+	SendChan        chan resources.UpdateContents
+	Cam             *camera.Camera
+	fireTime        int
+	currentFireTime int
 }
 
 func init() {
@@ -47,8 +50,10 @@ func init() {
 
 func NewPlayer(tilesImage *ebiten.Image, tile f64.Vec2) *Player {
 	p := &Player{
-		imageTile: tilesImage.SubImage(image.Rect(int(tile[0]), int(tile[1]), int(tile[0])+8, int(tile[0])+8)).(*ebiten.Image),
-		SendChan:  make(chan resources.UpdateContents),
+		imageTile:       tilesImage.SubImage(image.Rect(int(tile[0]), int(tile[1]), int(tile[0])+8, int(tile[0])+8)).(*ebiten.Image),
+		SendChan:        make(chan resources.UpdateContents),
+		fireTime:        100,
+		currentFireTime: 0,
 	}
 
 	return p
@@ -99,6 +104,14 @@ func (p *Player) Update() error {
 		p.Cam.Zoom(0.9)
 	}
 
+	// Fire projectile
+	if p.currentFireTime >= p.fireTime {
+		// p.FireProjectile()
+		p.currentFireTime = 0
+	} else {
+		p.currentFireTime++
+	}
+
 	return nil
 }
 
@@ -124,4 +137,10 @@ func (p *Player) Draw(screen *ebiten.Image) {
 
 	// text.DrawWithOptions(screen, p.Username, mplusNormalFont, p.Cam.GetTranslation(p.Position[0]*p.Cam.Scale, p.Position[1]*p.Cam.Scale))
 
+}
+
+func (p *Player) FireProjectile(targetPos f64.Vec2) {
+	// Get closest enemy pos
+
+	NewProjectile(p.Position, targetPos)
 }

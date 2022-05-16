@@ -6,9 +6,11 @@ import (
 	"fmt"
 	"image/png"
 	"log"
+	"math"
 	"net/url"
 	"reflect"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/hajimehoshi/ebiten/v2"
 	camera "github.com/melonfunction/ebiten-camera"
@@ -34,17 +36,17 @@ var addr string //= flag.String("addr", "localhost:8000", "http service address"
 type Client struct {
 	SendChan       chan *resources.Message
 	RecvChan       chan *resources.Message
-	NetworkPlayers map[uint16]*entities.NetworkPlayer
+	NetworkPlayers map[uuid.UUID]*entities.NetworkPlayer
 	Player         *entities.Player
 }
 
 var ChatWindow = &gui.Chat{}
 var InfoWindow = &gui.Info{}
-var client = &Client{}
+var ClientInstance = &Client{}
 
 func init() {
 
-	client.NetworkPlayers = make(map[uint16]*entities.NetworkPlayer)
+	ClientInstance.NetworkPlayers = make(map[uuid.UUID]*entities.NetworkPlayer)
 
 	img, err := png.Decode(bytes.NewReader(characters))
 	if err != nil {
@@ -62,8 +64,8 @@ func init() {
 func connectToServer(g *Game) error {
 	fmt.Println("Client starting...")
 
-	client.SendChan = make(chan *resources.Message)
-	client.RecvChan = make(chan *resources.Message)
+	ClientInstance.SendChan = make(chan *resources.Message)
+	ClientInstance.RecvChan = make(chan *resources.Message)
 
 	addr = g.serverAddr
 
@@ -101,7 +103,7 @@ func connectToServer(g *Game) error {
 			case resources.FailedToConnectMessage:
 				messageContents := message.Contents.(string)
 				g.ConnectFailedMessage <- messageContents
-				client.SendChan <- resources.NewFailedToConnectMessage(messageContents)
+				ClientInstance.SendChan <- resources.NewFailedToConnectMessage(messageContents)
 				log.Printf("failed to connect: %s", messageContents)
 				return
 			case resources.ChatMessage:
@@ -117,7 +119,7 @@ func connectToServer(g *Game) error {
 
 	// Send
 	for {
-		message := <-client.SendChan
+		message := <-ClientInstance.SendChan
 		if message.MessageType == resources.FailedToConnectMessage {
 			return fmt.Errorf("failed to connect: %v", message)
 		}
@@ -131,7 +133,7 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	// If successful, the we receive our server client id and spawn position
 	messageContents := message.Contents.(map[string]interface{})
 
-	clientId := messageContents["clientId"].(float64)
+	clientId := messageContents["clientId"].(uuid.UUID)
 	pos := messageContents["pos"].([]interface{})
 	tile := messageContents["tile"].([]interface{})
 	worldMap := resources.WorldMapWebSocketMessageConvert(messageContents["world"].(map[string]interface{}))
@@ -139,20 +141,20 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	// Create camera
 	cam = camera.NewCamera(g.screenWidth, g.screenHeight, pos[0].(float64), pos[1].(float64), 0, 1)
 
-	client.Player = entities.NewPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
-	client.Player.Username = g.username
-	client.Player.Id = uint16(clientId)
-	client.Player.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
-	client.Player.Cam = cam
+	ClientInstance.Player = entities.NewPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
+	ClientInstance.Player.Username = g.username
+	ClientInstance.Player.Id = clientId
+	ClientInstance.Player.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
+	ClientInstance.Player.Cam = cam
 
 	go func(client *Client) {
 		for {
 			message := <-client.Player.SendChan
 			client.SendChan <- resources.NewUpdateMessage(client.Player.Id, message)
 		}
-	}(client)
+	}(ClientInstance)
 
-	g.Player = client.Player
+	g.Player = ClientInstance.Player
 
 	// Now logged in, build world
 	world := entities.NewWorld(EnvironmentsImage, *worldMap)
@@ -163,7 +165,7 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	ChatWindow = gui.NewChat(g.screenWidth, g.screenHeight, g.renderMgr)
 	g.Gui = append(g.Gui, ChatWindow)
 
-	InfoWindow = gui.NewInfo(g.screenWidth, g.screenHeight, client.Player, g.renderMgr)
+	InfoWindow = gui.NewInfo(g.screenWidth, g.screenHeight, ClientInstance.Player, g.renderMgr)
 	g.Gui = append(g.Gui, InfoWindow)
 
 	// Messages from chat send channel will be forwarded to the client send channel
@@ -172,7 +174,7 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 			message := <-chat.SendChan
 			client.SendChan <- resources.NewChatMessage(client.Player.Id, message)
 		}
-	}(client, ChatWindow)
+	}(ClientInstance, ChatWindow)
 
 }
 
@@ -190,7 +192,7 @@ func receiveUpdateMessage(message *resources.Message, g *Game) {
 	tile := messageContents["tile"].([]interface{})
 	username := messageContents["username"].(string)
 
-	networkClient, found := client.NetworkPlayers[message.ClientId]
+	networkClient, found := ClientInstance.NetworkPlayers[message.ClientId]
 
 	if found {
 		networkClient.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
@@ -202,7 +204,7 @@ func receiveUpdateMessage(message *resources.Message, g *Game) {
 	networkClient.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
 	networkClient.Username = username
 	networkClient.Cam = cam
-	client.NetworkPlayers[message.ClientId] = networkClient
+	ClientInstance.NetworkPlayers[message.ClientId] = networkClient
 	g.Entities[message.ClientId] = networkClient
 }
 
@@ -212,11 +214,11 @@ func receiveEntityUpdateMessage(message *resources.Message, g *Game) {
 	for _, content := range contents {
 		c := content.(map[string]interface{})
 
-		entityId := c["entityId"].(float64)
+		entityId := c["entityId"].(uuid.UUID)
 		pos := c["pos"].([]interface{})
 		tile := c["tile"].([]interface{})
 
-		np, found := client.NetworkPlayers[uint16(entityId)]
+		np, found := ClientInstance.NetworkPlayers[entityId]
 
 		if found {
 			np.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
@@ -226,8 +228,8 @@ func receiveEntityUpdateMessage(message *resources.Message, g *Game) {
 
 		np = entities.NewNetworkPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
 		np.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
-		client.NetworkPlayers[uint16(entityId)] = np
-		g.Entities[uint16(entityId)] = np
+		ClientInstance.NetworkPlayers[entityId] = np
+		g.Entities[entityId] = np
 	}
 }
 
@@ -237,9 +239,9 @@ func receiveChatMessage(message *resources.Message) {
 	ChatWindow.RecvMessages = append(ChatWindow.RecvMessages, messageContents)
 }
 
-func removeNetworkPlayer(clientId uint16, g *Game) {
+func removeNetworkPlayer(clientId uuid.UUID, g *Game) {
 	delete(g.Entities, clientId)
-	delete(client.NetworkPlayers, clientId)
+	delete(ClientInstance.NetworkPlayers, clientId)
 }
 
 func removeGui(guiType Entity, g *Game) {
@@ -254,4 +256,40 @@ func removeGui(guiType Entity, g *Game) {
 	}
 
 	g.Gui = append(g.Gui[:index], g.Gui[index+1:]...)
+}
+
+func (c *Client) GetClosestEnemyPos(fromPos f64.Vec2) f64.Vec2 {
+	type e struct {
+		ent      *entities.NetworkPlayer
+		distance float64
+	}
+
+	closest := e{}
+
+	for _, ent := range ClientInstance.NetworkPlayers {
+		// Get distance
+		dist := GetDistance(fromPos, ent.Position)
+
+		if closest.ent.Username == "" {
+			closest = e{
+				ent,
+				dist,
+			}
+		} else if dist < closest.distance {
+			closest.ent = ent
+			closest.distance = dist
+		}
+
+	}
+
+	return closest.ent.Position
+}
+
+func GetDistance(a f64.Vec2, b f64.Vec2) float64 {
+	xa := math.Abs(a[0] - b[0])
+	xs := math.Pow(xa, 2)
+
+	ya := math.Abs(a[1] - b[1])
+	ys := math.Pow(ya, 2)
+	return math.Sqrt(xs + ys)
 }
