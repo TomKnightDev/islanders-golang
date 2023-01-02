@@ -63,16 +63,16 @@ func (p *Player) Update() error {
 	x := 0.0
 	y := 0.0
 
-	if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
+	if ebiten.IsKeyPressed(ebiten.KeyA) {
 		x -= 1
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
+	if ebiten.IsKeyPressed(ebiten.KeyD) {
 		x += 1
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
+	if ebiten.IsKeyPressed(ebiten.KeyW) {
 		y -= 1
 	}
-	if ebiten.IsKeyPressed(ebiten.KeyS) || ebiten.IsKeyPressed(ebiten.KeyArrowDown) {
+	if ebiten.IsKeyPressed(ebiten.KeyS) {
 		y += 1
 	}
 
@@ -104,9 +104,28 @@ func (p *Player) Update() error {
 		p.Cam.Zoom(0.9)
 	}
 
+	// Fire direction
+	fx := 0.0
+	fy := 0.0
+	if ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
+		fx -= 1
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
+		fx += 1
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
+		fy -= 1
+	}
+	if ebiten.IsKeyPressed(ebiten.KeyArrowDown) {
+		fy += 1
+	}
+
 	// Fire projectile
-	if p.currentFireTime >= p.fireTime {
-		// p.FireProjectile()
+	if p.currentFireTime >= p.fireTime && (fx != 0 || fy != 0) {
+		p.FireProjectile(f64.Vec2{
+			p.Position[0] + fx,
+			p.Position[1] + fy,
+		})
 		p.currentFireTime = 0
 	} else {
 		p.currentFireTime++

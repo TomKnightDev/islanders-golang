@@ -133,7 +133,7 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	// If successful, the we receive our server client id and spawn position
 	messageContents := message.Contents.(map[string]interface{})
 
-	clientId := messageContents["clientId"].(uuid.UUID)
+	clientId := messageContents["clientId"].(string)
 	pos := messageContents["pos"].([]interface{})
 	tile := messageContents["tile"].([]interface{})
 	worldMap := resources.WorldMapWebSocketMessageConvert(messageContents["world"].(map[string]interface{}))
@@ -143,7 +143,12 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 
 	ClientInstance.Player = entities.NewPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
 	ClientInstance.Player.Username = g.username
-	ClientInstance.Player.Id = clientId
+	id, err := uuid.FromBytes([]byte(clientId))
+	if err != nil {
+		log.Printf("failed to convert %v into a uuid", clientId)
+	} else {
+		ClientInstance.Player.Id = id
+	}
 	ClientInstance.Player.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
 	ClientInstance.Player.Cam = cam
 
