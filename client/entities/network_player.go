@@ -26,8 +26,8 @@ func NewNetworkPlayer(tilesImage *ebiten.Image, tile f64.Vec2) *NetworkPlayer {
 	return p
 }
 
+// Update
 func (p *NetworkPlayer) Update() error {
-
 	return nil
 }
 
@@ -50,5 +50,4 @@ func (p *NetworkPlayer) Draw(screen *ebiten.Image) {
 	p.Cam.Blit(screen)
 
 	text.DrawWithOptions(screen, p.Username, mplusNormalFont, p.Cam.GetTranslation(p.Position[0], p.Position[1]))
-
 }
