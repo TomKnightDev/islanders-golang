@@ -28,6 +28,7 @@ type Server struct {
 	clientsById       map[uint16]*client
 	clientsByUsername map[string]*client
 	enemies           []*Entity
+	npcs              []*NPC
 	Space             *resolv.Space
 }
 type client struct {
@@ -38,15 +39,16 @@ type client struct {
 	tile     f64.Vec2
 	mu       sync.Mutex
 	conn     *websocket.Conn
-	collider *resolv.Object
+	collider *resolv.Circle
 }
 
 func init() {
 	ServerInstance.clientsById = make(map[uint16]*client)
 	ServerInstance.clientsByUsername = make(map[string]*client)
 	ServerInstance.Space = resolv.NewSpace(800, 800, 8, 8)
+	ServerInstance.npcs = initNPCs()
 
-	// go serverLoop()
+	go npcLoop(ServerInstance.npcs)
 }
 
 func connect(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +142,10 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 			Tile:     c.tile,
 			Username: c.username,
 		}))
+
+		// Send current NPC positions
+		sendNPCSnapshot(conn)
+
 		return c.id, nil
 	}
 
@@ -149,10 +155,8 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 		username: username,
 		password: password,
 		conn:     conn,
-		collider: resolv.NewObject(1, 1, 16, 16),
+		collider: resolv.NewCircle(9, 9, 8),
 	}
-
-	newClient.collider.SetShape(resolv.NewCircle(8, 8, 8))
 
 	ServerInstance.Space.Add(newClient.collider)
 
@@ -187,6 +191,9 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 		Tile:     f64.Vec2{0, 0},
 		Username: newClient.username,
 	}))
+
+	// Send current NPC positions
+	sendNPCSnapshot(conn)
 
 	return newClient.id, nil
 }

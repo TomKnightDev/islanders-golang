@@ -68,8 +68,11 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	}
 }
 
-func (g *Game) Layout(outsideWidth, outsideHeight int) (sc, sh int) {
-	return g.screenWidth, g.screenHeight
+func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	g.screenWidth = outsideWidth
+	g.screenHeight = outsideHeight
+	g.renderMgr.SetDisplaySize(float32(outsideWidth), float32(outsideHeight))
+	return outsideWidth, outsideHeight
 }
 
 func main() {
@@ -80,8 +83,6 @@ func main() {
 		ConnectFailedMessage: make(chan string),
 		renderMgr:            renderer.New(nil),
 	}
-
-	game.renderMgr.SetDisplaySize(float32(game.screenWidth), float32(game.screenHeight))
 
 	mm := gui.NewMainMenu(game.screenWidth, game.screenHeight, game.renderMgr)
 
@@ -110,8 +111,7 @@ func main() {
 
 	ebiten.SetWindowSize(game.screenWidth, game.screenHeight)
 	ebiten.SetWindowTitle("Islanders")
-	ebiten.SetWindowResizable(true)
-	ebiten.NewImage(800, 800)
+	ebiten.SetWindowResizingMode(ebiten.WindowResizingModeEnabled)
 
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)

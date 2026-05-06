@@ -50,7 +50,7 @@ func (w *World) Draw(screen *ebiten.Image) {
 			tile := w.imageTile.SubImage(image.Rect(tileXStart, tileYStart, tileXStart+8, tileYStart+8))
 
 			// Draw tiles
-			w.Cam.Surface.DrawImage(tile.(*ebiten.Image), w.Cam.GetTranslation(float64(x*8), float64(y*8)))
+			w.Cam.Surface.DrawImage(tile.(*ebiten.Image), w.Cam.GetTranslation(&ebiten.DrawImageOptions{}, float64(x*8), float64(y*8)))
 		}
 	}
 

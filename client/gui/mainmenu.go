@@ -50,7 +50,7 @@ func NewMainMenu(screenWidth, screenHeight int, mgr *renderer.Manager) *MainMenu
 		mgr:      mgr,
 		Connect:  make(chan string),
 		username: "Tom",
-		server:   "192.168.1.128:8285",
+		server:   "192.168.0.57:8285",
 	}
 
 	return mm
@@ -61,13 +61,12 @@ func (mm *MainMenu) Update() error {
 		return nil
 	}
 
-	flags := imgui.WindowFlagsNone
-	// flags |= imgui.WindowFlagsNoTitleBar
-	flags |= imgui.WindowFlagsNoResize
-	flags |= imgui.WindowFlagsNoCollapse
+	const menuW, menuH = float32(600), float32(400)
+	flags := imgui.WindowFlagsNoResize | imgui.WindowFlagsNoCollapse | imgui.WindowFlagsNoMove
 
-	imgui.SetNextWindowPos(imgui.Vec2{100, 100})
-	imgui.SetNextWindowSize(imgui.Vec2{600, 400})
+	winW, winH := ebiten.WindowSize()
+	imgui.SetNextWindowPos(imgui.Vec2{X: (float32(winW) - menuW) / 2, Y: (float32(winH) - menuH) / 2})
+	imgui.SetNextWindowSize(imgui.Vec2{X: menuW, Y: menuH})
 	imgui.BeginV("Main Menu", nil, flags)
 
 	imgui.InputText("Server", &mm.server)

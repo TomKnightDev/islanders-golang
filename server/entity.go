@@ -9,7 +9,7 @@ type Entity struct {
 	id       uint16
 	tile     f64.Vec2
 	pos      f64.Vec2
-	collider *resolv.Object
+	collider *resolv.Circle
 }
 
 func NewEntity(tile f64.Vec2, pos f64.Vec2) *Entity {
@@ -17,10 +17,8 @@ func NewEntity(tile f64.Vec2, pos f64.Vec2) *Entity {
 		id:       100 + uint16(len(ServerInstance.enemies)),
 		tile:     tile,
 		pos:      pos,
-		collider: resolv.NewObject(pos[0], pos[1], 8, 8),
+		collider: resolv.NewCircle(pos[0]+4, pos[1]+4, 4),
 	}
-
-	e.collider.SetShape(resolv.NewCircle(8, 8, 8))
 
 	return e
 }
@@ -43,17 +41,11 @@ func (e *Entity) Move(targetPos f64.Vec2) {
 	if !checkForCollision(e, x, y) {
 		e.pos[0] += x
 		e.pos[1] += y
-
-		e.collider.X += x
-		e.collider.Y += y
-		e.collider.Update()
+		e.collider.Move(x, y)
 	}
 }
 
 func checkForCollision(e *Entity, x, y float64) bool {
-	if collision := e.collider.Check(x, y); collision != nil {
-		return true
-	}
-
+	// Collision detection via space filtering; currently unused (server loop disabled).
 	return false
 }

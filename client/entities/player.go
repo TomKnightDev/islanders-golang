@@ -115,13 +115,15 @@ func (p *Player) Draw(screen *ebiten.Image) {
 	// text.Draw(screen, p.Username, mplusNormalFont, int(p.Position[0]), int(p.Position[1]), color.White)
 
 	// Draw the player
-	p.Cam.Surface.DrawImage(p.imageTile, p.Cam.GetTranslation(p.Position[0], p.Position[1]))
+	opts := p.Cam.GetTranslation(&ebiten.DrawImageOptions{}, p.Position[0], p.Position[1])
+	p.Cam.Surface.DrawImage(p.imageTile, opts)
+
+	// Draw username above the sprite using the same screen-space position
+	sx := opts.GeoM.Element(0, 2)
+	sy := opts.GeoM.Element(1, 2)
+	text.Draw(p.Cam.Surface, p.Username, mplusNormalFont, int(sx)-len(p.Username)*3, int(sy)-10, color.White)
 
 	// Draw to screen and zoom
 	p.Cam.Blit(screen)
-
-	text.Draw(screen, p.Username, mplusNormalFont, int(p.Cam.X+float64(16)/2), int(p.Cam.Y+float64(16)/2), color.White)
-
-	// text.DrawWithOptions(screen, p.Username, mplusNormalFont, p.Cam.GetTranslation(p.Position[0]*p.Cam.Scale, p.Position[1]*p.Cam.Scale))
 
 }
