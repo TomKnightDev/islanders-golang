@@ -1,6 +1,6 @@
 module github.com/tomknightdev/islanders-golang
 
-go 1.24
+go 1.24.0
 
 require (
 	github.com/gabstv/ebiten-imgui v0.5.0
