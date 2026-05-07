@@ -50,7 +50,7 @@ func NewMainMenu(screenWidth, screenHeight int, mgr *renderer.Manager) *MainMenu
 		mgr:      mgr,
 		Connect:  make(chan string),
 		username: "Tom",
-		server:   "192.168.0.57:8285",
+		server:   "134.209.26.73:8285",
 	}
 
 	return mm
