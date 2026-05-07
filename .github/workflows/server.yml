@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ master ]
 
+env:
+  IMAGE: ghcr.io/tomknightdev/islanders-server
+
 jobs:
 
   build:
@@ -24,25 +27,29 @@ jobs:
     - name: Build Server
       run: go build -v -o bin/server ./server/
 
-  deploy:
+  docker:
     runs-on: ubuntu-latest
     needs: [build]
+    if: github.ref == 'refs/heads/master'
+    permissions:
+      contents: read
+      packages: write
 
     steps:
-    - name: Check out repo
-      uses: actions/checkout@v4
+    - uses: actions/checkout@v4
 
-    - name: Log in to Docker Hub
+    - name: Log in to GitHub Container Registry
       uses: docker/login-action@v3
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_PASSWORD }}
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Extract metadata (tags, labels) for Docker
+    - name: Extract metadata
       id: meta
       uses: docker/metadata-action@v5
       with:
-        images: tomknightdev/islanders-server
+        images: ${{ env.IMAGE }}
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v6
@@ -51,3 +58,25 @@ jobs:
         push: true
         tags: ${{ steps.meta.outputs.tags }}
         labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [docker]
+    if: github.ref == 'refs/heads/master'
+
+    steps:
+    - name: Deploy to DigitalOcean Droplet
+      uses: appleboy/ssh-action@v1
+      with:
+        host: ${{ secrets.DO_HOST }}
+        username: root
+        key: ${{ secrets.DO_SSH_KEY }}
+        script: |
+          docker pull ${{ env.IMAGE }}:master
+          docker stop islanders-server || true
+          docker rm islanders-server || true
+          docker run -d \
+            --name islanders-server \
+            -p 8285:8285 \
+            --restart unless-stopped \
+            ${{ env.IMAGE }}:master
