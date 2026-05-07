@@ -1,5 +1,22 @@
 package resources
 
+const (
+	TileGrass        = 71
+	TileSand         = 190
+	TileWaterShallow = 189
+	TileWaterDeep    = 205
+	TileTree1        = 74
+	TileTree2        = 78
+)
+
+func IsPassable(tileIndex int) bool {
+	switch tileIndex {
+	case TileWaterShallow, TileWaterDeep, TileTree1, TileTree2:
+		return false
+	}
+	return true
+}
+
 type WorldMap struct {
 	Compressionlevel int     `json:"compressionlevel"`
 	Height           int     `json:"height"`

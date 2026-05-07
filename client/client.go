@@ -144,6 +144,7 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	client.Player.Id = uint16(clientId)
 	client.Player.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
 	client.Player.Cam = cam
+	client.Player.WorldMap = worldMap
 
 	go func(client *Client) {
 		for {
