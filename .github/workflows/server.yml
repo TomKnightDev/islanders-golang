@@ -22,7 +22,7 @@ jobs:
       run: go mod tidy
 
     - name: Build Server
-      run: go build -v ./server/
+      run: go build -v -o bin/server ./server/
 
   deploy:
     runs-on: ubuntu-latest
