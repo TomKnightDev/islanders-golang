@@ -90,6 +90,7 @@ type ServerEntityUpdateContents struct {
 	EntityId uint16   `json:"entityId"`
 	Pos      f64.Vec2 `json:"pos"`
 	Tile     f64.Vec2 `json:"tile"`
+	Username string   `json:"username"`
 }
 
 func NewServerEntityUpdateMessage(contents []ServerEntityUpdateContents) *Message {

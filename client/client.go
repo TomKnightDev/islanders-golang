@@ -215,6 +215,7 @@ func receiveEntityUpdateMessage(message *resources.Message, g *Game) {
 		entityId := c["entityId"].(float64)
 		pos := c["pos"].([]interface{})
 		tile := c["tile"].([]interface{})
+		username, _ := c["username"].(string)
 
 		np, found := client.NetworkPlayers[uint16(entityId)]
 
@@ -226,8 +227,10 @@ func receiveEntityUpdateMessage(message *resources.Message, g *Game) {
 
 		np = entities.NewNetworkPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
 		np.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
-		client.NetworkPlayers[uint16(entityId)] = np
+		np.Username = username
+		np.Cam = cam
 		g.Entities[uint16(entityId)] = np
+		client.NetworkPlayers[uint16(entityId)] = np
 	}
 }
 

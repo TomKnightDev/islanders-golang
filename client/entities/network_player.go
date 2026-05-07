@@ -2,6 +2,7 @@ package entities
 
 import (
 	"image"
+	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/text"
@@ -44,10 +45,14 @@ func (p *NetworkPlayer) Draw(screen *ebiten.Image) {
 	// text.Draw(screen, p.Username, mplusNormalFont, int(p.Position[0]*settings.Scale), int(p.Position[1]*settings.Scale), color.White)
 
 	// Draw the player
-	p.Cam.Surface.DrawImage(p.imageTile, p.Cam.GetTranslation(p.Position[0], p.Position[1]))
+	opts := p.Cam.GetTranslation(&ebiten.DrawImageOptions{}, p.Position[0], p.Position[1])
+	p.Cam.Surface.DrawImage(p.imageTile, opts)
+
+	// Draw username above the sprite using the same screen-space position
+	sx := opts.GeoM.Element(0, 2)
+	sy := opts.GeoM.Element(1, 2)
+	text.Draw(p.Cam.Surface, p.Username, mplusNormalFont, int(sx)-len(p.Username)*3, int(sy)-10, color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff})
 
 	// Draw to screen and zoom
 	p.Cam.Blit(screen)
-
-	text.DrawWithOptions(screen, p.Username, mplusNormalFont, p.Cam.GetTranslation(p.Position[0], p.Position[1]))
 }
