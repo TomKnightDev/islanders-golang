@@ -1,15 +1,12 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net/http"
 	"sync"
 	"time"
-
-	_ "embed"
 
 	"github.com/gorilla/websocket"
 	"github.com/solarlune/resolv"
@@ -18,8 +15,6 @@ import (
 )
 
 var (
-	//go:embed resources/worldMap.json
-	worldMapJson   []byte
 	ServerInstance = &Server{}
 	upgrader       = websocket.Upgrader{} // use default options
 )
@@ -29,6 +24,7 @@ type Server struct {
 	clientsByUsername map[string]*client
 	enemies           []*Entity
 	npcs              []*NPC
+	worldMap          resources.WorldMap
 	Space             *resolv.Space
 }
 type client struct {
@@ -46,6 +42,7 @@ func init() {
 	ServerInstance.clientsById = make(map[uint16]*client)
 	ServerInstance.clientsByUsername = make(map[string]*client)
 	ServerInstance.Space = resolv.NewSpace(800, 800, 8, 8)
+	ServerInstance.worldMap = GenerateWorldMap()
 	ServerInstance.npcs = initNPCs()
 
 	go npcLoop(ServerInstance.npcs)
@@ -100,12 +97,6 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 	// Check to see if this c has connect previously
 	c, found := ServerInstance.clientsByUsername[username]
 
-	// Get world map
-	wm := resources.WorldMap{}
-	if err := json.Unmarshal(worldMapJson, &wm); err != nil {
-		log.Fatal(err)
-	}
-
 	// If the client was found, check password
 	if found {
 		if c.password != password {
@@ -119,7 +110,7 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 			ClientId: c.id,
 			Pos:      c.position,
 			Tile:     c.tile,
-			WorldMap: wm,
+			WorldMap: ServerInstance.worldMap,
 		}))
 		c.mu.Unlock()
 
@@ -169,7 +160,7 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 		ClientId: newClient.id,
 		Pos:      f64.Vec2{1, 1},
 		Tile:     f64.Vec2{0, 0},
-		WorldMap: wm,
+		WorldMap: ServerInstance.worldMap,
 	}))
 
 	// Update client of all other clients

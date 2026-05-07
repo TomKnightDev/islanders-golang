@@ -26,6 +26,7 @@ type Player struct {
 	Position  f64.Vec2
 	SendChan  chan resources.UpdateContents
 	Cam       *camera.Camera
+	WorldMap  *resources.WorldMap
 }
 
 func init() {
@@ -79,13 +80,16 @@ func (p *Player) Update() error {
 	// 	y = 0
 	// }
 
-	p.Position[0] += x
-	p.Position[1] += y
-
 	if x != 0 || y != 0 {
-		p.SendChan <- resources.UpdateContents{
-			Pos:  p.Position,
-			Tile: f64.Vec2{0, 0},
+		newX := p.Position[0] + x
+		newY := p.Position[1] + y
+		if p.canMoveTo(newX, newY) {
+			p.Position[0] = newX
+			p.Position[1] = newY
+			p.SendChan <- resources.UpdateContents{
+				Pos:  p.Position,
+				Tile: f64.Vec2{0, 0},
+			}
 		}
 	}
 
@@ -100,6 +104,25 @@ func (p *Player) Update() error {
 	}
 
 	return nil
+}
+
+func (p *Player) canMoveTo(px, py float64) bool {
+	if p.WorldMap == nil || len(p.WorldMap.Layers) == 0 {
+		return true
+	}
+	w := p.WorldMap.Width
+	data := p.WorldMap.Layers[0].Data
+	// Check all four corners of the 8x8 player sprite
+	for _, corner := range [4][2]float64{{px, py}, {px + 7, py}, {px, py + 7}, {px + 7, py + 7}} {
+		tx, ty := int(corner[0]/8), int(corner[1]/8)
+		if tx < 0 || ty < 0 || tx >= w || ty >= p.WorldMap.Height {
+			return false
+		}
+		if !resources.IsPassable(data[ty*w+tx]) {
+			return false
+		}
+	}
+	return true
 }
 
 func (p *Player) Draw(screen *ebiten.Image) {
