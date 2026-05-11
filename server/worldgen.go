@@ -37,7 +37,7 @@ func GenerateWorldMap() resources.WorldMap {
 		ty := sandEdge + rand.Intn(mapHeight-sandEdge*2)
 
 		// Keep a small clear zone around the spawn point
-		if tx < 5 && ty < 5 {
+		if tx >= 47 && tx <= 53 && ty >= 47 && ty <= 53 {
 			continue
 		}
 
