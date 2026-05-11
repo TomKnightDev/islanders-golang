@@ -48,6 +48,25 @@ func randomMapPos() f64.Vec2 {
 	}
 }
 
+func npcCanMoveTo(px, py float64) bool {
+	wm := ServerInstance.worldMap
+	if len(wm.Layers) == 0 {
+		return true
+	}
+	w := wm.Width
+	data := wm.Layers[0].Data
+	for _, corner := range [4][2]float64{{px, py}, {px + 7, py}, {px, py + 7}, {px + 7, py + 7}} {
+		tx, ty := int(corner[0]/8), int(corner[1]/8)
+		if tx < 0 || ty < 0 || tx >= w || ty >= wm.Height {
+			return false
+		}
+		if !resources.IsPassable(data[ty*w+tx]) {
+			return false
+		}
+	}
+	return true
+}
+
 func npcLoop(npcs []*NPC) {
 	for {
 		time.Sleep(25 * time.Millisecond)
@@ -59,8 +78,15 @@ func npcLoop(npcs []*NPC) {
 			dist := math.Sqrt(dx*dx + dy*dy)
 			if dist > 1 {
 				const speed = 0.3
-				npc.position[0] += (dx / dist) * speed
-				npc.position[1] += (dy / dist) * speed
+				newX := npc.position[0] + (dx/dist)*speed
+				newY := npc.position[1] + (dy/dist)*speed
+				if npcCanMoveTo(newX, newY) {
+					npc.position[0] = newX
+					npc.position[1] = newY
+				} else {
+					npc.target = randomMapPos()
+					npc.ticksToNewTarget = 300 + rand.Intn(300)
+				}
 			}
 
 			npc.ticksToNewTarget--

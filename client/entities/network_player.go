@@ -17,6 +17,16 @@ type NetworkPlayer struct {
 	Position  f64.Vec2
 	Tile      f64.Vec2
 	Cam       *camera.Camera
+	flipX     bool
+}
+
+func (p *NetworkPlayer) SetPosition(pos f64.Vec2) {
+	if pos[0] < p.Position[0] {
+		p.flipX = true
+	} else if pos[0] > p.Position[0] {
+		p.flipX = false
+	}
+	p.Position = pos
 }
 
 func NewNetworkPlayer(tilesImage *ebiten.Image, tile f64.Vec2) *NetworkPlayer {
@@ -45,7 +55,12 @@ func (p *NetworkPlayer) Draw(screen *ebiten.Image) {
 	// text.Draw(screen, p.Username, mplusNormalFont, int(p.Position[0]*settings.Scale), int(p.Position[1]*settings.Scale), color.White)
 
 	// Draw the player
-	opts := p.Cam.GetTranslation(&ebiten.DrawImageOptions{}, p.Position[0], p.Position[1])
+	drawOpts := &ebiten.DrawImageOptions{}
+	if p.flipX {
+		drawOpts.GeoM.Scale(-1, 1)
+		drawOpts.GeoM.Translate(8, 0)
+	}
+	opts := p.Cam.GetTranslation(drawOpts, p.Position[0], p.Position[1])
 	p.Cam.Surface.DrawImage(p.imageTile, opts)
 
 	// Draw username above the sprite using the same screen-space position
