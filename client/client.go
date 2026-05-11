@@ -194,7 +194,7 @@ func receiveUpdateMessage(message *resources.Message, g *Game) {
 	networkClient, found := client.NetworkPlayers[message.ClientId]
 
 	if found {
-		networkClient.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
+		networkClient.SetPosition(f64.Vec2{pos[0].(float64), pos[1].(float64)})
 		networkClient.Tile = f64.Vec2{tile[0].(float64), tile[1].(float64)}
 		return
 	}
@@ -221,7 +221,7 @@ func receiveEntityUpdateMessage(message *resources.Message, g *Game) {
 		np, found := client.NetworkPlayers[uint16(entityId)]
 
 		if found {
-			np.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
+			np.SetPosition(f64.Vec2{pos[0].(float64), pos[1].(float64)})
 			np.Tile = f64.Vec2{tile[0].(float64), tile[1].(float64)}
 			continue
 		}

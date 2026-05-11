@@ -27,6 +27,7 @@ type Player struct {
 	SendChan  chan resources.UpdateContents
 	Cam       *camera.Camera
 	WorldMap  *resources.WorldMap
+	flipX     bool
 }
 
 func init() {
@@ -61,9 +62,11 @@ func (p *Player) Update() error {
 
 	if ebiten.IsKeyPressed(ebiten.KeyA) || ebiten.IsKeyPressed(ebiten.KeyArrowLeft) {
 		x -= 1
+		p.flipX = true
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyD) || ebiten.IsKeyPressed(ebiten.KeyArrowRight) {
 		x += 1
+		p.flipX = false
 	}
 	if ebiten.IsKeyPressed(ebiten.KeyW) || ebiten.IsKeyPressed(ebiten.KeyArrowUp) {
 		y -= 1
@@ -138,7 +141,12 @@ func (p *Player) Draw(screen *ebiten.Image) {
 	// text.Draw(screen, p.Username, mplusNormalFont, int(p.Position[0]), int(p.Position[1]), color.White)
 
 	// Draw the player
-	opts := p.Cam.GetTranslation(&ebiten.DrawImageOptions{}, p.Position[0], p.Position[1])
+	drawOpts := &ebiten.DrawImageOptions{}
+	if p.flipX {
+		drawOpts.GeoM.Scale(-1, 1)
+		drawOpts.GeoM.Translate(8, 0)
+	}
+	opts := p.Cam.GetTranslation(drawOpts, p.Position[0], p.Position[1])
 	p.Cam.Surface.DrawImage(p.imageTile, opts)
 
 	// Draw username above the sprite using the same screen-space position
