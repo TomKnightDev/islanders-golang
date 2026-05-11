@@ -146,7 +146,7 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 		username: username,
 		password: password,
 		conn:     conn,
-		collider: resolv.NewCircle(9, 9, 8),
+		collider: resolv.NewCircle(400, 400, 8),
 	}
 
 	ServerInstance.Space.Add(newClient.collider)
@@ -158,8 +158,8 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 	// Send reponse to client
 	conn.WriteJSON(resources.NewConnectResponseMessage(resources.ConnectResponseContents{
 		ClientId: newClient.id,
-		Pos:      f64.Vec2{1, 1},
-		Tile:     f64.Vec2{0, 0},
+		Pos:      f64.Vec2{400, 400},
+		Tile:     f64.Vec2{50, 50},
 		WorldMap: ServerInstance.worldMap,
 	}))
 
@@ -178,8 +178,8 @@ func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uin
 
 	// Update all other clients
 	sendUpdateToClients(resources.NewUpdateMessage(newClient.id, resources.UpdateContents{
-		Pos:      f64.Vec2{1, 1},
-		Tile:     f64.Vec2{0, 0},
+		Pos:      f64.Vec2{400, 400},
+		Tile:     f64.Vec2{50, 50},
 		Username: newClient.username,
 	}))
 
