@@ -106,6 +106,10 @@ The sprite sheet has no dedicated iron ore art. The grey boulder stands in until
 - **Click-to-move replaces WASD.** The camera's `GetCursorCoords` turns a click into a world tile.
 - **Typed messages.** New message contents are decoded with `resources.DecodeContents` (re-marshal into a struct) instead of hand-written `map[string]interface{}` assertions.
 
+## Locations
+
+Players share where they are with a grid reference instead of raw coordinates. The island is split into 10×10-tile squares, lettered A–J west to east and numbered 1–10 north to south. A location reads "F6 (50, 50)": the square to say out loud, then the exact tile. Within 4 tiles of the bank, blacksmith, anvil or iron rocks it adds "near the bank" and so on. The info panel shows the player's location and has a **Share location** button that posts it to chat.
+
 ## NPCs
 
 The wandering NPCs and their random chat were removed in phase 3 to keep the world quiet. They can come back later with a purpose (a banker, a blacksmith).

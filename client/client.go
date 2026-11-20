@@ -193,6 +193,10 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	g.Gui = append(g.Gui, ChatWindow)
 
 	InfoWindow = gui.NewInfo(g.screenWidth, g.screenHeight, client.Player, g.renderMgr)
+	InfoWindow.SendChat = func(text string) {
+		// Off the game loop: the send channel is unbuffered.
+		go func() { client.SendChan <- resources.NewChatMessage(client.Player.Id, text) }()
+	}
 	g.Gui = append(g.Gui, InfoWindow)
 
 	InventoryWindow = gui.NewInventory(g.renderMgr)
