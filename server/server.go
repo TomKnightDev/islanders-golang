@@ -1,314 +1,96 @@
 package main
 
 import (
-	"fmt"
 	"log"
-	"math/rand"
 	"net/http"
-	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/solarlune/resolv"
 	"github.com/tomknightdev/islanders-golang/resources"
-	"golang.org/x/image/math/f64"
 )
 
 var (
-	ServerInstance = &Server{}
-	upgrader       = websocket.Upgrader{} // use default options
+	world    = NewWorld(GenerateWorldMap())
+	upgrader = websocket.Upgrader{} // use default options
 )
 
-type Server struct {
-	clientsById       map[uint16]*client
-	clientsByUsername map[string]*client
-	enemies           []*Entity
-	npcs              []*NPC
-	worldMap          resources.WorldMap
-	Space             *resolv.Space
-}
-type client struct {
-	id       uint16
-	username string
-	password string
-	position f64.Vec2
-	tile     f64.Vec2
-	mu       sync.Mutex
-	conn     *websocket.Conn
-	collider *resolv.Circle
+type loginResult struct {
+	p   *player
+	err error
 }
 
-func init() {
-	ServerInstance.clientsById = make(map[uint16]*client)
-	ServerInstance.clientsByUsername = make(map[string]*client)
-	ServerInstance.Space = resolv.NewSpace(800, 800, 8, 8)
-	ServerInstance.worldMap = GenerateWorldMap()
-	ServerInstance.npcs = initNPCs()
-
-	go npcLoop(ServerInstance.npcs)
-}
-
+// connect reads one client's messages and turns them into world commands.
+// It never touches game state itself.
 func connect(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("Upgrade error:", err)
 		return
 	}
-	defer conn.Close()
+	sess := newSession(conn)
 
-	message := &resources.Message{}
-	var clientId uint16
+	var p *player
+	defer func() {
+		if p != nil {
+			world.Do(func(w *World) { w.disconnect(p, sess) })
+		} else {
+			sess.close()
+		}
+	}()
 
 	for {
-		err := conn.ReadJSON(message)
-		if err != nil {
+		message := &resources.Message{}
+		if err := conn.ReadJSON(message); err != nil {
 			log.Println("Connect read error:", err)
-			disconnectClient(clientId)
-			break
+			return
 		}
-
-		// log.Printf("%s message recieved: %v", message.MessageType, message)
 
 		switch message.MessageType {
 		case resources.ConnectRequestMessage:
-			clientId, err = handleConnectRequest(message, conn)
-			if err != nil {
-				conn.WriteJSON(resources.NewFailedToConnectMessage(err.Error()))
-				conn.Close()
+			if p != nil {
+				continue
 			}
+			var req resources.ConnectRequestContents
+			if err := resources.DecodeContents(message.Contents, &req); err != nil {
+				log.Println("Bad connect request:", err)
+				return
+			}
+			reply := make(chan loginResult, 1)
+			world.Do(func(w *World) {
+				p, err := w.login(req.Username, req.Password, sess)
+				reply <- loginResult{p, err}
+			})
+			res := <-reply
+			if res.err != nil {
+				sess.push(resources.NewFailedToConnectMessage(res.err.Error()))
+				return
+			}
+			p = res.p
+			log.Printf("%s connected", req.Username)
+
 		case resources.ChatMessage:
-			handleChatMessage(message)
+			text, ok := message.Contents.(string)
+			if p == nil || !ok {
+				continue
+			}
+			world.Do(func(w *World) { w.chat(p, text) })
+
+		case resources.MoveRequestMessage:
+			if p == nil {
+				continue
+			}
+			var req resources.MoveRequestContents
+			if err := resources.DecodeContents(message.Contents, &req); err != nil {
+				log.Println("Bad move request:", err)
+				continue
+			}
+			world.Do(func(w *World) { w.moveTo(p, tile{req.X, req.Y}) })
+
 		case resources.UpdateMessage:
-			handleUpdateMessage(message)
+			// Older clients still send their own position. The server owns
+			// movement now, so these are ignored.
+
 		default:
 			log.Printf("Message type: %s not handled", message.MessageType)
 		}
-	}
-}
-
-func handleConnectRequest(message *resources.Message, conn *websocket.Conn) (uint16, error) {
-	messageContents := message.Contents.(map[string]interface{})
-
-	fmt.Printf("%v", messageContents)
-
-	username := messageContents["username"].(string)
-	password := messageContents["password"].(string)
-
-	// Check to see if this c has connect previously
-	c, found := ServerInstance.clientsByUsername[username]
-
-	// If the client was found, check password
-	if found {
-		if c.password != password {
-			return 0, fmt.Errorf("incorrect password")
-		}
-		c.mu.Lock()
-		c.conn = conn
-
-		// Send reponse to client
-		conn.WriteJSON(resources.NewConnectResponseMessage(resources.ConnectResponseContents{
-			ClientId: c.id,
-			Pos:      c.position,
-			Tile:     c.tile,
-			WorldMap: ServerInstance.worldMap,
-		}))
-		c.mu.Unlock()
-
-		// Update client of all other clients
-		for _, oc := range ServerInstance.clientsById {
-			if oc.id == c.id {
-				continue
-			}
-			conn.WriteJSON(resources.NewUpdateMessage(oc.id, resources.UpdateContents{
-				Pos:          oc.position,
-				Tile:         oc.tile,
-				Disconnected: oc.conn == nil,
-				Username:     oc.username,
-			}))
-		}
-
-		// Update all other clients
-		sendUpdateToClients(resources.NewUpdateMessage(c.id, resources.UpdateContents{
-			Pos:      c.position,
-			Tile:     c.tile,
-			Username: c.username,
-		}))
-
-		// Send current NPC positions
-		sendNPCSnapshot(conn)
-
-		return c.id, nil
-	}
-
-	// Client wasn't found so create it
-	newClient := &client{
-		id:       uint16(len(ServerInstance.clientsById)),
-		username: username,
-		password: password,
-		conn:     conn,
-		collider: resolv.NewCircle(400, 400, 8),
-	}
-
-	ServerInstance.Space.Add(newClient.collider)
-
-	// Add the client to server maps
-	ServerInstance.clientsById[newClient.id] = newClient
-	ServerInstance.clientsByUsername[newClient.username] = newClient
-
-	// Send reponse to client
-	conn.WriteJSON(resources.NewConnectResponseMessage(resources.ConnectResponseContents{
-		ClientId: newClient.id,
-		Pos:      f64.Vec2{400, 400},
-		Tile:     f64.Vec2{50, 50},
-		WorldMap: ServerInstance.worldMap,
-	}))
-
-	// Update client of all other clients
-	for _, oc := range ServerInstance.clientsById {
-		if oc.id == newClient.id {
-			continue
-		}
-		conn.WriteJSON(resources.NewUpdateMessage(oc.id, resources.UpdateContents{
-			Pos:          oc.position,
-			Tile:         oc.tile,
-			Disconnected: oc.conn == nil,
-			Username:     oc.username,
-		}))
-	}
-
-	// Update all other clients
-	sendUpdateToClients(resources.NewUpdateMessage(newClient.id, resources.UpdateContents{
-		Pos:      f64.Vec2{400, 400},
-		Tile:     f64.Vec2{50, 50},
-		Username: newClient.username,
-	}))
-
-	// Send current NPC positions
-	sendNPCSnapshot(conn)
-
-	return newClient.id, nil
-}
-
-func handleChatMessage(message *resources.Message) {
-	sender := ServerInstance.clientsById[message.ClientId].username
-	messageContents := message.Contents.(string)
-
-	// Send the message to all clients
-	m := resources.NewChatMessage(message.ClientId, fmt.Sprintf("%s: %s", sender, messageContents))
-	for _, c := range ServerInstance.clientsById {
-		if c.conn == nil {
-			continue
-		}
-
-		if err := c.conn.WriteJSON(m); err != nil {
-			log.Panicf("Failed to send message to: %s - %v", c.username, err)
-		}
-	}
-}
-
-func handleUpdateMessage(message *resources.Message) error {
-	messageContents := message.Contents.(map[string]interface{})
-
-	pos := messageContents["pos"].([]interface{})
-	tile := messageContents["tile"].([]interface{})
-
-	// Find the client to update
-	client, found := ServerInstance.clientsById[message.ClientId]
-	if !found {
-		log.Printf("Client with id %d not found", message.ClientId)
-	}
-
-	client.mu.Lock()
-	client.position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
-	client.tile = f64.Vec2{tile[0].(float64), tile[1].(float64)}
-	client.mu.Unlock()
-
-	sendUpdateToClients(message)
-
-	return nil
-}
-
-func sendUpdateToClients(message *resources.Message) error {
-	// Update all the other clients
-	for _, c := range ServerInstance.clientsById {
-		if c.id == message.ClientId || c.conn == nil {
-			continue
-		}
-
-		c.mu.Lock()
-		if err := c.conn.WriteJSON(message); err != nil {
-			return err
-		}
-		c.mu.Unlock()
-	}
-	return nil
-}
-
-func serverLoop() {
-	for {
-		time.Sleep(25 * time.Millisecond)
-
-		if len(ServerInstance.enemies) < 100 {
-			// Create enemy
-			enemy := NewEntity(f64.Vec2{0, 6 * 8}, f64.Vec2{rand.Float64() * (512 - 100), rand.Float64() * (512 - 100)})
-			ServerInstance.enemies = append(ServerInstance.enemies, enemy)
-			ServerInstance.Space.Add(enemy.collider)
-		}
-
-		// Update client with enemy positions
-		contents := []resources.ServerEntityUpdateContents{}
-
-		if len(ServerInstance.clientsById) > 0 {
-			pos := ServerInstance.clientsById[0].position
-			for _, e := range ServerInstance.enemies {
-				e.Move(pos)
-				contents = append(contents, resources.ServerEntityUpdateContents{
-					EntityId: e.id,
-					Pos:      e.pos,
-					Tile:     e.tile,
-				})
-			}
-		}
-
-		message := resources.NewServerEntityUpdateMessage(contents)
-
-		for _, c := range ServerInstance.clientsById {
-			if c.conn == nil {
-				continue
-			}
-			c.mu.Lock()
-			err := c.conn.WriteJSON(message)
-			if err != nil {
-				log.Println("game write:", err)
-				disconnectClient(c.id)
-			}
-			c.mu.Unlock()
-		}
-	}
-}
-
-func disconnectClient(clientId uint16) {
-	client, found := ServerInstance.clientsById[clientId]
-
-	if !found {
-		log.Printf("Client %d not found", clientId)
-	}
-
-	client.mu.Lock()
-	client.conn = nil
-	client.mu.Unlock()
-
-	// Update all the other clients
-	message := resources.NewUpdateMessage(clientId, resources.UpdateContents{
-		Disconnected: true,
-	})
-
-	for _, c := range ServerInstance.clientsById {
-		if c.conn == nil {
-			continue
-		}
-		c.mu.Lock()
-		c.conn.WriteJSON(message)
-		c.mu.Unlock()
 	}
 }

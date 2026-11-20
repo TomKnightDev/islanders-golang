@@ -29,6 +29,8 @@ type Game struct {
 }
 
 func (g *Game) Update() error {
+	handleMessages(g)
+
 	if g.Player != nil {
 		if err := g.Player.Update(); err != nil {
 			log.Print(err)
@@ -69,6 +71,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
+	if cam != nil && (outsideWidth != cam.Width || outsideHeight != cam.Height) {
+		cam.Resize(outsideWidth, outsideHeight) // keep the player centred in the window
+	}
 	g.screenWidth = outsideWidth
 	g.screenHeight = outsideHeight
 	g.renderMgr.SetDisplaySize(float32(outsideWidth), float32(outsideHeight))

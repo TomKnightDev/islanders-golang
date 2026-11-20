@@ -13,6 +13,7 @@ const (
 	ChatMessage               MessageType = "chatMessage"
 	UpdateMessage             MessageType = "updateMessage"
 	ServerEntityUpdateMessage MessageType = "serverEntityUpdateMessage"
+	MoveRequestMessage        MessageType = "moveRequestMessage"
 )
 
 type Message struct {
@@ -97,6 +98,23 @@ func NewServerEntityUpdateMessage(contents []ServerEntityUpdateContents) *Messag
 	m := &Message{
 		MessageType: ServerEntityUpdateMessage,
 		Contents:    contents,
+	}
+
+	return m
+}
+
+// MoveRequestContents asks the server to walk the player to a tile. If the
+// tile is blocked (a rock, a building) the player walks next to it instead.
+type MoveRequestContents struct {
+	X int `json:"x"`
+	Y int `json:"y"`
+}
+
+func NewMoveRequestMessage(clientId uint16, contents MoveRequestContents) *Message {
+	m := &Message{
+		MessageType: MoveRequestMessage,
+		Contents:    contents,
+		ClientId:    clientId,
 	}
 
 	return m

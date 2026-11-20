@@ -50,7 +50,7 @@ Every player has their own bank account. The bank building is shared, but deposi
 - Clicking open ground is a plain walk. It also counts as a queued action, so the player can always break out of a loop.
 
 ### Idle behaviour
-The server owns the character and simulates it, so loops keep running while the player is disconnected. Logging back in shows whatever was earned in the meantime. This works because characters already stay in server memory after disconnecting. Once persistence lands, progress survives server restarts too.
+The server owns the character and simulates it, so loops keep running while the player is disconnected. Logging back in shows whatever was earned in the meantime. Offline characters stay visible to other players while they work. This works because characters already stay in server memory after disconnecting. Once persistence lands, progress survives server restarts too.
 
 ## Starting numbers
 
@@ -97,7 +97,7 @@ The sprite sheet has no dedicated iron ore art. The grey boulder stands in until
 Each phase is one PR and leaves the game playable.
 
 1. **World objects.** Object layer, town and iron rocks in world generation, shared passability check, fix for last-column tiles, pre-rendered map. *(done)*
-2. **Server-authoritative movement.** World goroutine and command channel, click-to-move with A*, client renders the server's position, WASD removed.
+2. **Server-authoritative movement.** World goroutine and command channel, click-to-move with A*, client renders the server's position, WASD removed. *(done)*
 3. **Mining and inventory.** Action system with the queue rules above, the mining loop, rock claiming, depletion and respawn, backpack and per-player bank accounts, an inventory window, and new messages for inventory, action state and rock state.
 4. **Smelting.** Blacksmith loop, ingots.
 5. **Crafting and equipment.** Anvil recipe window, equipment slots and stat effects.

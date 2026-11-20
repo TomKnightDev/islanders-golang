@@ -11,10 +11,16 @@ import (
 var addr = flag.String("addr", GetOutboundIP().String()+":8285", "http service address")
 
 func main() {
-	http.HandleFunc("/connect", connect)
+	go world.Run()
 
 	fmt.Println(*addr)
-	log.Fatal(http.ListenAndServe(*addr, nil))
+	log.Fatal(http.ListenAndServe(*addr, httpHandler()))
+}
+
+func httpHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/connect", connect)
+	return mux
 }
 
 func GetOutboundIP() net.IP {

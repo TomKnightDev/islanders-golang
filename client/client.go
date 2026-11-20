@@ -63,7 +63,7 @@ func connectToServer(g *Game) error {
 	fmt.Println("Client starting...")
 
 	client.SendChan = make(chan *resources.Message)
-	client.RecvChan = make(chan *resources.Message)
+	client.RecvChan = make(chan *resources.Message, 1024)
 
 	addr = g.serverAddr
 
@@ -85,33 +85,25 @@ func connectToServer(g *Game) error {
 		return err
 	}
 
-	// Receive
+	// Receive. Messages are queued for the game loop (see handleMessages) so
+	// game state is only ever touched from Game.Update.
 	go func() {
 		for {
 			message := &resources.Message{}
 			err := conn.ReadJSON(message)
 			if err != nil {
 				log.Println("Read error:", err)
+				return
 			}
 
-			switch message.MessageType {
-			case resources.ConnectResponseMessage:
-				handleConnectResponse(message, g)
-				removeGui(&gui.MainMenu{}, g)
-			case resources.FailedToConnectMessage:
+			if message.MessageType == resources.FailedToConnectMessage {
 				messageContents := message.Contents.(string)
 				g.ConnectFailedMessage <- messageContents
 				client.SendChan <- resources.NewFailedToConnectMessage(messageContents)
 				log.Printf("failed to connect: %s", messageContents)
 				return
-			case resources.ChatMessage:
-				receiveChatMessage(message)
-			case resources.UpdateMessage:
-				receiveUpdateMessage(message, g)
-			case resources.ServerEntityUpdateMessage:
-				receiveEntityUpdateMessage(message, g)
 			}
-
+			client.RecvChan <- message
 		}
 	}()
 
@@ -123,6 +115,28 @@ func connectToServer(g *Game) error {
 		}
 		if err := conn.WriteJSON(message); err != nil {
 			log.Printf("Failed to send message: %v - %v", message, err)
+		}
+	}
+}
+
+// handleMessages applies every queued server message. Called from Game.Update.
+func handleMessages(g *Game) {
+	for {
+		select {
+		case message := <-client.RecvChan:
+			switch message.MessageType {
+			case resources.ConnectResponseMessage:
+				handleConnectResponse(message, g)
+				removeGui(&gui.MainMenu{}, g)
+			case resources.ChatMessage:
+				receiveChatMessage(message)
+			case resources.UpdateMessage:
+				receiveUpdateMessage(message, g)
+			case resources.ServerEntityUpdateMessage:
+				receiveEntityUpdateMessage(message, g)
+			}
+		default:
+			return
 		}
 	}
 }
@@ -152,8 +166,8 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 
 	go func(client *Client) {
 		for {
-			message := <-client.Player.SendChan
-			client.SendChan <- resources.NewUpdateMessage(client.Player.Id, message)
+			move := <-client.Player.SendChan
+			client.SendChan <- resources.NewMoveRequestMessage(client.Player.Id, move)
 		}
 	}(client)
 
@@ -194,6 +208,12 @@ func receiveUpdateMessage(message *resources.Message, g *Game) {
 	pos := messageContents["pos"].([]interface{})
 	tile := messageContents["tile"].([]interface{})
 	username := messageContents["username"].(string)
+
+	// The server owns movement, so our own position arrives like everyone else's.
+	if client.Player != nil && message.ClientId == client.Player.Id {
+		client.Player.SetPosition(f64.Vec2{pos[0].(float64), pos[1].(float64)})
+		return
+	}
 
 	networkClient, found := client.NetworkPlayers[message.ClientId]
 
