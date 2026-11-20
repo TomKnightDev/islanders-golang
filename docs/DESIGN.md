@@ -2,25 +2,41 @@
 
 ## Core loop
 
-Islanders is a semi-idle multiplayer gathering and crafting game. The player picks a job by clicking on something in the world. Their character then works that job on its own until it can't continue, or until the player gives it something else to do.
+Islanders is a semi-idle multiplayer gathering and crafting game. The player explores the island to find villages and mines, then plans up to five actions in the **action window**. The character works through the list on its own, even while the player is offline.
 
 ```
-mine iron ore ──► backpack full ──► walk to bank ──► deposit ──► walk back ──► mine…
+mine iron ore ──► backpack full ──► nearest bank ──► deposit ──► back to the rock ──► mine…
                                                          │
-bank ore ──► blacksmith smelts ore into ingots ──► ingots to bank
+bank ore ──► carry to a blacksmith ──► smelt into bars ──► bars to the bank
                                                          │
-bank ingots ──► craft equipment at the anvil ──► better equipment makes jobs faster
+bank bars ──► craft equipment at the anvil ──► better equipment makes jobs faster
 ```
+
+### The action window
+- **Finding places.** A village or mine is *found* once the player walks into it (within its radius plus 2 tiles). Everyone starts having found their spawn village. Found places are listed with the actions available there:
+  - a mine offers **Mine iron**
+  - a village offers **Smelt iron** at its blacksmith
+- **The action list** holds up to 5 actions. Clicking an action adds it to the end. Entries can be moved up or down or removed.
+- **Goals.** Each action has one goal, which the player can change at any time:
+  - **Until the bank has N** of the action's product (ore for mining, bars for smelting). New actions start at 100 ore or 50 bars.
+  - **For N minutes** of the character's time. The timer pauses while the list is stopped, and runs at 10% speed while the player is offline like everything else.
+- **Running the list.** **Start** works through the list from the top. When an action's goal is met, or its time is up, the character first banks anything it's carrying, then moves on. When the list is empty the character goes idle.
+- **Stop** halts the list where it is; anything carried stays in the backpack. Reordering or removing the running action stops it and starts whatever is now first.
+- **Clicks never cancel the list.** While the list is running, clicking the map does nothing. While it's stopped, clicking walks, which is how the player explores and finds new places.
+- **Failures.** If the bank account is full, or there's no way to a place, the list stops and the action stays in it, so the player can sort things out and press Start again.
 
 ### Mining
-- Clicking an iron rock walks the character to a free tile next to it and starts mining.
-- Each swing takes a set time and adds one **iron ore** to the backpack.
-- When the backpack is full, the character walks to the nearest bank, deposits everything, walks back to the same rock and carries on.
-- **One miner per rock.** A rock is claimed while someone mines it. Clicking a claimed rock sends the character to the nearest free rock instead. If every rock is taken or depleted, the character waits by the clicked rock until one frees up.
-- **Rocks run out.** Each rock holds a random amount of ore. When it's empty it turns into a depleted rock and respawns after a delay. The miner moves on to the nearest free rock and keeps going.
-- The loop stops when:
-  - the player's bank account has no room for the next deposit, or
-  - the player clicks something else (see Action queue).
+- Mines only at the action's mine. The character walks to a free rock there and mines one **iron ore** per swing.
+- When the backpack is full, or when it holds enough to reach the goal, the character walks to the nearest bank, deposits, and goes back to the same rock.
+- **One miner per rock.** A rock is reserved when a miner is sent to it. If every rock in the mine is taken or depleted, the character waits at the mine until one frees up.
+- **Rocks run out.** Each rock holds a random amount of ore. When it's empty it turns into a depleted rock and respawns after a delay. The miner moves on to the nearest free rock in the same mine.
+
+### Smelting
+- Smelts at the action's village blacksmith, in trips:
+  1. At the nearest bank: deposit anything carried, then take out iron ore, as much as fits in the backpack but no more than the goal still needs.
+  2. Walk to the blacksmith and smelt one **iron bar** per ore, one at a time.
+  3. Walk back to the bank, deposit the bars, and start the next trip.
+- If the bank runs out of ore, the action ends early ("No ore to smelt").
 
 ### Items and stacking
 Backpacks and bank accounts are made of slots.
@@ -31,20 +47,12 @@ Backpacks and bank accounts are made of slots.
 | Item | Bank stack limit |
 |---|---|
 | Iron ore | 10 |
-| Iron ingot | 20 |
+| Iron bar | 20 |
 
 A container is full for an item when every slot is used and every stack of that item is at its limit.
 
 ### Bank
-Clicking the bank walks there and deposits the whole backpack. Every player has their own bank account. The bank building is shared, but deposits and withdrawals only touch the player's own account, and capacity is per account.
-
-### Smelting
-- Clicking the blacksmith starts a smelting loop:
-  1. Withdraw iron ore from the bank, as much as fits in the backpack.
-  2. Walk to the blacksmith.
-  3. Smelt ore into **iron ingots**, one at a time.
-  4. Walk back and deposit the ingots.
-- The loop repeats until the bank has no ore left.
+Every village has a bank building, and every player has their own bank account, shared across all banks. Deposits and withdrawals only touch the player's own account, and capacity is per account.
 
 ### Crafting
 - The blacksmith's anvil opens a recipe list. Each recipe uses ingots from the bank and takes time at the anvil.
@@ -57,11 +65,8 @@ Clicking the bank walks there and deposits the whole backpack. Every player has 
 | Iron backpack straps | 5 ingots | Backpack holds +10 |
 | Iron helmet | 4 ingots | Cosmetic for now |
 
-### Actions
-- A character has one **current action**: a plain walk, a single bank trip, or a looping job such as mining.
-- Every click replaces the current action straight away. What the click does depends on what's under it: a rock starts mining, the bank starts a bank trip, anything else is a plain walk.
-- Nothing already earned is lost. A walk finishes the tile step it's on (no snapping), and an interrupted mining swing just doesn't produce its ore.
-- The character shows what it's doing ("Mining", "Walking to the bank", "Waiting for a free rock", "Bank full") in a bar at the bottom middle of the screen. The bar fills green over each timed step: every mining swing, every walk. Open-ended states show an empty bar, and the bar hides when idle.
+### Activity and progress bar
+The character shows what it's doing ("Mining", "Smelting", "Walking to the bank", "Waiting for a free rock", "Bank full") in a bar at the bottom middle of the screen. The bar fills green over each timed step: every mining swing, every smelt, every walk. Open-ended states show an empty bar, and the bar hides when idle.
 
 ### Idle behaviour
 The server owns the character and simulates it, so loops keep running while the player is disconnected, at 10% speed. Walking and every timed step run slower together, because each character has its own clock that only advances every tenth tick while they're offline. Logging back in shows whatever was earned in the meantime. Offline characters stay visible to other players while they work. This works because characters already stay in server memory after disconnecting. Once persistence lands, progress survives server restarts too.
@@ -78,7 +83,7 @@ These are tuning values, kept in one place in the server code.
 | Rock respawn | 30 s |
 | Backpack size | 20 slots |
 | Bank account size | 100 slots |
-| Smelting | 1 ore → 1 ingot, 3 s |
+| Smelting | 1 ore → 1 bar, 3 s |
 | Offline speed | 10% |
 | Server tick | 25 ms |
 
@@ -142,7 +147,7 @@ Each phase is one PR and leaves the game playable.
 1. **World objects.** Object layer, town and iron rocks in world generation, shared passability check, fix for last-column tiles, pre-rendered map. *(done)*
 2. **Server-authoritative movement.** World goroutine and command channel, click-to-move with A*, client renders the server's position, WASD removed. *(done)*
 3. **Mining and inventory.** Action system with the rules above, the mining loop, rock claiming, depletion and respawn, backpack and per-player bank accounts, an inventory window, and new messages for inventory, action state and rock state. *(done)*
-4. **Smelting.** Blacksmith loop, ingots.
+4. **Smelting and the action window.** Found places, a 5-action list with amount or time goals, smelting trips. *(done)*
 5. **Crafting and equipment.** Anvil recipe window, equipment slots and stat effects.
 6. **Persistence.** Save characters, inventories and banks to disk on a Docker volume, and hash passwords. Until this lands, every deploy wipes progress.
 

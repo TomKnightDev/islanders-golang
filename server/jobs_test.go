@@ -6,7 +6,14 @@ import (
 	"github.com/tomknightdev/islanders-golang/resources"
 )
 
-// jobWorld is an open field with a bank at (2,2) and rocks at (10,10) and (14,10).
+const (
+	testVillage = "Testville"
+	testMine    = "Test Mine"
+)
+
+// jobWorld is an open 20x20 field. Testville (centre 4,4) has a bank at
+// (2,2) and a blacksmith at (6,2); players spawn there. Test Mine (centre
+// 12,10) has rocks at (10,10) and (14,10).
 func jobWorld(t *testing.T) *World {
 	t.Helper()
 	wm := testMap(20, 20)
@@ -15,12 +22,18 @@ func jobWorld(t *testing.T) *World {
 		wm.Objects = append(wm.Objects, resources.WorldObject{ID: id, Kind: kind, X: x, Y: y})
 	}
 	add(1, resources.ObjectBank, 2, 2)
-	add(2, resources.ObjectIronRock, 10, 10)
-	add(3, resources.ObjectIronRock, 14, 10)
-	w := NewWorld(wm)
-	return w
+	add(2, resources.ObjectBlacksmith, 6, 2)
+	add(3, resources.ObjectIronRock, 10, 10)
+	add(4, resources.ObjectIronRock, 14, 10)
+	wm.Places = []resources.Place{
+		{Name: testVillage, Kind: resources.PlaceVillage, X: 4, Y: 4, Radius: 4},
+		{Name: testMine, Kind: resources.PlaceMine, X: 12, Y: 10, Radius: 4},
+	}
+	wm.SpawnX, wm.SpawnY = 4, 5
+	return NewWorld(wm)
 }
 
+// joinAt logs a player in at a tile, already knowing both places.
 func joinAt(t *testing.T, w *World, name string, at tile) *player {
 	t.Helper()
 	p, err := w.login(name, "pw", testSession())
@@ -28,7 +41,24 @@ func joinAt(t *testing.T, w *World, name string, at tile) *player {
 		t.Fatal(err)
 	}
 	p.pos[0], p.pos[1] = at.pixel()
+	p.found[testMine] = true
 	return p
+}
+
+func mineFor(amount int) resources.ActionSpec {
+	return resources.ActionSpec{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalAmount, Amount: amount}
+}
+
+func smeltFor(amount int) resources.ActionSpec {
+	return resources.ActionSpec{Kind: resources.ActionSmelt, Place: testVillage, Goal: resources.GoalAmount, Amount: amount}
+}
+
+func addAction(w *World, p *player, a resources.ActionSpec) {
+	w.actionCommand(p, resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: a})
+}
+
+func run(w *World, p *player) {
+	w.actionCommand(p, resources.ActionCommandContents{Op: resources.ActionOpStart})
 }
 
 // runUntil ticks the world until cond holds, failing after max ticks.
@@ -43,45 +73,224 @@ func runUntil(t *testing.T, w *World, max int, what string, cond func() bool) {
 	t.Fatalf("timed out waiting for: %s", what)
 }
 
-func TestMiningLoopBanksAndReturns(t *testing.T) {
-	w := jobWorld(t)
-	r := w.rocks[tile{10, 10}]
-	r.ore = 100
-	p := joinAt(t, w, "tom", tile{8, 10})
-	p.backpack = resources.NewInventory(10, false) // full at 10 ore, to keep the test short
+func ore(inv resources.Inventory) int  { return inv.Count(resources.ItemIronOre) }
+func bars(inv resources.Inventory) int { return inv.Count(resources.ItemIronIngot) }
 
-	w.click(p, tile{10, 10})
-	if r.claimedBy != p {
-		t.Fatal("clicked rock should be claimed")
+func TestMineUntilBankHasAmount(t *testing.T) {
+	w := jobWorld(t)
+	w.rocks[tile{10, 10}].ore = 100
+	p := joinAt(t, w, "tom", tile{8, 10})
+	addAction(w, p, mineFor(25))
+	run(w, p)
+
+	runUntil(t, w, 20000, "action finished", func() bool { return len(p.actions) == 0 })
+	// A full backpack of 20, then just the 5 still needed.
+	if ore(p.bank) != 25 || !p.backpack.Empty() {
+		t.Errorf("bank %d ore, backpack %v", ore(p.bank), p.backpack.Stacks)
 	}
-	runUntil(t, w, 5000, "first deposit", func() bool { return p.bank.Count(resources.ItemIronOre) == 10 })
-	if !p.backpack.Empty() {
-		t.Error("backpack should be emptied into the bank")
+	if p.running || p.activity != activityIdle {
+		t.Errorf("should be idle after the last action: running %v, %q", p.running, p.activity)
 	}
-	runUntil(t, w, 5000, "back to mining", func() bool { return p.job.state == stateMining })
-	if p.job.rock != r || r.claimedBy != p {
-		t.Error("should return to the same rock")
-	}
-	if p.activity != activityMining {
-		t.Errorf("activity %q", p.activity)
+	if w.rocks[tile{10, 10}].claimedBy != nil {
+		t.Error("rock should be released")
 	}
 }
 
-func TestSwingTiming(t *testing.T) {
+func TestMineForTime(t *testing.T) {
 	w := jobWorld(t)
 	w.rocks[tile{10, 10}].ore = 100
-	p := joinAt(t, w, "tom", tile{9, 10}) // already beside the rock
-	w.click(p, tile{10, 10})
-	w.tick() // arrive, start swinging
-	for i := 0; i < ticks(swingTime)-1; i++ {
+	p := joinAt(t, w, "tom", tile{9, 10})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalTime, Minutes: 1})
+	run(w, p)
+
+	runUntil(t, w, ticks(swingTime)*40, "time up", func() bool { return p.job != nil && p.job.finishing })
+	if p.job.state != stateWalkToBank {
+		t.Fatal("time up should send the miner to bank what's carried")
+	}
+	runUntil(t, w, 5000, "finished", func() bool { return len(p.actions) == 0 })
+	// One minute of 2-second swings is at most 30 ore, less the time spent
+	// walking to the bank when the backpack filled up.
+	if got := ore(p.bank); got < 24 || got > 30 || !p.backpack.Empty() {
+		t.Errorf("bank %d ore, backpack %v", got, p.backpack.Stacks)
+	}
+}
+
+func TestSmeltUntilBankHasAmount(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", tile{4, 5})
+	p.bank.Add(resources.ItemIronOre, 30)
+	addAction(w, p, smeltFor(25))
+	run(w, p)
+
+	runUntil(t, w, 20000, "action finished", func() bool { return len(p.actions) == 0 })
+	// 20 ore on the first trip, then only the 5 more needed.
+	if bars(p.bank) != 25 || ore(p.bank) != 5 || !p.backpack.Empty() {
+		t.Errorf("bank %d bars %d ore, backpack %v", bars(p.bank), ore(p.bank), p.backpack.Stacks)
+	}
+}
+
+func TestSmeltStopsWhenOreRunsOut(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", tile{4, 5})
+	p.bank.Add(resources.ItemIronOre, 7)
+	addAction(w, p, smeltFor(100))
+	run(w, p)
+
+	runUntil(t, w, 20000, "action finished", func() bool { return len(p.actions) == 0 })
+	if bars(p.bank) != 7 || ore(p.bank) != 0 {
+		t.Errorf("bank %d bars %d ore", bars(p.bank), ore(p.bank))
+	}
+	if p.activity != activityNoOre {
+		t.Errorf("activity %q, want %q", p.activity, activityNoOre)
+	}
+}
+
+func TestSmeltTiming(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", tile{4, 5})
+	p.bank.Add(resources.ItemIronOre, 3)
+	addAction(w, p, smeltFor(3))
+	run(w, p)
+	runUntil(t, w, 2000, "smelting", func() bool { return p.job != nil && p.job.state == stateSmelting })
+	for i := 0; i < ticks(smeltTime)-1; i++ {
 		w.tick()
 	}
-	if got := p.backpack.Count(resources.ItemIronOre); got != 0 {
-		t.Fatalf("ore before the swing finished: %d", got)
+	if bars(p.backpack) != 0 {
+		t.Fatal("bar made before the smelt finished")
 	}
 	w.tick()
-	if got := p.backpack.Count(resources.ItemIronOre); got != 1 {
-		t.Fatalf("after one swing: %d ore", got)
+	if bars(p.backpack) != 1 || ore(p.backpack) != 2 {
+		t.Errorf("after one smelt: %d bars, %d ore", bars(p.backpack), ore(p.backpack))
+	}
+}
+
+func TestListRunsInOrder(t *testing.T) {
+	w := jobWorld(t)
+	w.rocks[tile{10, 10}].ore = 100
+	p := joinAt(t, w, "tom", tile{8, 10})
+	addAction(w, p, mineFor(20))
+	addAction(w, p, smeltFor(20))
+	run(w, p)
+
+	runUntil(t, w, 40000, "list finished", func() bool { return len(p.actions) == 0 })
+	if bars(p.bank) != 20 || ore(p.bank) != 0 {
+		t.Errorf("bank %d bars %d ore", bars(p.bank), ore(p.bank))
+	}
+}
+
+func TestClickDoesNotCancelARunningList(t *testing.T) {
+	w := jobWorld(t)
+	w.rocks[tile{10, 10}].ore = 100
+	p := joinAt(t, w, "tom", tile{9, 10})
+	addAction(w, p, mineFor(50))
+	run(w, p)
+	runUntil(t, w, 100, "mining", func() bool { return p.job != nil && p.job.state == stateMining })
+
+	j := p.job
+	w.click(p, tile{1, 18})
+	w.tick()
+	if p.job != j || p.job.state != stateMining || len(p.path) != 0 {
+		t.Error("a click while the list runs should change nothing")
+	}
+}
+
+func TestClickWalksWhenStopped(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", tile{5, 5})
+	w.click(p, tile{7, 5})
+	if p.activity != activityWalking || len(p.path) == 0 {
+		t.Fatalf("activity %q, path %v", p.activity, p.path)
+	}
+	runUntil(t, w, 200, "arrive", func() bool { return len(p.path) == 0 })
+	w.tick()
+	if p.activity != activityIdle {
+		t.Errorf("after arriving: %q", p.activity)
+	}
+}
+
+func TestPlacesMustBeFound(t *testing.T) {
+	w := jobWorld(t)
+	p, _ := w.login("new", "pw", testSession())
+	if !p.found[testVillage] || p.found[testMine] {
+		t.Fatalf("new players know only their spawn village: %v", p.found)
+	}
+	addAction(w, p, mineFor(10))
+	if len(p.actions) != 0 {
+		t.Fatal("can't add an action at a place not yet found")
+	}
+
+	// Walk into the mine to find it.
+	w.click(p, tile{12, 13})
+	runUntil(t, w, 2000, "found the mine", func() bool { return p.found[testMine] })
+	addAction(w, p, mineFor(10))
+	if len(p.actions) != 1 {
+		t.Error("found place should accept actions")
+	}
+}
+
+func TestActionValidation(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", tile{4, 5})
+	bad := []resources.ActionSpec{
+		{Kind: resources.ActionMine, Place: testVillage, Goal: resources.GoalAmount, Amount: 5}, // not a mine
+		{Kind: resources.ActionSmelt, Place: testMine, Goal: resources.GoalAmount, Amount: 5},   // no blacksmith
+		{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalAmount, Amount: 0},
+		{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalTime, Minutes: 0},
+		{Kind: "fish", Place: testMine, Goal: resources.GoalAmount, Amount: 5},
+	}
+	for _, a := range bad {
+		addAction(w, p, a)
+	}
+	if len(p.actions) != 0 {
+		t.Errorf("invalid actions were accepted: %d", len(p.actions))
+	}
+	for i := 0; i < resources.MaxActions+2; i++ {
+		addAction(w, p, mineFor(10))
+	}
+	if len(p.actions) != resources.MaxActions {
+		t.Errorf("list holds %d, want at most %d", len(p.actions), resources.MaxActions)
+	}
+}
+
+func TestReorderAndRemove(t *testing.T) {
+	w := jobWorld(t)
+	w.rocks[tile{10, 10}].ore = 100
+	p := joinAt(t, w, "tom", tile{9, 10})
+	addAction(w, p, mineFor(50))
+	addAction(w, p, smeltFor(5))
+	run(w, p)
+	runUntil(t, w, 100, "mining", func() bool { return p.job != nil && p.job.state == stateMining })
+
+	// Moving smelting to the top stops mining and starts smelting.
+	w.actionCommand(p, resources.ActionCommandContents{Op: resources.ActionOpUp, Index: 1})
+	if p.actions[0].spec.Kind != resources.ActionSmelt || p.job != nil {
+		t.Fatal("reordering should cancel the old first action")
+	}
+	if w.rocks[tile{10, 10}].claimedBy != nil {
+		t.Error("cancelled miner should free the rock")
+	}
+	w.actionCommand(p, resources.ActionCommandContents{Op: resources.ActionOpRemove, Index: 0})
+	if len(p.actions) != 1 || p.actions[0].spec.Kind != resources.ActionMine {
+		t.Errorf("after removing: %+v", p.actions)
+	}
+}
+
+func TestStopPausesTimer(t *testing.T) {
+	w := jobWorld(t)
+	w.rocks[tile{10, 10}].ore = 100
+	p := joinAt(t, w, "tom", tile{9, 10})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalTime, Minutes: 5})
+	run(w, p)
+	for i := 0; i < 100; i++ {
+		w.tick()
+	}
+	w.actionCommand(p, resources.ActionCommandContents{Op: resources.ActionOpStop})
+	ran := p.actions[0].ran
+	for i := 0; i < 1000; i++ {
+		w.tick()
+	}
+	if p.actions[0].ran != ran || p.job != nil || p.running {
+		t.Errorf("stopped list kept running: ran %d -> %d", ran, p.actions[0].ran)
 	}
 }
 
@@ -89,28 +298,32 @@ func TestOneMinerPerRock(t *testing.T) {
 	w := jobWorld(t)
 	a := joinAt(t, w, "a", tile{9, 9})
 	b := joinAt(t, w, "b", tile{9, 11})
-	w.click(a, tile{10, 10})
-	w.click(b, tile{10, 10})
-	if b.job.rock != w.rocks[tile{14, 10}] {
-		t.Fatal("second player should be sent to the other free rock")
+	for _, p := range []*player{a, b} {
+		addAction(w, p, mineFor(50))
+		run(w, p)
 	}
-	if w.rocks[tile{10, 10}].claimedBy != a || w.rocks[tile{14, 10}].claimedBy != b {
-		t.Error("each rock should be claimed by one player")
+	w.tick()
+	if a.job.rock == nil || b.job.rock == nil || a.job.rock == b.job.rock {
+		t.Fatal("two miners should be on different rocks")
 	}
 }
 
 func TestWaitWhenNoRockIsFree(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{14, 10}].ore = 0 // depleted
+	w.rocks[tile{14, 10}].ore = 0 // depleted, and not respawning during the test
+	w.rocks[tile{14, 10}].respawnAt = 1 << 30
 	a := joinAt(t, w, "a", tile{9, 9})
 	b := joinAt(t, w, "b", tile{9, 11})
-	w.click(a, tile{10, 10})
-	w.click(b, tile{10, 10})
+	addAction(w, a, mineFor(50))
+	run(w, a)
+	w.tick()
+	addAction(w, b, mineFor(50))
+	run(w, b)
+	w.tick()
 	if b.job.state != stateWaitForRock || b.activity != activityWaiting {
 		t.Fatalf("b should wait, state %v activity %q", b.job.state, b.activity)
 	}
-	// a walks away; b takes the rock.
-	w.click(a, tile{2, 10})
+	w.actionCommand(a, resources.ActionCommandContents{Op: resources.ActionOpStop})
 	runUntil(t, w, 200, "b claims the freed rock", func() bool { return w.rocks[tile{10, 10}].claimedBy == b })
 }
 
@@ -120,9 +333,11 @@ func TestRockDepletesMovesOnAndRespawns(t *testing.T) {
 	r1.ore, r2.ore = 1, 50
 	s := testSession()
 	p, _ := w.login("tom", "pw", s)
+	p.found[testMine] = true
 	p.pos[0], p.pos[1] = tile{9, 10}.pixel()
+	addAction(w, p, mineFor(50))
+	run(w, p)
 
-	w.click(p, tile{10, 10})
 	runUntil(t, w, 500, "rock depleted", func() bool { return r1.ore == 0 })
 	if got := w.wm.Layers[resources.LayerObject].Data[10*w.wm.Width+10]; got != resources.TileIronRockDepleted {
 		t.Errorf("depleted rock tile %d", got)
@@ -143,69 +358,51 @@ func TestRockDepletesMovesOnAndRespawns(t *testing.T) {
 	if r1.ore < rockOreMin || r1.ore > rockOreMax {
 		t.Errorf("respawned with %d ore", r1.ore)
 	}
-	if got := w.wm.Layers[resources.LayerObject].Data[10*w.wm.Width+10]; got != resources.TileIronRock {
-		t.Errorf("respawned rock tile %d", got)
-	}
 }
 
-func TestBankFullStopsTheLoop(t *testing.T) {
+func TestBankFullStopsTheList(t *testing.T) {
 	w := jobWorld(t)
 	w.rocks[tile{10, 10}].ore = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
-	p.backpack = resources.NewInventory(10, false)
 	p.bank = resources.NewInventory(1, true)
 	p.bank.Add(resources.ItemIronOre, 5) // room for 5 more only
+	addAction(w, p, mineFor(50))
+	run(w, p)
 
-	w.click(p, tile{10, 10})
-	runUntil(t, w, 5000, "loop stops", func() bool { return p.job == nil })
+	runUntil(t, w, 20000, "list stops", func() bool { return !p.running })
 	if p.activity != activityBankFull {
 		t.Errorf("activity %q", p.activity)
 	}
-	if p.bank.Count(resources.ItemIronOre) != 10 || p.backpack.Count(resources.ItemIronOre) != 5 {
-		t.Errorf("bank %d, backpack %d", p.bank.Count(resources.ItemIronOre), p.backpack.Count(resources.ItemIronOre))
+	if ore(p.bank) != 10 || ore(p.backpack) != 15 {
+		t.Errorf("bank %d, backpack %d", ore(p.bank), ore(p.backpack))
 	}
-	if w.rocks[tile{10, 10}].claimedBy != nil {
-		t.Error("rock should be released")
+	if len(p.actions) != 1 {
+		t.Error("the action should stay in the list so the player can fix things and restart")
 	}
 }
 
-func TestClickInterruptsMiningAndReleasesRock(t *testing.T) {
+func TestFullBackpackIsTwentyOre(t *testing.T) {
 	w := jobWorld(t)
-	r := w.rocks[tile{10, 10}]
-	r.ore = 100
+	w.rocks[tile{10, 10}].ore = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
-	w.click(p, tile{10, 10})
-	runUntil(t, w, 50, "mining", func() bool { return p.job != nil && p.job.state == stateMining })
-
-	w.click(p, tile{5, 5})
-	if p.job != nil || r.claimedBy != nil {
-		t.Error("walking away should end the job and free the rock")
-	}
-	if p.activity != activityWalking {
-		t.Errorf("activity %q", p.activity)
-	}
-}
-
-func TestBankTripDepositsOnce(t *testing.T) {
-	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{8, 8})
-	p.backpack.Add(resources.ItemIronOre, 15)
-	w.click(p, tile{2, 2})
-	runUntil(t, w, 2000, "deposit", func() bool { return p.job == nil })
-	if p.bank.Count(resources.ItemIronOre) != 15 || !p.backpack.Empty() {
-		t.Errorf("bank %d, backpack %v", p.bank.Count(resources.ItemIronOre), p.backpack.Stacks)
+	addAction(w, p, mineFor(100))
+	run(w, p)
+	runUntil(t, w, 5000, "head to the bank", func() bool { return p.job != nil && p.job.state == stateWalkToBank })
+	if got := ore(p.backpack); got != backpackSlots {
+		t.Errorf("went to the bank carrying %d ore, want %d", got, backpackSlots)
 	}
 }
 
 func TestBankAccountsArePrivate(t *testing.T) {
 	w := jobWorld(t)
-	a := joinAt(t, w, "a", tile{3, 3})
-	b := joinAt(t, w, "b", tile{3, 4})
-	a.backpack.Add(resources.ItemIronOre, 7)
-	w.click(a, tile{2, 2})
-	runUntil(t, w, 500, "deposit", func() bool { return a.job == nil })
-	if b.bank.Count(resources.ItemIronOre) != 0 {
-		t.Error("deposit leaked into another player's account")
+	a := joinAt(t, w, "a", tile{4, 5})
+	b := joinAt(t, w, "b", tile{4, 6})
+	a.bank.Add(resources.ItemIronOre, 3)
+	addAction(w, a, smeltFor(3))
+	run(w, a)
+	runUntil(t, w, 5000, "a done", func() bool { return len(a.actions) == 0 })
+	if bars(b.bank) != 0 || bars(a.bank) != 3 {
+		t.Error("smelting leaked into another player's account")
 	}
 }
 
@@ -214,8 +411,11 @@ func TestMiningContinuesOfflineAtTenthSpeed(t *testing.T) {
 	w.rocks[tile{10, 10}].ore = 100
 	s := testSession()
 	p, _ := w.login("tom", "pw", s)
+	p.found[testMine] = true
 	p.pos[0], p.pos[1] = tile{9, 10}.pixel()
-	w.click(p, tile{10, 10})
+	addAction(w, p, mineFor(100))
+	run(w, p)
+	w.tick() // start: walk to the rock
 	w.tick() // arrive and start the first swing while online
 	w.disconnect(p, s)
 
@@ -223,31 +423,18 @@ func TestMiningContinuesOfflineAtTenthSpeed(t *testing.T) {
 	for i := 0; i < ticks(swingTime)*offlineSlowdown; i++ {
 		w.tick()
 	}
-	if got := p.backpack.Count(resources.ItemIronOre); got != 1 {
+	if got := ore(p.backpack); got != 1 {
 		t.Errorf("offline for 10 swings' time: mined %d ore, want 1", got)
 	}
 
 	// Back online, full speed again.
-	s2 := testSession()
-	w.login("tom", "pw", s2)
+	w.login("tom", "pw", testSession())
 	for i := 0; i < ticks(swingTime); i++ {
 		w.tick()
 	}
-	if got := p.backpack.Count(resources.ItemIronOre); got != 2 {
+	if got := ore(p.backpack); got != 2 {
 		t.Errorf("after one online swing: %d ore, want 2", got)
 	}
-}
-
-func TestLoginSendsInventory(t *testing.T) {
-	w := jobWorld(t)
-	s := testSession()
-	w.login("tom", "pw", s)
-	for _, m := range drain(s) {
-		if m.MessageType == resources.InventoryMessage {
-			return
-		}
-	}
-	t.Error("login should send the inventory")
 }
 
 // lastInventory returns the most recent inventory message queued for s.
@@ -265,15 +452,35 @@ func lastInventory(t *testing.T, s *session) resources.InventoryContents {
 	return last.Contents.(resources.InventoryContents)
 }
 
+func TestInventoryReportsListAndPlaces(t *testing.T) {
+	w := jobWorld(t)
+	s := testSession()
+	p, _ := w.login("tom", "pw", s)
+	inv := lastInventory(t, s)
+	if len(inv.Found) != 1 || inv.Found[0] != testVillage {
+		t.Errorf("found %v", inv.Found)
+	}
+	p.bank.Add(resources.ItemIronIngot, 4)
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionSmelt, Place: testVillage, Goal: resources.GoalTime, Minutes: 2})
+	addAction(w, p, smeltFor(10))
+	w.tick()
+	inv = lastInventory(t, s)
+	if len(inv.Actions) != 2 || inv.Actions[0].SecondsLeft != 120 || inv.Actions[1].Banked != 4 {
+		t.Errorf("actions %+v", inv.Actions)
+	}
+}
+
 func TestActionTimingForProgressBar(t *testing.T) {
 	w := jobWorld(t)
 	w.rocks[tile{10, 10}].ore = 100
 	s := testSession()
 	p, _ := w.login("tom", "pw", s)
+	p.found[testMine] = true
 	p.pos[0], p.pos[1] = tile{2, 10}.pixel()
+	addAction(w, p, mineFor(100))
+	run(w, p)
 
 	// Walking 7 tiles to stand beside the rock at (9,10) takes 7/walkSpeed seconds.
-	w.click(p, tile{10, 10})
 	w.tick()
 	inv := lastInventory(t, s)
 	if inv.Activity != activityToRock || inv.ActionSeconds != 7/walkSpeed {
@@ -281,45 +488,9 @@ func TestActionTimingForProgressBar(t *testing.T) {
 	}
 
 	// Each swing restarts the bar at 0 for swingTime.
-	runUntil(t, w, 500, "mining", func() bool { return p.job.state == stateMining })
-	w.tick()
-	drain(s)
-	runUntil(t, w, 500, "next swing", func() bool { return p.backpack.Count(resources.ItemIronOre) == 1 })
+	runUntil(t, w, 500, "first ore", func() bool { return ore(p.backpack) == 1 })
 	inv = lastInventory(t, s)
 	if inv.Activity != activityMining || inv.ActionSeconds != swingTime.Seconds() || inv.ActionElapsed != 0 {
 		t.Errorf("swing: %q %vs elapsed %vs", inv.Activity, inv.ActionSeconds, inv.ActionElapsed)
-	}
-
-	// Waiting and idle have no set length.
-	w.click(p, tile{5, 5})
-	w.stopJob(p)
-	w.tick()
-	if inv = lastInventory(t, s); inv.ActionSeconds != 0 {
-		t.Errorf("idle should have no duration, got %v", inv.ActionSeconds)
-	}
-}
-
-func TestWalkEndsIdle(t *testing.T) {
-	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{5, 5})
-	w.click(p, tile{7, 5})
-	if p.activity != activityWalking {
-		t.Fatalf("activity %q", p.activity)
-	}
-	runUntil(t, w, 200, "arrive", func() bool { return len(p.path) == 0 })
-	w.tick()
-	if p.activity != activityIdle {
-		t.Errorf("after arriving: %q", p.activity)
-	}
-}
-
-func TestFullBackpackIsTwentyOre(t *testing.T) {
-	w := jobWorld(t)
-	w.rocks[tile{10, 10}].ore = 100
-	p := joinAt(t, w, "tom", tile{9, 10})
-	w.click(p, tile{10, 10})
-	runUntil(t, w, 5000, "head to the bank", func() bool { return p.job.state == stateWalkToBank })
-	if got := p.backpack.Count(resources.ItemIronOre); got != backpackSlots {
-		t.Errorf("went to the bank carrying %d ore, want %d", got, backpackSlots)
 	}
 }

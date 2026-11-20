@@ -16,7 +16,7 @@ var StackLimits = map[ItemKind]int{
 
 var ItemNames = map[ItemKind]string{
 	ItemIronOre:   "Iron ore",
-	ItemIronIngot: "Iron ingot",
+	ItemIronIngot: "Iron bar",
 }
 
 type Stack struct {

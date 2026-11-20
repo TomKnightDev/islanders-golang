@@ -84,38 +84,41 @@ func TestEndToEndLoginAndWalk(t *testing.T) {
 	})
 }
 
-func TestEndToEndMining(t *testing.T) {
+func TestEndToEndActionList(t *testing.T) {
 	startWorld()
 	ts := httptest.NewServer(httpHandler())
 	defer ts.Close()
 
 	conn := dial(t, ts.URL)
 	defer conn.Close()
-	conn.WriteJSON(resources.NewConnectRequestMessage(resources.ConnectRequestContents{Username: "miner", Password: "pw"}))
-	resp := readUntil(t, conn, 2*time.Second, func(m *resources.Message) bool {
-		return m.MessageType == resources.ConnectResponseMessage
-	})
-	var contents resources.ConnectResponseContents
-	resources.DecodeContents(resp.Contents, &contents)
+	conn.WriteJSON(resources.NewConnectRequestMessage(resources.ConnectRequestContents{Username: "planner", Password: "pw"}))
 
-	var rockAt *resources.WorldObject
-	for _, o := range contents.WorldMap.Objects {
-		if o.Kind == resources.ObjectIronRock {
-			rockAt = &o
-			break
-		}
-	}
-	if rockAt == nil {
-		t.Fatal("no iron rock in the world")
-	}
-
-	conn.WriteJSON(resources.NewMoveRequestMessage(contents.ClientId, resources.MoveRequestContents{X: rockAt.X, Y: rockAt.Y}))
-	readUntil(t, conn, 15*time.Second, func(m *resources.Message) bool {
+	// The first inventory lists the spawn village as found.
+	var village string
+	readUntil(t, conn, 2*time.Second, func(m *resources.Message) bool {
 		if m.MessageType != resources.InventoryMessage {
 			return false
 		}
 		var inv resources.InventoryContents
 		resources.DecodeContents(m.Contents, &inv)
-		return inv.Backpack.Count(resources.ItemIronOre) >= 1 && inv.Activity == activityMining
+		if len(inv.Found) == 1 {
+			village = inv.Found[0]
+		}
+		return village != ""
+	})
+
+	// Smelting with an empty bank runs, then stops with nothing to smelt.
+	conn.WriteJSON(resources.NewActionCommandMessage(resources.ActionCommandContents{
+		Op:     resources.ActionOpAdd,
+		Action: resources.ActionSpec{Kind: resources.ActionSmelt, Place: village, Goal: resources.GoalAmount, Amount: 10},
+	}))
+	conn.WriteJSON(resources.NewActionCommandMessage(resources.ActionCommandContents{Op: resources.ActionOpStart}))
+	readUntil(t, conn, 10*time.Second, func(m *resources.Message) bool {
+		if m.MessageType != resources.InventoryMessage {
+			return false
+		}
+		var inv resources.InventoryContents
+		resources.DecodeContents(m.Contents, &inv)
+		return inv.Activity == activityNoOre && !inv.Running && len(inv.Actions) == 0
 	})
 }
