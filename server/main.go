@@ -11,6 +11,7 @@ import (
 var addr = flag.String("addr", GetOutboundIP().String()+":8285", "http service address")
 
 func main() {
+	flag.Parse()
 	go world.Run()
 
 	fmt.Println(*addr)
