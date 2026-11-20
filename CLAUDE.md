@@ -24,7 +24,7 @@ go test ./server/ ./resources/   # what CI runs; client/client_test.go is commen
 go test ./client -run TestName   # single test
 ```
 
-Without `-addr`, the server binds to `<outbound IP>:8285`. The client's main menu defaults to the production server (`134.209.26.73:8285`). Change the address to `localhost:8285` to test locally.
+Without `-addr`, the server binds to `<outbound IP>:8285`. The client's main menu has two buttons: **Play online** connects to the production server and **Play locally** to `localhost:8285` (both addresses are constants in `client/gui/mainmenu.go`). `make run-server` listens on all interfaces, so Play locally reaches it.
 
 ## Deployment
 
