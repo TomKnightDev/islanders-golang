@@ -23,9 +23,12 @@ bank ingots ──► craft equipment at the anvil ──► better equipment ma
   - the player clicks something else (see Action queue).
 
 ### Items and stacking
-Backpacks and bank accounts are made of slots. Each slot holds one stack of a single item kind, up to that item's stack limit.
+Backpacks and bank accounts are made of slots.
 
-| Item | Stack limit |
+- **Backpack:** items don't stack. Every item takes its own slot, so a player carries at most 20 items (20 iron ore per trip).
+- **Bank:** each slot holds one stack of a single item kind, up to that item's stack limit.
+
+| Item | Bank stack limit |
 |---|---|
 | Iron ore | 10 |
 | Iron ingot | 20 |

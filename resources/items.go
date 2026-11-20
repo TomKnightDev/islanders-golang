@@ -7,7 +7,8 @@ const (
 	ItemIronIngot ItemKind = "ironIngot"
 )
 
-// StackLimits is how many of an item fit in one inventory slot.
+// StackLimits is how many of an item fit in one slot of a stacking
+// inventory (the bank). In the backpack every item takes its own slot.
 var StackLimits = map[ItemKind]int{
 	ItemIronOre:   10,
 	ItemIronIngot: 20,
@@ -24,20 +25,30 @@ type Stack struct {
 }
 
 // Inventory is a fixed number of slots, each holding one stack of a single
-// item kind. Used for backpacks and bank accounts.
+// item kind. Used for backpacks and bank accounts. When Stacking is false
+// (the backpack) every stack is a single item, so slots = items carried.
 type Inventory struct {
-	Slots  int     `json:"slots"`
-	Stacks []Stack `json:"stacks"`
+	Slots    int     `json:"slots"`
+	Stacking bool    `json:"stacking"`
+	Stacks   []Stack `json:"stacks"`
 }
 
-func NewInventory(slots int) Inventory {
-	return Inventory{Slots: slots}
+func NewInventory(slots int, stacking bool) Inventory {
+	return Inventory{Slots: slots, Stacking: stacking}
+}
+
+// limit is how many of kind one slot holds.
+func (inv *Inventory) limit(kind ItemKind) int {
+	if !inv.Stacking {
+		return 1
+	}
+	return StackLimits[kind]
 }
 
 // Add puts up to n of kind into the inventory, topping up partial stacks
 // before starting new ones, and returns how many fit.
 func (inv *Inventory) Add(kind ItemKind, n int) int {
-	limit := StackLimits[kind]
+	limit := inv.limit(kind)
 	added := 0
 	for i := range inv.Stacks {
 		if n == 0 {
@@ -67,7 +78,7 @@ func (inv *Inventory) Full(kind ItemKind) bool {
 		return false
 	}
 	for _, s := range inv.Stacks {
-		if s.Kind == kind && s.Count < StackLimits[kind] {
+		if s.Kind == kind && s.Count < inv.limit(kind) {
 			return false
 		}
 	}

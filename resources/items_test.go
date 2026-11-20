@@ -3,7 +3,7 @@ package resources
 import "testing"
 
 func TestAddStacksUpToLimit(t *testing.T) {
-	inv := NewInventory(3)
+	inv := NewInventory(3, true)
 	if got := inv.Add(ItemIronOre, 25); got != 25 {
 		t.Fatalf("added %d, want 25", got)
 	}
@@ -21,18 +21,18 @@ func TestAddStacksUpToLimit(t *testing.T) {
 }
 
 func TestDifferentLimitsPerItem(t *testing.T) {
-	inv := NewInventory(1)
+	inv := NewInventory(1, true)
 	if got := inv.Add(ItemIronIngot, 25); got != 20 {
 		t.Errorf("ingots: added %d, want 20", got)
 	}
-	inv = NewInventory(1)
+	inv = NewInventory(1, true)
 	if got := inv.Add(ItemIronOre, 25); got != 10 {
 		t.Errorf("ore: added %d, want 10", got)
 	}
 }
 
 func TestFullIsPerItem(t *testing.T) {
-	inv := NewInventory(2)
+	inv := NewInventory(2, true)
 	inv.Add(ItemIronOre, 10)
 	inv.Add(ItemIronIngot, 5)
 	if !inv.Full(ItemIronOre) {
@@ -44,7 +44,7 @@ func TestFullIsPerItem(t *testing.T) {
 }
 
 func TestRemoveDropsEmptyStacks(t *testing.T) {
-	inv := NewInventory(5)
+	inv := NewInventory(5, true)
 	inv.Add(ItemIronOre, 23)
 	if got := inv.Remove(ItemIronOre, 13); got != 13 {
 		t.Fatalf("removed %d", got)
@@ -58,9 +58,9 @@ func TestRemoveDropsEmptyStacks(t *testing.T) {
 }
 
 func TestTransferAllIntoNearlyFullBank(t *testing.T) {
-	pack := NewInventory(20)
+	pack := NewInventory(30, false)
 	pack.Add(ItemIronOre, 30)
-	bank := NewInventory(2)
+	bank := NewInventory(2, true)
 	bank.Add(ItemIronOre, 5)
 
 	if pack.TransferAll(&bank) {
@@ -72,5 +72,23 @@ func TestTransferAllIntoNearlyFullBank(t *testing.T) {
 	// Nothing created or lost.
 	if bank.Count(ItemIronOre)+pack.Count(ItemIronOre) != 35 {
 		t.Error("items were lost or duplicated")
+	}
+}
+
+func TestBackpackDoesNotStack(t *testing.T) {
+	pack := NewInventory(20, false)
+	if got := pack.Add(ItemIronOre, 25); got != 20 {
+		t.Fatalf("backpack took %d ore, want 20", got)
+	}
+	if len(pack.Stacks) != 20 || !pack.Full(ItemIronOre) {
+		t.Errorf("each ore should take a slot: %d stacks", len(pack.Stacks))
+	}
+	if pack.Add(ItemIronIngot, 1) != 0 {
+		t.Error("a full backpack should not take an ingot either")
+	}
+	// Banked, the same 20 ore fit in 2 slots.
+	bank := NewInventory(100, true)
+	if !pack.TransferAll(&bank) || len(bank.Stacks) != 2 {
+		t.Errorf("bank should stack 20 ore into 2 slots, got %d", len(bank.Stacks))
 	}
 }

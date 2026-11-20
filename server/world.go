@@ -183,8 +183,8 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 			username: username,
 			password: password,
 			pos:      f64.Vec2{x, y},
-			backpack: resources.NewInventory(backpackSlots),
-			bank:     resources.NewInventory(bankSlots),
+			backpack: resources.NewInventory(backpackSlots, false),
+			bank:     resources.NewInventory(bankSlots, true),
 			activity: activityIdle,
 		}
 		w.nextID++

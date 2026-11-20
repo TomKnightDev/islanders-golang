@@ -48,7 +48,7 @@ func TestMiningLoopBanksAndReturns(t *testing.T) {
 	r := w.rocks[tile{10, 10}]
 	r.ore = 100
 	p := joinAt(t, w, "tom", tile{8, 10})
-	p.backpack = resources.NewInventory(1) // full at 10 ore, to keep the test short
+	p.backpack = resources.NewInventory(10, false) // full at 10 ore, to keep the test short
 
 	w.click(p, tile{10, 10})
 	if r.claimedBy != p {
@@ -152,8 +152,8 @@ func TestBankFullStopsTheLoop(t *testing.T) {
 	w := jobWorld(t)
 	w.rocks[tile{10, 10}].ore = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
-	p.backpack = resources.NewInventory(1)
-	p.bank = resources.NewInventory(1)
+	p.backpack = resources.NewInventory(10, false)
+	p.bank = resources.NewInventory(1, true)
 	p.bank.Add(resources.ItemIronOre, 5) // room for 5 more only
 
 	w.click(p, tile{10, 10})
@@ -189,10 +189,10 @@ func TestClickInterruptsMiningAndReleasesRock(t *testing.T) {
 func TestBankTripDepositsOnce(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{8, 8})
-	p.backpack.Add(resources.ItemIronOre, 23)
+	p.backpack.Add(resources.ItemIronOre, 15)
 	w.click(p, tile{2, 2})
 	runUntil(t, w, 2000, "deposit", func() bool { return p.job == nil })
-	if p.bank.Count(resources.ItemIronOre) != 23 || !p.backpack.Empty() {
+	if p.bank.Count(resources.ItemIronOre) != 15 || !p.backpack.Empty() {
 		t.Errorf("bank %d, backpack %v", p.bank.Count(resources.ItemIronOre), p.backpack.Stacks)
 	}
 }
@@ -297,5 +297,16 @@ func TestWalkEndsIdle(t *testing.T) {
 	w.tick()
 	if p.activity != activityIdle {
 		t.Errorf("after arriving: %q", p.activity)
+	}
+}
+
+func TestFullBackpackIsTwentyOre(t *testing.T) {
+	w := jobWorld(t)
+	w.rocks[tile{10, 10}].ore = 100
+	p := joinAt(t, w, "tom", tile{9, 10})
+	w.click(p, tile{10, 10})
+	runUntil(t, w, 5000, "head to the bank", func() bool { return p.job.state == stateWalkToBank })
+	if got := p.backpack.Count(resources.ItemIronOre); got != backpackSlots {
+		t.Errorf("went to the bank carrying %d ore, want %d", got, backpackSlots)
 	}
 }
