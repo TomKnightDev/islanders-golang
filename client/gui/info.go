@@ -25,7 +25,7 @@ func NewInfo(screenWidth, screenHeight int, player *entities.Player, mgr *render
 }
 
 func (info *Info) Update() error {
-	imgui.Begin("Info")
+	imgui.BeginV("Info", nil, imgui.WindowFlagsAlwaysAutoResize)
 	imgui.Text(fmt.Sprintf("Name: %s", info.player.Username))
 	imgui.Text(fmt.Sprintf("Position: %v", info.player.Position))
 	imgui.End()

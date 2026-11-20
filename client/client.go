@@ -40,6 +40,9 @@ type Client struct {
 
 var ChatWindow = &gui.Chat{}
 var InfoWindow = &gui.Info{}
+var InventoryWindow = &gui.Inventory{}
+var ActionBar = gui.NewActionBar()
+var world *entities.World
 var client = &Client{}
 
 func init() {
@@ -134,6 +137,10 @@ func handleMessages(g *Game) {
 				receiveUpdateMessage(message, g)
 			case resources.ServerEntityUpdateMessage:
 				receiveEntityUpdateMessage(message, g)
+			case resources.InventoryMessage:
+				receiveInventoryMessage(message)
+			case resources.ObjectUpdateMessage:
+				receiveObjectUpdateMessage(message)
 			}
 		default:
 			return
@@ -156,6 +163,7 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 
 	// Create camera
 	cam = camera.NewCamera(g.screenWidth, g.screenHeight, pos[0].(float64), pos[1].(float64), 0, 1)
+	cam.SetZoom(entities.StartZoom) // SetZoom also resizes the camera's image to match
 
 	client.Player = entities.NewPlayer(CharactersImage, f64.Vec2{tile[0].(float64), tile[1].(float64)})
 	client.Player.Username = g.username
@@ -174,16 +182,21 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	g.Player = client.Player
 
 	// Now logged in, build world
-	world := entities.NewWorld(EnvironmentsImage, *worldMap)
+	world = entities.NewWorld(EnvironmentsImage, *worldMap)
 	world.Cam = cam
 	g.Environment = append(g.Environment, world)
 
-	// Add gui
+	// Add gui. The action bar goes first so the imgui windows draw over it.
+	g.Gui = append(g.Gui, ActionBar)
+
 	ChatWindow = gui.NewChat(g.screenWidth, g.screenHeight, g.renderMgr)
 	g.Gui = append(g.Gui, ChatWindow)
 
 	InfoWindow = gui.NewInfo(g.screenWidth, g.screenHeight, client.Player, g.renderMgr)
 	g.Gui = append(g.Gui, InfoWindow)
+
+	InventoryWindow = gui.NewInventory(g.renderMgr)
+	g.Gui = append(g.Gui, InventoryWindow)
 
 	// Messages from chat send channel will be forwarded to the client send channel
 	go func(client *Client, chat *gui.Chat) {
@@ -282,4 +295,25 @@ func removeGui(guiType Entity, g *Game) {
 	}
 
 	g.Gui = append(g.Gui[:index], g.Gui[index+1:]...)
+}
+
+func receiveInventoryMessage(message *resources.Message) {
+	var contents resources.InventoryContents
+	if err := resources.DecodeContents(message.Contents, &contents); err != nil {
+		log.Printf("Bad inventory message: %v", err)
+		return
+	}
+	InventoryWindow.Contents = contents
+	ActionBar.Set(contents.Activity, contents.ActionSeconds, contents.ActionElapsed)
+}
+
+func receiveObjectUpdateMessage(message *resources.Message) {
+	var u resources.ObjectUpdateContents
+	if err := resources.DecodeContents(message.Contents, &u); err != nil {
+		log.Printf("Bad object update: %v", err)
+		return
+	}
+	if world != nil {
+		world.SetTile(u.X, u.Y, resources.LayerObject, u.Tile)
+	}
 }

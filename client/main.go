@@ -6,6 +6,8 @@ import (
 	"github.com/gabstv/ebiten-imgui/renderer"
 	"github.com/hajimehoshi/ebiten/v2"
 
+	"github.com/inkyblackness/imgui-go/v4"
+	"github.com/tomknightdev/islanders-golang/client/entities"
 	"github.com/tomknightdev/islanders-golang/client/gui"
 )
 
@@ -13,6 +15,8 @@ type Entity interface {
 	Update() error
 	Draw(*ebiten.Image)
 }
+
+const uiScale = 1.75
 
 type Game struct {
 	username             string
@@ -65,6 +69,21 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	if g.Player != nil {
 		g.Player.Draw(screen)
 	}
+
+	// Everything above drew into the camera's world image; show it once,
+	// zoomed, then draw names on top at screen resolution.
+	if cam != nil {
+		cam.Blit(screen)
+		for _, e := range g.Entities {
+			if l, ok := e.(entities.Labeled); ok {
+				l.DrawLabel(screen)
+			}
+		}
+		if l, ok := g.Player.(entities.Labeled); ok {
+			l.DrawLabel(screen)
+		}
+	}
+
 	for _, gui := range g.Gui {
 		gui.Draw(screen)
 	}
@@ -88,6 +107,10 @@ func main() {
 		ConnectFailedMessage: make(chan string),
 		renderMgr:            renderer.New(nil),
 	}
+
+	// Bigger UI: scale imgui's font and spacing together.
+	imgui.CurrentIO().SetFontGlobalScale(uiScale)
+	imgui.CurrentStyle().ScaleAllSizes(uiScale)
 
 	mm := gui.NewMainMenu(game.screenWidth, game.screenHeight, game.renderMgr)
 

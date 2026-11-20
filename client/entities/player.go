@@ -3,24 +3,15 @@ package entities
 import (
 	"image"
 	"image/color"
-	"log"
 	"math"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/inpututil"
-	"github.com/hajimehoshi/ebiten/v2/text"
 	"github.com/inkyblackness/imgui-go/v4"
 	camera "github.com/melonfunction/ebiten-camera"
 	"github.com/tomknightdev/islanders-golang/resources"
-	"golang.org/x/image/font"
-	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/f64"
-)
-
-var (
-	mplusNormalFont font.Face
 )
 
 type Player struct {
@@ -37,6 +28,14 @@ type Player struct {
 	clickUntil time.Time
 }
 
+// Camera zoom limits and the zoom a session starts at. At 4x an 8px tile is
+// 32px on screen.
+const (
+	StartZoom = 4.0
+	MinZoom   = 1.0
+	MaxZoom   = 10.0
+)
+
 // clickMarker outlines the tile the player last clicked.
 var clickMarker = func() *ebiten.Image {
 	img := ebiten.NewImage(resources.TileSize, resources.TileSize)
@@ -49,23 +48,6 @@ var clickMarker = func() *ebiten.Image {
 	}
 	return img
 }()
-
-func init() {
-	tt, err := opentype.Parse(fonts.MPlus1pRegular_ttf)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	const dpi = 72
-	mplusNormalFont, err = opentype.NewFace(tt, &opentype.FaceOptions{
-		Size:    12,
-		DPI:     dpi,
-		Hinting: font.HintingFull,
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-}
 
 func NewPlayer(tilesImage *ebiten.Image, tile f64.Vec2) *Player {
 	p := &Player{
@@ -104,9 +86,9 @@ func (p *Player) Update() error {
 
 	// Zoom
 	_, scrollAmount := ebiten.Wheel()
-	if scrollAmount > 0 {
+	if scrollAmount > 0 && p.Cam.Scale < MaxZoom {
 		p.Cam.Zoom(1.1)
-	} else if scrollAmount < 0 {
+	} else if scrollAmount < 0 && p.Cam.Scale > MinZoom {
 		p.Cam.Zoom(0.9)
 	}
 
@@ -138,13 +120,9 @@ func (p *Player) Draw(screen *ebiten.Image) {
 	}
 	opts := p.Cam.GetTranslation(drawOpts, p.Position[0], p.Position[1])
 	p.Cam.Surface.DrawImage(p.imageTile, opts)
+}
 
-	// Draw username above the sprite using the same screen-space position
-	sx := opts.GeoM.Element(0, 2)
-	sy := opts.GeoM.Element(1, 2)
-	text.Draw(p.Cam.Surface, p.Username, mplusNormalFont, int(sx)-len(p.Username)*3, int(sy)-10, color.White)
-
-	// Draw to screen and zoom
-	p.Cam.Blit(screen)
+func (p *Player) DrawLabel(screen *ebiten.Image) {
+	drawNameLabel(screen, p.Cam, p.Username, p.Position)
 
 }

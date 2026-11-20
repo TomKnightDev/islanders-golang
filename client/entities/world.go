@@ -56,6 +56,30 @@ func (w *World) renderMap() {
 	}
 }
 
+// SetTile changes one tile, such as a rock depleting, and redraws it.
+func (w *World) SetTile(x, y, layer, gid int) {
+	wm := w.worldMap
+	if x < 0 || y < 0 || x >= wm.Width || y >= wm.Height || layer >= len(wm.Layers) {
+		return
+	}
+	i := y*wm.Width + x
+	wm.Layers[layer].Data[i] = gid
+	if w.mapImage == nil {
+		return // drawn with the rest of the map on first Draw
+	}
+	// Ground tiles are opaque, so redrawing every layer at this spot
+	// replaces whatever was there.
+	const size = shared_resources.TileSize
+	for _, l := range wm.Layers {
+		if l.Data[i] == shared_resources.TileNone {
+			continue
+		}
+		opts := &ebiten.DrawImageOptions{}
+		opts.GeoM.Translate(float64(x*size), float64(y*size))
+		w.mapImage.DrawImage(w.tileImage(l.Data[i]), opts)
+	}
+}
+
 func (w *World) Draw(screen *ebiten.Image) {
 	if w.mapImage == nil {
 		w.renderMap()
@@ -63,7 +87,4 @@ func (w *World) Draw(screen *ebiten.Image) {
 
 	w.Cam.Surface.Clear()
 	w.Cam.Surface.DrawImage(w.mapImage, w.Cam.GetTranslation(&ebiten.DrawImageOptions{}, 0, 0))
-
-	// Draw to screen and zoom
-	w.Cam.Blit(screen)
 }

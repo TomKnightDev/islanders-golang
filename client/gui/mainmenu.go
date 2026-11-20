@@ -66,7 +66,7 @@ func (mm *MainMenu) Update() error {
 		return nil
 	}
 
-	const menuW, menuH = float32(600), float32(400)
+	const menuW, menuH = float32(780), float32(440)
 	flags := imgui.WindowFlagsNoResize | imgui.WindowFlagsNoCollapse | imgui.WindowFlagsNoMove
 
 	winW, winH := ebiten.WindowSize()
