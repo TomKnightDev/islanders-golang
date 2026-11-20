@@ -10,6 +10,8 @@ Islanders is a small multiplayer top-down 2D game. One Go module (`github.com/to
 - `client/`: a desktop client built on Ebiten v2, with imgui for menus and chat. It needs **cgo/GCC** to build.
 - `resources/`: shared message types, tile constants and the `WorldMap` struct. Both sides import it.
 
+Game design, the planned gathering/crafting loop and the phase plan live in `docs/DESIGN.md`. Read it before working on gameplay.
+
 ## Commands
 
 ```bash
@@ -18,7 +20,7 @@ make run-server     # go run ./server/ -addr 0.0.0.0:8285 (override with SERVER_
 make run-client     # go run ./client/
 go build ./server/  # what CI runs; the client is not built in CI
 go vet ./...
-go test ./...       # there are no real tests yet; client/client_test.go is commented out
+go test ./server/ ./resources/   # what CI runs; client/client_test.go is commented out
 go test ./client -run TestName   # single test
 ```
 
@@ -30,7 +32,7 @@ Every push to `master` triggers `.github/workflows/server.yml`. It builds the se
 
 ## Architecture
 
-**Protocol.** Every message is a JSON `resources.Message{MessageType, Contents, ClientId}`. `Contents` is an `interface{}`, so the receiving side gets `map[string]interface{}` / `[]interface{}` with float64 numbers and unpacks it by hand with type assertions (for example `messageContents["pos"].([]interface{})`, or `resources.WorldMapWebSocketMessageConvert`). If you add a field to a `*Contents` struct, update the manual decoding on the receiving side too.
+**Protocol.** Every message is a JSON `resources.Message{MessageType, Contents, ClientId}`. `Contents` is an `interface{}`, so the receiving side gets `map[string]interface{}` / `[]interface{}` with float64 numbers. Older handlers unpack it by hand with type assertions (for example `messageContents["pos"].([]interface{})`); if you add a field to one of those `*Contents` structs, update that manual decoding too. New code should use `resources.DecodeContents(contents, &typedStruct)` instead, as the world map already does.
 
 **Connection flow.** The client dials `ws://<addr>/connect` and sends `ConnectRequestMessage`. The server either creates or re-authenticates the account (stored in memory only, plaintext password, keyed by username). It replies with `ConnectResponseMessage`, which carries the client ID, the spawn position and the **entire generated world map**. It then sends `UpdateMessage`s for the other players and an NPC snapshot. Only after the connect response arrives does the client build the camera, `Player`, `World` and the chat and info windows (`handleConnectResponse` in `client/client.go`).
 
@@ -38,9 +40,9 @@ Every push to `master` triggers `.github/workflows/server.yml`. It builds the se
 
 **Entity IDs share one uint16 space on the client.** Players get `0..n` (assigned as `len(clientsById)`), the unused enemies get 100+ and NPCs get 200+. The client puts players and NPCs into the same `client.NetworkPlayers` / `g.Entities` maps as `NetworkPlayer`s.
 
-**World.** `server/worldgen.go` builds a 100×100 grid from rings (deep water, shallow water, sand, grass) plus random trees, and keeps a clear area around the spawn tile (50,50), which is pixel (400,400). Tiles are 8px. The map is stored as a single row-major layer, `Data[y*width+x]`. Tile constants and `IsPassable` live in `resources/resources.go`. The client's `World.Draw` converts a tile index into coordinates in `environments.png` as `((idx%16)-1)*8, (idx/16)*8`.
+**World.** `server/worldgen.go` builds a 100×100 map with two row-major layers (`Data[y*width+x]`): ground (rings of deep water, shallow water, sand, grass) and objects (trees plus a fixed town: bank, blacksmith, anvil, iron rocks). `0` in the object layer means empty. Interactive objects are also listed in `WorldMap.Objects` with an id, kind and tile position. A clear area surrounds the spawn tile (50,50), which is pixel (400,400), and a ring around every object is kept free of trees. Tiles are 8px. Tile and object constants live in `resources/resources.go`. Tile values are Tiled-style gids into `environments.png`: atlas column `(gid-1)%16`, row `(gid-1)/16`. The client's `World` pre-renders all layers into one image the first time it draws.
 
-**Collision** checks the four corners of an 8×8 box against `IsPassable`. The same check exists twice, in `client/entities/player.go` (`canMoveTo`) and `server/npc.go` (`npcCanMoveTo`). Change both if the rules change.
+**Collision** is `WorldMap.TilePassable` / `BoxPassable` in `resources`, shared by the client player and server NPCs. A ground tile blocks if `IsPassable` says so; any non-empty object tile blocks.
 
 **Rendering.** Every drawable entity shares one `ebiten-camera` instance. Each entity draws onto `cam.Surface` and calls `cam.Blit(screen)`, and `World.Draw` clears the surface first. Draw order is Environment → Entities → Player → Gui (`client/main.go`). All the GUI windows share one imgui `renderer.Manager`, and the windows are opened between `BeginFrame` and `EndFrame` in `Game.Update`.
 

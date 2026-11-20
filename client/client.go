@@ -134,7 +134,11 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	clientId := messageContents["clientId"].(float64)
 	pos := messageContents["pos"].([]interface{})
 	tile := messageContents["tile"].([]interface{})
-	worldMap := resources.WorldMapWebSocketMessageConvert(messageContents["world"].(map[string]interface{}))
+	worldMap := &resources.WorldMap{}
+	if err := resources.DecodeContents(messageContents["world"], worldMap); err != nil {
+		log.Printf("Failed to decode world map: %v", err)
+		return
+	}
 
 	// Create camera
 	cam = camera.NewCamera(g.screenWidth, g.screenHeight, pos[0].(float64), pos[1].(float64), 0, 1)

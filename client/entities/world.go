@@ -11,6 +11,7 @@ import (
 type World struct {
 	imageTile *ebiten.Image
 	worldMap  shared_resources.WorldMap
+	mapImage  *ebiten.Image
 	Cam       *camera.Camera
 }
 
@@ -27,32 +28,41 @@ func (w *World) Update() error {
 	return nil
 }
 
-func (w *World) Draw(screen *ebiten.Image) {
-	// Tile coords
-	// sx := 6 * 8
-	// sy := 4 * 8
+// tileImage returns the 8x8 sprite for a Tiled-style gid (row*16 + col + 1).
+func (w *World) tileImage(gid int) *ebiten.Image {
+	const size = shared_resources.TileSize
+	cols := w.imageTile.Bounds().Dx() / size
+	x := (gid - 1) % cols * size
+	y := (gid - 1) / cols * size
+	return w.imageTile.SubImage(image.Rect(x, y, x+size, y+size)).(*ebiten.Image)
+}
 
-	w.Cam.Surface.Clear()
+// renderMap draws every layer once into a single image. The map is static, so
+// each frame only has to draw this one image instead of every tile.
+func (w *World) renderMap() {
+	const size = shared_resources.TileSize
+	wm := w.worldMap
+	w.mapImage = ebiten.NewImage(wm.Width*size, wm.Height*size)
 
-	tiles := [100][100]int{}
-	for i, t := range w.worldMap.Layers[0].Data {
-		tiles[i%100][i/100] = t
-	}
-
-	for y := 0; y < w.worldMap.Height; y++ {
-		for x := 0; x < w.worldMap.Width; x++ {
-			tileIndex := tiles[x][y]
-
-			quotient := tileIndex / 16
-			rem := tileIndex % 16
-			tileXStart := (rem - 1) * 8
-			tileYStart := quotient * 8
-			tile := w.imageTile.SubImage(image.Rect(tileXStart, tileYStart, tileXStart+8, tileYStart+8))
-
-			// Draw tiles
-			w.Cam.Surface.DrawImage(tile.(*ebiten.Image), w.Cam.GetTranslation(&ebiten.DrawImageOptions{}, float64(x*8), float64(y*8)))
+	for _, layer := range wm.Layers {
+		for i, gid := range layer.Data {
+			if gid == shared_resources.TileNone {
+				continue
+			}
+			opts := &ebiten.DrawImageOptions{}
+			opts.GeoM.Translate(float64(i%wm.Width*size), float64(i/wm.Width*size))
+			w.mapImage.DrawImage(w.tileImage(gid), opts)
 		}
 	}
+}
+
+func (w *World) Draw(screen *ebiten.Image) {
+	if w.mapImage == nil {
+		w.renderMap()
+	}
+
+	w.Cam.Surface.Clear()
+	w.Cam.Surface.DrawImage(w.mapImage, w.Cam.GetTranslation(&ebiten.DrawImageOptions{}, 0, 0))
 
 	// Draw to screen and zoom
 	w.Cam.Blit(screen)

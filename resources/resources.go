@@ -1,14 +1,55 @@
 package resources
 
+import "encoding/json"
+
+// Tile indices are Tiled-style gids into environments.png: row*16 + col + 1.
+// 0 means "no tile" and is only used in the object layer.
 const (
+	TileNone         = 0
 	TileGrass        = 71
 	TileSand         = 190
 	TileWaterShallow = 189
 	TileWaterDeep    = 205
 	TileTree1        = 74
 	TileTree2        = 78
+	TileIronRock     = 90
+	TileBank         = 92
+	TileBlacksmith   = 93
+	TileAnvil        = 175
 )
 
+const (
+	TileSize    = 8
+	LayerGround = 0
+	LayerObject = 1
+)
+
+type ObjectKind string
+
+const (
+	ObjectIronRock   ObjectKind = "ironRock"
+	ObjectBank       ObjectKind = "bank"
+	ObjectBlacksmith ObjectKind = "blacksmith"
+	ObjectAnvil      ObjectKind = "anvil"
+)
+
+// ObjectTiles maps each interactive object kind to its sprite.
+var ObjectTiles = map[ObjectKind]int{
+	ObjectIronRock:   TileIronRock,
+	ObjectBank:       TileBank,
+	ObjectBlacksmith: TileBlacksmith,
+	ObjectAnvil:      TileAnvil,
+}
+
+// WorldObject is something on the object layer a player can interact with.
+type WorldObject struct {
+	ID   uint16     `json:"id"`
+	Kind ObjectKind `json:"kind"`
+	X    int        `json:"x"`
+	Y    int        `json:"y"`
+}
+
+// IsPassable reports whether a ground tile can be walked on.
 func IsPassable(tileIndex int) bool {
 	switch tileIndex {
 	case TileWaterShallow, TileWaterDeep, TileTree1, TileTree2:
@@ -32,10 +73,45 @@ type WorldMap struct {
 		Firstgid int    `json:"firstgid"`
 		Source   string `json:"source"`
 	} `json:"tilesets"`
-	Tilewidth int    `json:"tilewidth"`
-	Type      string `json:"type"`
-	Version   string `json:"version"`
-	Width     int    `json:"width"`
+	Tilewidth int           `json:"tilewidth"`
+	Type      string        `json:"type"`
+	Version   string        `json:"version"`
+	Width     int           `json:"width"`
+	Objects   []WorldObject `json:"objects"`
+}
+
+// TilePassable reports whether tile (tx, ty) is inside the map and walkable on every layer.
+func (wm *WorldMap) TilePassable(tx, ty int) bool {
+	if tx < 0 || ty < 0 || tx >= wm.Width || ty >= wm.Height {
+		return false
+	}
+	i := ty*wm.Width + tx
+	for l, layer := range wm.Layers {
+		if i >= len(layer.Data) {
+			continue
+		}
+		t := layer.Data[i]
+		if l == LayerGround && !IsPassable(t) {
+			return false
+		}
+		if l != LayerGround && t != TileNone {
+			return false
+		}
+	}
+	return true
+}
+
+// BoxPassable reports whether an 8x8 sprite with its top-left corner at pixel (px, py) fits.
+func (wm *WorldMap) BoxPassable(px, py float64) bool {
+	if len(wm.Layers) == 0 {
+		return true
+	}
+	for _, corner := range [4][2]float64{{px, py}, {px + TileSize - 1, py}, {px, py + TileSize - 1}, {px + TileSize - 1, py + TileSize - 1}} {
+		if !wm.TilePassable(int(corner[0]/TileSize), int(corner[1]/TileSize)) {
+			return false
+		}
+	}
+	return true
 }
 
 type Layer struct {
@@ -51,33 +127,12 @@ type Layer struct {
 	Y       int    `json:"y"`
 }
 
-func WorldMapWebSocketMessageConvert(message map[string]interface{}) *WorldMap {
-	return &WorldMap{
-		Height: int(message["height"].(float64)),
-		Width:  int(message["width"].(float64)),
-		Layers: LayersWebSocketMessageConvert(message["layers"].([]interface{})),
+// DecodeContents converts a message's loosely-typed Contents (as produced by
+// websocket ReadJSON into interface{}) into the typed struct v.
+func DecodeContents(contents interface{}, v interface{}) error {
+	b, err := json.Marshal(contents)
+	if err != nil {
+		return err
 	}
-}
-
-func LayersWebSocketMessageConvert(message []interface{}) []Layer {
-	var layers = []Layer{}
-	for _, m := range message {
-		layer := m.(map[string]interface{})
-
-		layers = append(layers, Layer{
-			Data: convertToInt(layer["data"].([]interface{})),
-		})
-	}
-
-	return layers
-}
-
-func convertToInt(floats []interface{}) []int {
-	ints := []int{}
-
-	for _, f := range floats {
-		ints = append(ints, int(f.(float64)))
-	}
-
-	return ints
+	return json.Unmarshal(b, v)
 }
