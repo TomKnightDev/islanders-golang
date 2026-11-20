@@ -22,8 +22,6 @@ const (
 	sessionBuffer = 256
 )
 
-var spawnTile = tile{50, 50}
-
 // playerSprite is the sprite's pixel position in characters.png.
 var playerSprite = f64.Vec2{0, 0}
 
@@ -131,7 +129,7 @@ type World struct {
 	byName  map[string]*player
 	nextID  uint16
 	rocks   map[tile]*rock
-	bank    *resources.WorldObject
+	banks   []tile
 	ticks   int
 	cmds    chan command
 }
@@ -181,7 +179,7 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 			p.sess.close() // logged in somewhere else; that connection loses
 		}
 	} else {
-		x, y := spawnTile.pixel()
+		x, y := tile{w.wm.SpawnX, w.wm.SpawnY}.pixel()
 		p = &player{
 			id:       w.nextID,
 			username: username,

@@ -88,3 +88,10 @@ func (w *World) Draw(screen *ebiten.Image) {
 	w.Cam.Surface.Clear()
 	w.Cam.Surface.DrawImage(w.mapImage, w.Cam.GetTranslation(&ebiten.DrawImageOptions{}, 0, 0))
 }
+
+// DrawLabel names the villages and mines on the map.
+func (w *World) DrawLabel(screen *ebiten.Image) {
+	for _, p := range w.worldMap.Places {
+		drawPlaceLabel(screen, w.Cam, p)
+	}
+}

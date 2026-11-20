@@ -21,8 +21,9 @@ const (
 
 const (
 	TileSize    = 8
-	LayerGround = 0
-	LayerObject = 1
+	LayerGround = 0 // opaque terrain; water blocks movement
+	LayerObject = 1 // trees, buildings, rocks; anything here blocks movement
+	LayerDecor  = 2 // flowers, pebbles and the like; drawn, never blocks
 )
 
 type ObjectKind string
@@ -79,6 +80,25 @@ type WorldMap struct {
 	Version   string        `json:"version"`
 	Width     int           `json:"width"`
 	Objects   []WorldObject `json:"objects"`
+	Places    []Place       `json:"places"`
+	SpawnX    int           `json:"spawnX"`
+	SpawnY    int           `json:"spawnY"`
+}
+
+type PlaceKind string
+
+const (
+	PlaceVillage PlaceKind = "village"
+	PlaceMine    PlaceKind = "mine"
+)
+
+// Place is a named area of the island, such as a village or a mine.
+type Place struct {
+	Name   string    `json:"name"`
+	Kind   PlaceKind `json:"kind"`
+	X      int       `json:"x"`
+	Y      int       `json:"y"`
+	Radius int       `json:"radius"` // tiles from the centre that count as inside
 }
 
 // Clone returns a deep copy of the map's layers and objects, safe to send
@@ -91,6 +111,7 @@ func (wm WorldMap) Clone() WorldMap {
 	}
 	wm.Layers = layers
 	wm.Objects = append([]WorldObject(nil), wm.Objects...)
+	wm.Places = append([]Place(nil), wm.Places...)
 	return wm
 }
 
@@ -108,7 +129,7 @@ func (wm *WorldMap) TilePassable(tx, ty int) bool {
 		if l == LayerGround && !IsPassable(t) {
 			return false
 		}
-		if l != LayerGround && t != TileNone {
+		if l == LayerObject && t != TileNone {
 			return false
 		}
 	}

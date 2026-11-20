@@ -57,19 +57,22 @@ func TestEndToEndLoginAndWalk(t *testing.T) {
 	if err := resources.DecodeContents(resp.Contents, &contents); err != nil {
 		t.Fatal(err)
 	}
-	if contents.Pos[0] != 400 || contents.Pos[1] != 400 {
-		t.Fatalf("spawned at %v", contents.Pos)
+	spawn := tile{contents.WorldMap.SpawnX, contents.WorldMap.SpawnY}
+	if sx, sy := spawn.pixel(); contents.Pos[0] != sx || contents.Pos[1] != sy {
+		t.Fatalf("spawned at %v, want the map's spawn %v", contents.Pos, spawn)
 	}
 
-	// Walk three tiles east of spawn (still inside the clearing).
-	conn.WriteJSON(resources.NewMoveRequestMessage(contents.ClientId, resources.MoveRequestContents{X: 53, Y: 50}))
+	// Walk three tiles east of spawn (still on the village square).
+	dest := spawn.add(tile{3, 0})
+	conn.WriteJSON(resources.NewMoveRequestMessage(contents.ClientId, resources.MoveRequestContents{X: dest.x, Y: dest.y}))
 	readUntil(t, conn, 3*time.Second, func(m *resources.Message) bool {
 		if m.MessageType != resources.UpdateMessage || m.ClientId != contents.ClientId {
 			return false
 		}
 		var u resources.UpdateContents
 		resources.DecodeContents(m.Contents, &u)
-		return u.Pos[0] == 53*8 && u.Pos[1] == 50*8
+		dx, dy := dest.pixel()
+		return u.Pos[0] == dx && u.Pos[1] == dy
 	})
 
 	// Wrong password on a second connection is refused.

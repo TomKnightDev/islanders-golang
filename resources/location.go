@@ -34,9 +34,40 @@ func GridRef(tx, ty int) string {
 	return fmt.Sprintf("%c%d", 'A'+col, ty/GridSize+1)
 }
 
-// Landmark returns the nearest named place within landmarkRadius tiles of
-// (tx, ty), such as "the bank", or "" if there is none.
-func (wm *WorldMap) Landmark(tx, ty int) string {
+// nearRadius is how far beyond a place's edge still counts as "near" it.
+const nearRadius = 8
+
+// Describe says where tile (tx, ty) is in words players use: "in Oakhaven",
+// "at Ironridge Mine", "near Saltmere", or near a landmark such as "the
+// bank". It returns "" out in the wilds.
+func (wm *WorldMap) Describe(tx, ty int) string {
+	var near *Place
+	nearDist := 0
+	for i := range wm.Places {
+		p := &wm.Places[i]
+		d := max(abs(p.X-tx), abs(p.Y-ty))
+		if d <= p.Radius {
+			if p.Kind == PlaceVillage {
+				return "in " + p.Name
+			}
+			return "at " + p.Name
+		}
+		if d <= p.Radius+nearRadius && (near == nil || d < nearDist) {
+			near, nearDist = p, d
+		}
+	}
+	if near != nil {
+		return "near " + near.Name
+	}
+	if l := wm.landmark(tx, ty); l != "" {
+		return "near " + l
+	}
+	return ""
+}
+
+// landmark returns the nearest interactive object within landmarkRadius
+// tiles of (tx, ty), such as "the bank", or "" if there is none.
+func (wm *WorldMap) landmark(tx, ty int) string {
 	best, bestDist := "", landmarkRadius+1
 	for _, o := range wm.Objects {
 		d := max(abs(o.X-tx), abs(o.Y-ty))

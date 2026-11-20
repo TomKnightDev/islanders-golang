@@ -79,8 +79,7 @@ func (w *World) initRocks() {
 		case resources.ObjectIronRock:
 			w.rocks[tile{o.X, o.Y}] = &rock{obj: o, ore: rockOreMin + rand.Intn(rockOreMax-rockOreMin+1)}
 		case resources.ObjectBank:
-			b := o
-			w.bank = &b
+			w.banks = append(w.banks, tile{o.X, o.Y})
 		}
 	}
 }
@@ -119,10 +118,12 @@ func (w *World) click(p *player, t tile) {
 		w.startMining(p, r)
 		return
 	}
-	if w.bank != nil && t == (tile{w.bank.X, w.bank.Y}) {
-		p.job = &job{kind: jobBankTrip}
-		w.walkToBank(p)
-		return
+	for _, b := range w.banks {
+		if t == b {
+			p.job = &job{kind: jobBankTrip}
+			w.walkToBank(p, b)
+			return
+		}
 	}
 	if w.moveTo(p, t) {
 		w.startAction(p, activityWalking, walkTicks(p))
@@ -192,12 +193,25 @@ func (w *World) waitForRock(p *player) {
 	w.setActivity(p, activityWaiting)
 }
 
-func (w *World) walkToBank(p *player) {
+// nearestBank is the bank closest to p as the crow flies.
+func (w *World) nearestBank(p *player) (tile, bool) {
+	from := p.currentTile()
+	var best tile
+	found := false
+	for _, b := range w.banks {
+		if !found || octile(from, b) < octile(from, best) {
+			best, found = b, true
+		}
+	}
+	return best, found
+}
+
+func (w *World) walkToBank(p *player, bank tile) {
 	if p.job.rock != nil && p.job.rock.claimedBy == p {
 		p.job.rock.claimedBy = nil
 	}
 	p.job.state = stateWalkToBank
-	if w.bank == nil || !w.moveTo(p, tile{w.bank.X, w.bank.Y}) {
+	if !w.moveTo(p, bank) {
 		w.stopJob(p)
 		w.setActivity(p, activityNoPath)
 		return
@@ -246,7 +260,12 @@ func (w *World) tickJob(p *player) {
 		}
 		switch {
 		case p.backpack.Full(resources.ItemIronOre):
-			w.walkToBank(p)
+			if b, ok := w.nearestBank(p); ok {
+				w.walkToBank(p, b)
+			} else {
+				w.stopJob(p)
+				w.setActivity(p, activityNoPath)
+			}
 		case r.ore == 0:
 			w.nextRock(p)
 		default:
