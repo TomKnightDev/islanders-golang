@@ -5,17 +5,18 @@ import "encoding/json"
 // Tile indices are Tiled-style gids into environments.png: row*16 + col + 1.
 // 0 means "no tile" and is only used in the object layer.
 const (
-	TileNone         = 0
-	TileGrass        = 71
-	TileSand         = 190
-	TileWaterShallow = 189
-	TileWaterDeep    = 205
-	TileTree1        = 74
-	TileTree2        = 78
-	TileIronRock     = 90
-	TileBank         = 92
-	TileBlacksmith   = 93
-	TileAnvil        = 175
+	TileNone             = 0
+	TileGrass            = 71
+	TileSand             = 190
+	TileWaterShallow     = 189
+	TileWaterDeep        = 205
+	TileTree1            = 74
+	TileTree2            = 78
+	TileIronRock         = 90
+	TileIronRockDepleted = 107
+	TileBank             = 92
+	TileBlacksmith       = 93
+	TileAnvil            = 175
 )
 
 const (
@@ -78,6 +79,19 @@ type WorldMap struct {
 	Version   string        `json:"version"`
 	Width     int           `json:"width"`
 	Objects   []WorldObject `json:"objects"`
+}
+
+// Clone returns a deep copy of the map's layers and objects, safe to send
+// while the original keeps changing.
+func (wm WorldMap) Clone() WorldMap {
+	layers := make([]Layer, len(wm.Layers))
+	for i, l := range wm.Layers {
+		l.Data = append([]int(nil), l.Data...)
+		layers[i] = l
+	}
+	wm.Layers = layers
+	wm.Objects = append([]WorldObject(nil), wm.Objects...)
+	return wm
 }
 
 // TilePassable reports whether tile (tx, ty) is inside the map and walkable on every layer.

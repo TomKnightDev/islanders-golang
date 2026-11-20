@@ -14,6 +14,8 @@ const (
 	UpdateMessage             MessageType = "updateMessage"
 	ServerEntityUpdateMessage MessageType = "serverEntityUpdateMessage"
 	MoveRequestMessage        MessageType = "moveRequestMessage"
+	InventoryMessage          MessageType = "inventoryMessage"
+	ObjectUpdateMessage       MessageType = "objectUpdateMessage"
 )
 
 type Message struct {
@@ -118,4 +120,38 @@ func NewMoveRequestMessage(clientId uint16, contents MoveRequestContents) *Messa
 	}
 
 	return m
+}
+
+// InventoryContents is sent to a player whenever their backpack, bank
+// account or current activity changes.
+type InventoryContents struct {
+	Backpack Inventory `json:"backpack"`
+	Bank     Inventory `json:"bank"`
+	Activity string    `json:"activity"`
+	// ActionSeconds is how long the current action takes, or 0 if it has no
+	// set length. ActionElapsed is how far into it the player already is.
+	ActionSeconds float64 `json:"actionSeconds"`
+	ActionElapsed float64 `json:"actionElapsed"`
+}
+
+func NewInventoryMessage(contents InventoryContents) *Message {
+	return &Message{
+		MessageType: InventoryMessage,
+		Contents:    contents,
+	}
+}
+
+// ObjectUpdateContents changes one tile on the object layer, such as a rock
+// becoming depleted or respawning.
+type ObjectUpdateContents struct {
+	X    int `json:"x"`
+	Y    int `json:"y"`
+	Tile int `json:"tile"`
+}
+
+func NewObjectUpdateMessage(contents ObjectUpdateContents) *Message {
+	return &Message{
+		MessageType: ObjectUpdateMessage,
+		Contents:    contents,
+	}
 }

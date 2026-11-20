@@ -86,6 +86,16 @@ type player struct {
 	pos      f64.Vec2 // top-left pixel of the sprite
 	path     []tile   // tiles still to walk through; path[0] is the next one
 	sess     *session // nil while offline; the character stays in the world
+
+	backpack resources.Inventory
+	bank     resources.Inventory // this player's own bank account
+	job      *job
+	activity string
+	// The current action's timing, for the client's progress bar.
+	// actionTicks is 0 for actions with no set length (idle, waiting).
+	actionStart int
+	actionTicks int
+	invDirty    bool // backpack, bank or action changed since last sent
 }
 
 // currentTile is the tile the player stands on, or is walking onto.
@@ -116,7 +126,9 @@ type World struct {
 	players map[uint16]*player
 	byName  map[string]*player
 	nextID  uint16
-	npcs    []*NPC
+	rocks   map[tile]*rock
+	bank    *resources.WorldObject
+	ticks   int
 	cmds    chan command
 }
 
@@ -127,7 +139,7 @@ func NewWorld(wm resources.WorldMap) *World {
 		byName:  make(map[string]*player),
 		cmds:    make(chan command, 256),
 	}
-	w.npcs = w.initNPCs()
+	w.initRocks()
 	return w
 }
 
@@ -171,6 +183,9 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 			username: username,
 			password: password,
 			pos:      f64.Vec2{x, y},
+			backpack: resources.NewInventory(backpackSlots),
+			bank:     resources.NewInventory(bankSlots),
+			activity: activityIdle,
 		}
 		w.nextID++
 		w.players[p.id] = p
@@ -182,14 +197,14 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 		ClientId: p.id,
 		Pos:      p.pos,
 		Tile:     playerSprite,
-		WorldMap: w.wm,
+		WorldMap: w.wm.Clone(),
 	}))
+	sess.push(w.inventoryMessage(p))
 	for _, other := range w.players {
 		if other != p {
 			sess.push(other.updateMessage())
 		}
 	}
-	sess.push(w.npcSnapshot())
 
 	// Everyone else learns about the new or returning player.
 	m := p.updateMessage()
@@ -214,19 +229,21 @@ func (w *World) chat(p *player, text string) {
 	w.broadcast(resources.NewChatMessage(p.id, fmt.Sprintf("%s: %s", p.username, text)))
 }
 
-// moveTo sends p walking to goal. A player already between tiles finishes
-// that step first, so there is no snapping.
-func (w *World) moveTo(p *player, goal tile) {
+// moveTo sends p walking to goal and reports whether there is a way there.
+// A player already between tiles finishes that step first, so there is no
+// snapping.
+func (w *World) moveTo(p *player, goal tile) bool {
 	start := p.currentTile()
 	path := findPath(&w.wm, start, goal)
 	if path == nil {
-		return
+		return false
 	}
 	if len(p.path) > 0 {
 		p.path = append([]tile{start}, path...)
 	} else {
 		p.path = path
 	}
+	return true
 }
 
 // step moves p one tick along its path and reports whether it moved.
@@ -248,10 +265,16 @@ func (p *player) step() bool {
 }
 
 func (w *World) tick() {
+	w.ticks++
 	for _, p := range w.players {
 		if p.step() {
 			w.broadcast(p.updateMessage())
 		}
+		w.tickJob(p)
+		if p.invDirty && p.sess != nil {
+			p.sess.push(w.inventoryMessage(p))
+			p.invDirty = false
+		}
 	}
-	w.tickNPCs()
+	w.tickRocks()
 }
