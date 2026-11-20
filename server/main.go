@@ -13,7 +13,7 @@ var addr = flag.String("addr", GetOutboundIP().String()+":8285", "http service a
 func main() {
 	http.HandleFunc("/connect", connect)
 
-	fmt.Printf(*addr)
+	fmt.Println(*addr)
 	log.Fatal(http.ListenAndServe(*addr, nil))
 }
 
