@@ -83,7 +83,7 @@ func connect(w http.ResponseWriter, r *http.Request) {
 				log.Println("Bad move request:", err)
 				continue
 			}
-			world.Do(func(w *World) { w.moveTo(p, tile{req.X, req.Y}) })
+			world.Do(func(w *World) { w.click(p, tile{req.X, req.Y}) })
 
 		case resources.UpdateMessage:
 			// Older clients still send their own position. The server owns

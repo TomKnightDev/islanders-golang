@@ -22,8 +22,21 @@ bank ingots ──► craft equipment at the anvil ──► better equipment ma
   - the player's bank account has no room for the next deposit, or
   - the player clicks something else (see Action queue).
 
+### Items and stacking
+Backpacks and bank accounts are made of slots.
+
+- **Backpack:** items don't stack. Every item takes its own slot, so a player carries at most 20 items (20 iron ore per trip).
+- **Bank:** each slot holds one stack of a single item kind, up to that item's stack limit.
+
+| Item | Bank stack limit |
+|---|---|
+| Iron ore | 10 |
+| Iron ingot | 20 |
+
+A container is full for an item when every slot is used and every stack of that item is at its limit.
+
 ### Bank
-Every player has their own bank account. The bank building is shared, but deposits and withdrawals only touch the player's own account, and capacity is per account.
+Clicking the bank walks there and deposits the whole backpack. Every player has their own bank account. The bank building is shared, but deposits and withdrawals only touch the player's own account, and capacity is per account.
 
 ### Smelting
 - Clicking the blacksmith starts a smelting loop:
@@ -44,10 +57,11 @@ Every player has their own bank account. The bank building is shared, but deposi
 | Iron backpack straps | 5 ingots | Backpack holds +10 |
 | Iron helmet | 4 ingots | Cosmetic for now |
 
-### Action queue
-- A character has one **current action** (a looping job) and at most one **queued action**.
-- Clicking a target while busy queues it. The current action stops at its next safe point (the end of a swing, a deposit, or arriving on a tile), then the queued action starts.
-- Clicking open ground is a plain walk. It also counts as a queued action, so the player can always break out of a loop.
+### Actions
+- A character has one **current action**: a plain walk, a single bank trip, or a looping job such as mining.
+- Every click replaces the current action straight away. What the click does depends on what's under it: a rock starts mining, the bank starts a bank trip, anything else is a plain walk.
+- Nothing already earned is lost. A walk finishes the tile step it's on (no snapping), and an interrupted mining swing just doesn't produce its ore.
+- The character shows what it's doing ("Mining", "Walking to the bank", "Waiting for a free rock", "Bank full") in a bar at the bottom middle of the screen. The bar fills green over each timed step: every mining swing, every walk. Open-ended states show an empty bar, and the bar hides when idle.
 
 ### Idle behaviour
 The server owns the character and simulates it, so loops keep running while the player is disconnected. Logging back in shows whatever was earned in the meantime. Offline characters stay visible to other players while they work. This works because characters already stay in server memory after disconnecting. Once persistence lands, progress survives server restarts too.
@@ -62,10 +76,10 @@ These are tuning values, kept in one place in the server code.
 | Mining swing | 2 s per ore |
 | Ore per rock | 5–10, random |
 | Rock respawn | 30 s |
-| Backpack size | 20 items |
-| Bank account size | 200 items |
+| Backpack size | 20 slots |
+| Bank account size | 100 slots |
 | Smelting | 1 ore → 1 ingot, 3 s |
-| Server tick | 25 ms (same as the NPC loop today) |
+| Server tick | 25 ms |
 
 ## World
 
@@ -86,11 +100,19 @@ The sprite sheet has no dedicated iron ore art. The grey boulder stands in until
 
 ## Architecture decisions
 
-- **The server is authoritative for players.** Today the client moves itself and the server relays positions. That can't work for an idle game: progress has to happen while the client is closed, and inventories can't be trusted to the client. Clients send intents (`walk to tile`, `interact with object`). The server pathfinds, moves the character each tick, runs the jobs and broadcasts positions and inventories. This is the same model NPCs already use.
+- **The server is authoritative for players.** Today the client moves itself and the server relays positions. That can't work for an idle game: progress has to happen while the client is closed, and inventories can't be trusted to the client. Clients send intents (`walk to tile`, `interact with object`). The server pathfinds, moves the character each tick, runs the jobs and broadcasts positions and inventories.
 - **One world goroutine owns all game state.** Connection handlers send it commands over a channel instead of touching shared maps. This also fixes the current data races.
 - **Pathfinding** is A* over tiles, 8-directional, using the passability rule above. A diagonal step needs both tiles beside it free, so sprites never clip a corner.
 - **Click-to-move replaces WASD.** The camera's `GetCursorCoords` turns a click into a world tile.
 - **Typed messages.** New message contents are decoded with `resources.DecodeContents` (re-marshal into a struct) instead of hand-written `map[string]interface{}` assertions.
+
+## Locations
+
+Players share where they are with a grid reference instead of raw coordinates. The island is split into 10×10-tile squares, lettered A–J west to east and numbered 1–10 north to south. A location reads "F6 (50, 50)": the square to say out loud, then the exact tile. Within 4 tiles of the bank, blacksmith, anvil or iron rocks it adds "near the bank" and so on. The info panel shows the player's location and has a **Share location** button that posts it to chat.
+
+## NPCs
+
+The wandering NPCs and their random chat were removed in phase 3 to keep the world quiet. They can come back later with a purpose (a banker, a blacksmith).
 
 ## Phases
 
@@ -98,7 +120,7 @@ Each phase is one PR and leaves the game playable.
 
 1. **World objects.** Object layer, town and iron rocks in world generation, shared passability check, fix for last-column tiles, pre-rendered map. *(done)*
 2. **Server-authoritative movement.** World goroutine and command channel, click-to-move with A*, client renders the server's position, WASD removed. *(done)*
-3. **Mining and inventory.** Action system with the queue rules above, the mining loop, rock claiming, depletion and respawn, backpack and per-player bank accounts, an inventory window, and new messages for inventory, action state and rock state.
+3. **Mining and inventory.** Action system with the rules above, the mining loop, rock claiming, depletion and respawn, backpack and per-player bank accounts, an inventory window, and new messages for inventory, action state and rock state. *(done)*
 4. **Smelting.** Blacksmith loop, ingots.
 5. **Crafting and equipment.** Anvil recipe window, equipment slots and stat effects.
 6. **Persistence.** Save characters, inventories and banks to disk on a Docker volume, and hash passwords. Until this lands, every deploy wipes progress.

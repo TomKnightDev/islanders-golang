@@ -2,10 +2,8 @@ package entities
 
 import (
 	"image"
-	"image/color"
 
 	"github.com/hajimehoshi/ebiten/v2"
-	"github.com/hajimehoshi/ebiten/v2/text"
 	camera "github.com/melonfunction/ebiten-camera"
 	"golang.org/x/image/math/f64"
 )
@@ -62,12 +60,8 @@ func (p *NetworkPlayer) Draw(screen *ebiten.Image) {
 	}
 	opts := p.Cam.GetTranslation(drawOpts, p.Position[0], p.Position[1])
 	p.Cam.Surface.DrawImage(p.imageTile, opts)
+}
 
-	// Draw username above the sprite using the same screen-space position
-	sx := opts.GeoM.Element(0, 2)
-	sy := opts.GeoM.Element(1, 2)
-	text.Draw(p.Cam.Surface, p.Username, mplusNormalFont, int(sx)-len(p.Username)*3, int(sy)-10, color.RGBA{R: 0xff, G: 0xff, B: 0xff, A: 0xff})
-
-	// Draw to screen and zoom
-	p.Cam.Blit(screen)
+func (p *NetworkPlayer) DrawLabel(screen *ebiten.Image) {
+	drawNameLabel(screen, p.Cam, p.Username, p.Position)
 }

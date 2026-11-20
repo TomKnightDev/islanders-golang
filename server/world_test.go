@@ -152,7 +152,6 @@ func TestFindPathAlreadyThere(t *testing.T) {
 
 func TestPlayerWalksToClickedTile(t *testing.T) {
 	w := NewWorld(testMap(20, 20))
-	w.npcs = nil
 	s := testSession()
 	p, err := w.login("tom", "pw", s)
 	if err != nil {
@@ -188,7 +187,6 @@ func TestPlayerWalksToClickedTile(t *testing.T) {
 
 func TestRedirectMidStepDoesNotSnap(t *testing.T) {
 	w := NewWorld(testMap(20, 20))
-	w.npcs = nil
 	p, _ := w.login("tom", "pw", testSession())
 	p.pos[0], p.pos[1] = tile{5, 5}.pixel()
 
@@ -206,7 +204,6 @@ func TestRedirectMidStepDoesNotSnap(t *testing.T) {
 
 func TestReconnectKeepsCharacterAndKicksOldSession(t *testing.T) {
 	w := NewWorld(testMap(20, 20))
-	w.npcs = nil
 	s1 := testSession()
 	p1, _ := w.login("tom", "pw", s1)
 	p1.pos[0], p1.pos[1] = tile{7, 7}.pixel()
@@ -242,7 +239,6 @@ func TestReconnectKeepsCharacterAndKicksOldSession(t *testing.T) {
 
 func TestOfflineCharacterKeepsWalking(t *testing.T) {
 	w := NewWorld(testMap(20, 20))
-	w.npcs = nil
 	s := testSession()
 	p, _ := w.login("tom", "pw", s)
 	p.pos[0], p.pos[1] = tile{2, 2}.pixel()

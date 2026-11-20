@@ -24,6 +24,7 @@ func NewChat(screenWidth, screenHeight int, mgr *renderer.Manager) *Chat {
 }
 
 func (chat *Chat) Update() error {
+	imgui.SetNextWindowSizeV(imgui.Vec2{X: 560, Y: 320}, imgui.ConditionFirstUseEver)
 	imgui.Begin("Chat")
 	imgui.InputText("Message", &chat.message)
 	if imgui.Button("Send") {
