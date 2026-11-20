@@ -88,7 +88,7 @@ The sprite sheet has no dedicated iron ore art. The grey boulder stands in until
 
 - **The server is authoritative for players.** Today the client moves itself and the server relays positions. That can't work for an idle game: progress has to happen while the client is closed, and inventories can't be trusted to the client. Clients send intents (`walk to tile`, `interact with object`). The server pathfinds, moves the character each tick, runs the jobs and broadcasts positions and inventories. This is the same model NPCs already use.
 - **One world goroutine owns all game state.** Connection handlers send it commands over a channel instead of touching shared maps. This also fixes the current data races.
-- **Pathfinding** is A* over tiles, 4-directional, using the passability rule above.
+- **Pathfinding** is A* over tiles, 8-directional, using the passability rule above. A diagonal step needs both tiles beside it free, so sprites never clip a corner.
 - **Click-to-move replaces WASD.** The camera's `GetCursorCoords` turns a click into a world tile.
 - **Typed messages.** New message contents are decoded with `resources.DecodeContents` (re-marshal into a struct) instead of hand-written `map[string]interface{}` assertions.
 

@@ -8,7 +8,37 @@ import (
 
 type tile struct{ x, y int }
 
+// neighbours are the tiles a blocked goal can be approached from.
 var neighbours = [4]tile{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
+
+// steps are the moves a walk can make: straight or diagonal.
+var steps = [8]tile{{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}}
+
+// Step costs: a diagonal is about √2 times a straight step.
+const (
+	straightCost = 10
+	diagonalCost = 14
+)
+
+// octile is the cheapest cost between two tiles on an open map.
+func octile(a, b tile) int {
+	dx, dy := abs(a.x-b.x), abs(a.y-b.y)
+	return straightCost*max(dx, dy) + (diagonalCost-straightCost)*min(dx, dy)
+}
+
+// canStep reports whether a walker on from can move by d. Diagonal steps
+// need both tiles they pass between to be free, so sprites never clip the
+// corner of a tree or rock.
+func canStep(wm *resources.WorldMap, from, d tile) bool {
+	to := from.add(d)
+	if !wm.TilePassable(to.x, to.y) {
+		return false
+	}
+	if d.x != 0 && d.y != 0 {
+		return wm.TilePassable(from.x+d.x, from.y) && wm.TilePassable(from.x, from.y+d.y)
+	}
+	return true
+}
 
 func (t tile) add(d tile) tile { return tile{t.x + d.x, t.y + d.y} }
 
@@ -26,9 +56,10 @@ func abs(v int) int {
 }
 
 // findPath returns the tiles to walk through, in order, from start (excluded)
-// to goal. If goal is blocked, the path ends on the nearest walkable tile next
-// to it, so clicking a rock or a building walks up to it. It returns nil when
-// there is no way there, and an empty path when already there.
+// to goal, moving in 8 directions. If goal is blocked, the path ends on the
+// nearest walkable tile beside it, so clicking a rock or a building walks up
+// to it. It returns nil when there is no way there, and an empty path when
+// already there.
 func findPath(wm *resources.WorldMap, start, goal tile) []tile {
 	goals := map[tile]bool{}
 	slack := 0
@@ -49,9 +80,9 @@ func findPath(wm *resources.WorldMap, start, goal tile) []tile {
 		return []tile{}
 	}
 
-	// Manhattan distance, less one when the goal itself is blocked, so the
-	// estimate never overshoots the real distance to a tile beside it.
-	h := func(t tile) int { return max(0, abs(t.x-goal.x)+abs(t.y-goal.y)-slack) }
+	// Octile distance, less one step when the goal itself is blocked, so the
+	// estimate never overshoots the real cost to a tile beside it.
+	h := func(t tile) int { return max(0, octile(t, goal)-slack*straightCost) }
 
 	cameFrom := map[tile]tile{}
 	cost := map[tile]int{start: 0}
@@ -72,12 +103,15 @@ func findPath(wm *resources.WorldMap, start, goal tile) []tile {
 		if cur.g > cost[cur.t] {
 			continue // stale heap entry
 		}
-		for _, d := range neighbours {
-			n := cur.t.add(d)
-			if !wm.TilePassable(n.x, n.y) {
+		for _, d := range steps {
+			if !canStep(wm, cur.t, d) {
 				continue
 			}
-			g := cur.g + 1
+			n := cur.t.add(d)
+			g := cur.g + straightCost
+			if d.x != 0 && d.y != 0 {
+				g = cur.g + diagonalCost
+			}
 			if old, seen := cost[n]; seen && g >= old {
 				continue
 			}

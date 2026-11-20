@@ -54,22 +54,70 @@ func TestFindPathAroundWall(t *testing.T) {
 	if path == nil {
 		t.Fatal("no path")
 	}
-	prev := tile{1, 1}
+	checkPath(t, &wm, tile{1, 1}, path)
+	if end := path[len(path)-1]; end != (tile{5, 1}) {
+		t.Fatalf("path ends at %v", end)
+	}
+	// Down through the gap at y=4 and back up. Corner rules force straight
+	// steps next to the wall: 2 diagonals + 6 straights.
+	if got := pathCost(tile{1, 1}, path); got != 2*diagonalCost+6*straightCost {
+		t.Errorf("path cost %d, want %d: %v", got, 2*diagonalCost+6*straightCost, path)
+	}
+}
+
+// checkPath fails if a path skips tiles, enters a blocked tile, or cuts a corner.
+func checkPath(t *testing.T, wm *resources.WorldMap, start tile, path []tile) {
+	t.Helper()
+	prev := start
 	for _, p := range path {
-		if !wm.TilePassable(p.x, p.y) {
-			t.Fatalf("path goes through blocked tile %v", p)
-		}
-		if abs(p.x-prev.x)+abs(p.y-prev.y) != 1 {
+		d := tile{p.x - prev.x, p.y - prev.y}
+		if abs(d.x) > 1 || abs(d.y) > 1 || d == (tile{}) {
 			t.Fatalf("path jumps from %v to %v", prev, p)
+		}
+		if !canStep(wm, prev, d) {
+			t.Fatalf("illegal step from %v to %v (blocked or corner-cutting)", prev, p)
 		}
 		prev = p
 	}
-	if prev != (tile{5, 1}) {
-		t.Fatalf("path ends at %v", prev)
+}
+
+func pathCost(start tile, path []tile) int {
+	cost, prev := 0, start
+	for _, p := range path {
+		if p.x != prev.x && p.y != prev.y {
+			cost += diagonalCost
+		} else {
+			cost += straightCost
+		}
+		prev = p
 	}
-	// Shortest is down to y=4, across, and back up: 3 + 4 + 3 = 10 steps.
-	if len(path) != 10 {
-		t.Errorf("path length %d, want 10", len(path))
+	return cost
+}
+
+func TestFindPathDiagonal(t *testing.T) {
+	wm := testMap(10, 10)
+	path := findPath(&wm, tile{1, 1}, tile{4, 4})
+	if len(path) != 3 || path[2] != (tile{4, 4}) {
+		t.Fatalf("open-field diagonal should take 3 steps, got %v", path)
+	}
+	// Mixed: 2 diagonal then 3 straight is the cheapest way to (6,3).
+	path = findPath(&wm, tile{1, 1}, tile{6, 3})
+	checkPath(t, &wm, tile{1, 1}, path)
+	if got := pathCost(tile{1, 1}, path); got != 2*diagonalCost+3*straightCost {
+		t.Errorf("cost %d, want %d: %v", got, 2*diagonalCost+3*straightCost, path)
+	}
+}
+
+func TestFindPathNoCornerCutting(t *testing.T) {
+	// A diagonal pair of rocks: (2,1) and (1,2). Walking from (1,1) to (2,2)
+	// would squeeze between them, so the only way is around.
+	wm := testMap(10, 10, tile{2, 1}, tile{1, 2})
+	path := findPath(&wm, tile{1, 1}, tile{2, 2})
+	if path != nil {
+		checkPath(t, &wm, tile{1, 1}, path)
+		if len(path) == 1 {
+			t.Fatal("squeezed diagonally between two rocks")
+		}
 	}
 }
 
