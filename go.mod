@@ -8,7 +8,6 @@ require (
 	github.com/hajimehoshi/ebiten/v2 v2.10.6
 	github.com/inkyblackness/imgui-go/v4 v4.7.0
 	github.com/melonfunction/ebiten-camera v0.0.0-20220812153034-695003d18a6d
-	github.com/solarlune/resolv v0.8.1
 	golang.org/x/image v0.48.0
 )
 

@@ -2,15 +2,15 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"math"
 	"math/rand"
-	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/tomknightdev/islanders-golang/resources"
 	"golang.org/x/image/math/f64"
 )
+
+// NPC ids start well above player ids; both share one id space on the client.
+const npcIDBase = 1000
 
 type NPC struct {
 	id               uint16
@@ -24,14 +24,13 @@ type NPC struct {
 
 var npcNames = []string{"Bob", "Alice", "Charlie"}
 
-func initNPCs() []*NPC {
+func (w *World) initNPCs() []*NPC {
 	npcs := make([]*NPC, len(npcNames))
 	for i, name := range npcNames {
-		pos := randomMapPos()
 		npcs[i] = &NPC{
-			id:               uint16(200 + i),
+			id:               uint16(npcIDBase + i),
 			username:         name,
-			position:         pos,
+			position:         w.randomWalkablePos(),
 			tile:             f64.Vec2{0, 0},
 			target:           randomMapPos(),
 			ticksToNewTarget: 300 + rand.Intn(300),
@@ -48,89 +47,66 @@ func randomMapPos() f64.Vec2 {
 	}
 }
 
-func npcLoop(npcs []*NPC) {
+// randomWalkablePos picks a spawn point an NPC can actually move from.
+func (w *World) randomWalkablePos() f64.Vec2 {
 	for {
-		time.Sleep(25 * time.Millisecond)
+		p := randomMapPos()
+		if w.wm.BoxPassable(p[0], p[1]) {
+			return p
+		}
+	}
+}
 
-		contents := make([]resources.ServerEntityUpdateContents, len(npcs))
-		for i, npc := range npcs {
-			dx := npc.target[0] - npc.position[0]
-			dy := npc.target[1] - npc.position[1]
-			dist := math.Sqrt(dx*dx + dy*dy)
-			if dist > 1 {
-				const speed = 0.3
-				newX := npc.position[0] + (dx/dist)*speed
-				newY := npc.position[1] + (dy/dist)*speed
-				if ServerInstance.worldMap.BoxPassable(newX, newY) {
-					npc.position[0] = newX
-					npc.position[1] = newY
-				} else {
-					npc.target = randomMapPos()
-					npc.ticksToNewTarget = 300 + rand.Intn(300)
-				}
-			}
-
-			npc.ticksToNewTarget--
-			if npc.ticksToNewTarget <= 0 {
+func (w *World) tickNPCs() {
+	contents := make([]resources.ServerEntityUpdateContents, len(w.npcs))
+	for i, npc := range w.npcs {
+		dx := npc.target[0] - npc.position[0]
+		dy := npc.target[1] - npc.position[1]
+		dist := math.Sqrt(dx*dx + dy*dy)
+		if dist > 1 {
+			const speed = 0.3
+			newX := npc.position[0] + (dx/dist)*speed
+			newY := npc.position[1] + (dy/dist)*speed
+			if w.wm.BoxPassable(newX, newY) {
+				npc.position[0] = newX
+				npc.position[1] = newY
+			} else {
 				npc.target = randomMapPos()
 				npc.ticksToNewTarget = 300 + rand.Intn(300)
 			}
-
-			npc.ticksToHello--
-			if npc.ticksToHello <= 0 {
-				broadcastNPCChat(npc, "Hello!")
-				npc.ticksToHello = 600 + rand.Intn(1200)
-			}
-
-			contents[i] = resources.ServerEntityUpdateContents{
-				EntityId: npc.id,
-				Pos:      npc.position,
-				Tile:     npc.tile,
-				Username: npc.username,
-			}
 		}
 
-		broadcastNPCPositions(contents)
+		npc.ticksToNewTarget--
+		if npc.ticksToNewTarget <= 0 {
+			npc.target = randomMapPos()
+			npc.ticksToNewTarget = 300 + rand.Intn(300)
+		}
+
+		npc.ticksToHello--
+		if npc.ticksToHello <= 0 {
+			w.broadcast(resources.NewChatMessage(npc.id, fmt.Sprintf("%s: %s", npc.username, "Hello!")))
+			npc.ticksToHello = 600 + rand.Intn(1200)
+		}
+
+		contents[i] = npc.updateContents()
+	}
+
+	w.broadcast(resources.NewServerEntityUpdateMessage(contents))
+}
+
+func (npc *NPC) updateContents() resources.ServerEntityUpdateContents {
+	return resources.ServerEntityUpdateContents{
+		EntityId: npc.id,
+		Pos:      npc.position,
+		Tile:     npc.tile,
+		Username: npc.username,
 	}
 }
 
-func broadcastNPCPositions(contents []resources.ServerEntityUpdateContents) {
-	message := resources.NewServerEntityUpdateMessage(contents)
-	for _, c := range ServerInstance.clientsById {
-		if c.conn == nil {
-			continue
-		}
-		c.mu.Lock()
-		if err := c.conn.WriteJSON(message); err != nil {
-			log.Println("NPC position write error:", err)
-		}
-		c.mu.Unlock()
+func (w *World) npcSnapshot() *resources.Message {
+	contents := make([]resources.ServerEntityUpdateContents, len(w.npcs))
+	for i, npc := range w.npcs {
+		contents[i] = npc.updateContents()
 	}
-}
-
-func sendNPCSnapshot(conn *websocket.Conn) {
-	contents := make([]resources.ServerEntityUpdateContents, len(ServerInstance.npcs))
-	for i, npc := range ServerInstance.npcs {
-		contents[i] = resources.ServerEntityUpdateContents{
-			EntityId: npc.id,
-			Pos:      npc.position,
-			Tile:     npc.tile,
-			Username: npc.username,
-		}
-	}
-	conn.WriteJSON(resources.NewServerEntityUpdateMessage(contents))
-}
-
-func broadcastNPCChat(npc *NPC, msg string) {
-	m := resources.NewChatMessage(npc.id, fmt.Sprintf("%s: %s", npc.username, msg))
-	for _, c := range ServerInstance.clientsById {
-		if c.conn == nil {
-			continue
-		}
-		c.mu.Lock()
-		if err := c.conn.WriteJSON(m); err != nil {
-			log.Println("NPC chat write error:", err)
-		}
-		c.mu.Unlock()
-	}
+	return resources.NewServerEntityUpdateMessage(contents)
 }

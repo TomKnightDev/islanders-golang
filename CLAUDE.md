@@ -24,7 +24,7 @@ go test ./server/ ./resources/   # what CI runs; client/client_test.go is commen
 go test ./client -run TestName   # single test
 ```
 
-Without `-addr`, the server binds to `<outbound IP>:8285`. The client's main menu defaults to the production server (`134.209.26.73:8285`). Change the address to `localhost:8285` to test locally.
+Without `-addr`, the server binds to `<outbound IP>:8285`. The client's main menu has two buttons: **Play online** connects to the production server and **Play locally** to `localhost:8285` (both addresses are constants in `client/gui/mainmenu.go`). `make run-server` listens on all interfaces, so Play locally reaches it.
 
 ## Deployment
 
@@ -34,11 +34,11 @@ Every push to `master` triggers `.github/workflows/server.yml`. It builds the se
 
 **Protocol.** Every message is a JSON `resources.Message{MessageType, Contents, ClientId}`. `Contents` is an `interface{}`, so the receiving side gets `map[string]interface{}` / `[]interface{}` with float64 numbers. Older handlers unpack it by hand with type assertions (for example `messageContents["pos"].([]interface{})`); if you add a field to one of those `*Contents` structs, update that manual decoding too. New code should use `resources.DecodeContents(contents, &typedStruct)` instead, as the world map already does.
 
-**Connection flow.** The client dials `ws://<addr>/connect` and sends `ConnectRequestMessage`. The server either creates or re-authenticates the account (stored in memory only, plaintext password, keyed by username). It replies with `ConnectResponseMessage`, which carries the client ID, the spawn position and the **entire generated world map**. It then sends `UpdateMessage`s for the other players and an NPC snapshot. Only after the connect response arrives does the client build the camera, `Player`, `World` and the chat and info windows (`handleConnectResponse` in `client/client.go`).
+**Connection flow.** The client dials `ws://<addr>/connect` and sends `ConnectRequestMessage`. The server either creates or re-authenticates the account (stored in memory only, plaintext password, keyed by username). Logging in from a second connection closes the first. The server replies with `ConnectResponseMessage`, which carries the client ID, the player's position and the **entire generated world map**. It then sends `UpdateMessage`s for the other players and an NPC snapshot. Only after the connect response arrives does the client build the camera, `Player`, `World` and the chat and info windows (`handleConnectResponse` in `client/client.go`).
 
-**Authority.** The client decides its own movement. `Player.Update` checks tile collision locally and sends its position, and the server stores it and relays it as-is. The server is authoritative only for NPCs. `npcLoop` ticks every 25ms and broadcasts `ServerEntityUpdateMessage`.
+**Authority.** The server owns every character. A click sends `MoveRequestMessage` with a target tile. The server pathfinds (A*, 8-directional with no corner-cutting past blocked tiles, `server/pathfind.go`); clicking a blocked tile walks to a free tile next to it. The server then moves the character `walkStep` pixels per 25ms tick and broadcasts `UpdateMessage` to **every** client, the owner included. The client never moves itself; `receiveUpdateMessage` applies the owner's position to `client.Player`. Characters stay in the world while their player is offline and keep walking, and other clients still see them.
 
-**Entity IDs share one uint16 space on the client.** Players get `0..n` (assigned as `len(clientsById)`), the unused enemies get 100+ and NPCs get 200+. The client puts players and NPCs into the same `client.NetworkPlayers` / `g.Entities` maps as `NetworkPlayer`s.
+**Entity IDs share one uint16 space on the client.** Players get `0, 1, 2…` from `World.nextID` and NPCs get 1000+ (`npcIDBase`). The client puts players and NPCs into the same `client.NetworkPlayers` / `g.Entities` maps as `NetworkPlayer`s.
 
 **World.** `server/worldgen.go` builds a 100×100 map with two row-major layers (`Data[y*width+x]`): ground (rings of deep water, shallow water, sand, grass) and objects (trees plus a fixed town: bank, blacksmith, anvil, iron rocks). `0` in the object layer means empty. Interactive objects are also listed in `WorldMap.Objects` with an id, kind and tile position. A clear area surrounds the spawn tile (50,50), which is pixel (400,400), and a ring around every object is kept free of trees. Tiles are 8px. Tile and object constants live in `resources/resources.go`. Tile values are Tiled-style gids into `environments.png`: atlas column `(gid-1)%16`, row `(gid-1)/16`. The client's `World` pre-renders all layers into one image the first time it draws.
 
@@ -46,10 +46,11 @@ Every push to `master` triggers `.github/workflows/server.yml`. It builds the se
 
 **Rendering.** Every drawable entity shares one `ebiten-camera` instance. Each entity draws onto `cam.Surface` and calls `cam.Blit(screen)`, and `World.Draw` clears the surface first. Draw order is Environment → Entities → Player → Gui (`client/main.go`). All the GUI windows share one imgui `renderer.Manager`, and the windows are opened between `BeginFrame` and `EndFrame` in `Game.Update`.
 
-**Client concurrency.** The GUI talks to the network over channels. The main menu sends server, username and password on `mm.Connect`, chat sends on `chat.SendChan`, and the player sends on `Player.SendChan`. Goroutines forward all of these into `client.SendChan`, and `connectToServer` writes them to the socket. These channels are unbuffered, so a send from `Update` blocks the game loop.
+**Server concurrency.** `World` (`server/world.go`) owns all game state, and only its `Run` goroutine touches it. Connection handlers (`server/server.go`) only parse messages and submit closures with `world.Do(func(w *World){...})`; anything needing a reply passes a channel inside the closure (see login). Each connection is a `session` whose writer goroutine is the only thing writing to the socket. The world queues messages with `session.push`, which never blocks: a client whose 256-message buffer fills is disconnected.
+
+**Client concurrency.** The network reader goroutine only queues messages on `client.RecvChan`. `Game.Update` drains the queue (`handleMessages`), so game state is only touched from the Ebiten loop. Outbound, the main menu sends server, username and password on `mm.Connect`, chat sends on `chat.SendChan`, and the player sends move requests on `Player.SendChan`, which is buffered and sent without blocking. Goroutines forward all of these into `client.SendChan`, and `connectToServer` writes them to the socket.
 
 ## Known pitfalls
 
-- **Locking.** The server's client maps have no lock, yet connection goroutines and `npcLoop` both use them. Writes to a socket are protected by a per-client `c.mu`, but `sendUpdateToClients` returns without unlocking when a write fails. On the client, the network goroutine changes `g.Entities` while Ebiten iterates over it.
-- **Dead code.** `serverLoop` and `server/entity.go` (the enemy chasers) are never called.
-- **Spawn position** is hardcoded in several places in `server/server.go`. Keep them in sync with the clear area in `worldgen.go`.
+- **No persistence.** Accounts, positions and everything else live in server memory, and every deploy wipes them.
+- **Older clients** still send `UpdateMessage` with their own position; the server ignores it.

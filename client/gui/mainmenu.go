@@ -17,13 +17,19 @@ var (
 	mplusNormalFont font.Face
 )
 
+// Servers the main menu can connect to. Players pick by name; the addresses
+// are never shown.
+const (
+	onlineServer = "134.209.26.73:8285"
+	localServer  = "localhost:8285"
+)
+
 type MainMenu struct {
 	mgr             *renderer.Manager
 	username        string
 	password        string
 	Connect         chan string
 	Connected       bool
-	server          string
 	FailedToConnect []string
 }
 
@@ -50,7 +56,6 @@ func NewMainMenu(screenWidth, screenHeight int, mgr *renderer.Manager) *MainMenu
 		mgr:      mgr,
 		Connect:  make(chan string),
 		username: "Tom",
-		server:   "134.209.26.73:8285",
 	}
 
 	return mm
@@ -69,13 +74,14 @@ func (mm *MainMenu) Update() error {
 	imgui.SetNextWindowSize(imgui.Vec2{X: menuW, Y: menuH})
 	imgui.BeginV("Main Menu", nil, flags)
 
-	imgui.InputText("Server", &mm.server)
 	imgui.InputText("Username", &mm.username)
-	imgui.InputText("Password", &mm.password)
-	if imgui.Button("Connect") {
-		mm.Connect <- mm.server
-		mm.Connect <- mm.username
-		mm.Connect <- mm.password
+	imgui.InputTextV("Password", &mm.password, imgui.InputTextFlagsPassword, nil)
+	if imgui.Button("Play online") {
+		mm.connect(onlineServer)
+	}
+	imgui.SameLine()
+	if imgui.Button("Play locally") {
+		mm.connect(localServer)
 	}
 	for _, m := range mm.FailedToConnect {
 		imgui.Text(m)
@@ -83,6 +89,12 @@ func (mm *MainMenu) Update() error {
 	imgui.End()
 
 	return nil
+}
+
+func (mm *MainMenu) connect(server string) {
+	mm.Connect <- server
+	mm.Connect <- mm.username
+	mm.Connect <- mm.password
 }
 
 func (mm *MainMenu) Draw(screen *ebiten.Image) {
