@@ -10,14 +10,15 @@ import (
 
 // Tuning values. See docs/DESIGN.md.
 const (
-	swingTime     = 2 * time.Second
-	rockRespawn   = 30 * time.Second
-	rockOreMin    = 5
-	rockOreMax    = 10
-	backpackSlots = 20
-	bankSlots     = 100
-	rockWaitRetry = 1 * time.Second
-	noPathShown   = 3 * time.Second // how long "Can't get there" stays up
+	swingTime       = 2 * time.Second
+	rockRespawn     = 30 * time.Second
+	rockOreMin      = 5
+	rockOreMax      = 10
+	backpackSlots   = 20
+	bankSlots       = 100
+	rockWaitRetry   = 1 * time.Second
+	noPathShown     = 3 * time.Second // how long "Can't get there" stays up
+	offlineSlowdown = 10              // offline characters run at 1/10 speed
 )
 
 func ticks(d time.Duration) int { return int(d / tickInterval) }
@@ -95,7 +96,7 @@ func (w *World) setActivity(p *player, a string) {
 // client, which animates the progress bar from it.
 func (w *World) startAction(p *player, a string, d int) {
 	p.activity = a
-	p.actionStart = w.ticks
+	p.actionStart = p.ticks
 	p.actionTicks = d
 	p.invDirty = true
 }
@@ -212,7 +213,7 @@ func (w *World) tickJob(p *player) {
 		switch {
 		case p.activity == activityWalking && arrived:
 			w.setActivity(p, activityIdle)
-		case p.activity == activityNoPath && w.ticks-p.actionStart >= ticks(noPathShown):
+		case p.activity == activityNoPath && p.ticks-p.actionStart >= ticks(noPathShown):
 			w.setActivity(p, activityIdle)
 		}
 		return
@@ -317,6 +318,6 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 		Bank:          p.bank.Clone(),
 		Activity:      p.activity,
 		ActionSeconds: seconds(p.actionTicks),
-		ActionElapsed: seconds(w.ticks - p.actionStart),
+		ActionElapsed: seconds(p.ticks - p.actionStart),
 	})
 }

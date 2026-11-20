@@ -64,7 +64,7 @@ Clicking the bank walks there and deposits the whole backpack. Every player has 
 - The character shows what it's doing ("Mining", "Walking to the bank", "Waiting for a free rock", "Bank full") in a bar at the bottom middle of the screen. The bar fills green over each timed step: every mining swing, every walk. Open-ended states show an empty bar, and the bar hides when idle.
 
 ### Idle behaviour
-The server owns the character and simulates it, so loops keep running while the player is disconnected. Logging back in shows whatever was earned in the meantime. Offline characters stay visible to other players while they work. This works because characters already stay in server memory after disconnecting. Once persistence lands, progress survives server restarts too.
+The server owns the character and simulates it, so loops keep running while the player is disconnected, at 10% speed. Walking and every timed step run slower together, because each character has its own clock that only advances every tenth tick while they're offline. Logging back in shows whatever was earned in the meantime. Offline characters stay visible to other players while they work. This works because characters already stay in server memory after disconnecting. Once persistence lands, progress survives server restarts too.
 
 ## Starting numbers
 
@@ -79,6 +79,7 @@ These are tuning values, kept in one place in the server code.
 | Backpack size | 20 slots |
 | Bank account size | 100 slots |
 | Smelting | 1 ore → 1 ingot, 3 s |
+| Offline speed | 10% |
 | Server tick | 25 ms |
 
 ## World

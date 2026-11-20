@@ -91,8 +91,12 @@ type player struct {
 	bank     resources.Inventory // this player's own bank account
 	job      *job
 	activity string
-	// The current action's timing, for the client's progress bar.
-	// actionTicks is 0 for actions with no set length (idle, waiting).
+	// ticks is this character's own clock. It advances every world tick
+	// while the player is online and every offlineSlowdown ticks while
+	// they're offline, so idle progress runs slower without them.
+	ticks int
+	// The current action's timing, for the client's progress bar, on the
+	// character's clock. actionTicks is 0 for actions with no set length.
 	actionStart int
 	actionTicks int
 	invDirty    bool // backpack, bank or action changed since last sent
@@ -267,6 +271,10 @@ func (p *player) step() bool {
 func (w *World) tick() {
 	w.ticks++
 	for _, p := range w.players {
+		if p.sess == nil && w.ticks%offlineSlowdown != 0 {
+			continue
+		}
+		p.ticks++
 		if p.step() {
 			w.broadcast(p.updateMessage())
 		}

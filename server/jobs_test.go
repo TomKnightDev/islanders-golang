@@ -209,19 +209,32 @@ func TestBankAccountsArePrivate(t *testing.T) {
 	}
 }
 
-func TestMiningContinuesOffline(t *testing.T) {
+func TestMiningContinuesOfflineAtTenthSpeed(t *testing.T) {
 	w := jobWorld(t)
 	w.rocks[tile{10, 10}].ore = 100
 	s := testSession()
 	p, _ := w.login("tom", "pw", s)
 	p.pos[0], p.pos[1] = tile{9, 10}.pixel()
 	w.click(p, tile{10, 10})
+	w.tick() // arrive and start the first swing while online
 	w.disconnect(p, s)
-	for i := 0; i < ticks(swingTime)*5; i++ {
+
+	// Ten swings' worth of time offline yields one swing.
+	for i := 0; i < ticks(swingTime)*offlineSlowdown; i++ {
 		w.tick()
 	}
-	if got := p.backpack.Count(resources.ItemIronOre); got < 4 {
-		t.Errorf("offline character mined only %d ore", got)
+	if got := p.backpack.Count(resources.ItemIronOre); got != 1 {
+		t.Errorf("offline for 10 swings' time: mined %d ore, want 1", got)
+	}
+
+	// Back online, full speed again.
+	s2 := testSession()
+	w.login("tom", "pw", s2)
+	for i := 0; i < ticks(swingTime); i++ {
+		w.tick()
+	}
+	if got := p.backpack.Count(resources.ItemIronOre); got != 2 {
+		t.Errorf("after one online swing: %d ore, want 2", got)
 	}
 }
 
