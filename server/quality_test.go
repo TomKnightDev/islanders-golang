@@ -82,7 +82,7 @@ func TestSmeltedBarsAreNoBetterThanTheirOre(t *testing.T) {
 func TestEquipASpecificPiece(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
-	p.xp[resources.SkillAttack] = resources.XPForLevel(15)
+	p.xp[resources.SkillMelee] = resources.XPForLevel(15)
 	rough := w.newPiece(resources.ItemIronSword, 20)
 	fine := w.newPiece(resources.ItemIronSword, 80)
 	p.backpack.AddStack(rough)

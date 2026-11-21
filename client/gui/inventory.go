@@ -15,8 +15,6 @@ import (
 type Inventory struct {
 	mgr      *renderer.Manager
 	Contents resources.InventoryContents
-	// OpenShop shows the shop window.
-	OpenShop func()
 }
 
 func NewInventory(mgr *renderer.Manager) *Inventory {
@@ -31,12 +29,6 @@ func (inv *Inventory) Update() error {
 	placeWindow("Inventory", imgui.Vec2{X: w - windowMargin, Y: h - windowMargin}, imgui.Vec2{X: 1, Y: 1})
 	imgui.BeginV("Inventory", nil, imgui.WindowFlagsAlwaysAutoResize)
 	imgui.Text(fmt.Sprintf("Coins: %d", inv.Contents.Coins))
-	if inv.OpenShop != nil {
-		imgui.SameLine()
-		if imgui.Button("Shop") {
-			inv.OpenShop()
-		}
-	}
 	imgui.Separator()
 	section("Backpack", inv.Contents.Backpack)
 	inventoryTop = imgui.WindowPos().Y

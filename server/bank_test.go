@@ -12,18 +12,18 @@ func TestBankOnlyOpenStandingAtIt(t *testing.T) {
 	w := jobWorld(t)
 	s := testSession()
 	p, _ := w.login("tom", "pw", s)
-	p.pos[0], p.pos[1] = tile{8, 8}.pixel()
+	p.pos[0], p.pos[1] = tile{12, 12}.pixel()
 	p.bank.Add(resources.ItemIronOre, 7)
 	w.tick()
-	if inv := lastInventory(t, s); inv.AtBank != "" || !inv.Bank.Empty() {
-		t.Errorf("away from the bank the client must not see it: %q %+v", inv.AtBank, inv.Bank.Stacks)
+	if inv := lastInventory(t, s); inv.At != "" || !inv.Bank.Empty() {
+		t.Errorf("away from the bank the client must not see it: %q %+v", inv.At, inv.Bank.Stacks)
 	}
 
 	p.pos[0], p.pos[1] = tile{3, 3}.pixel()
 	w.tick()
 	inv := lastInventory(t, s)
-	if inv.AtBank != testVillage || inv.Bank.Count(resources.ItemIronOre) != 7 {
-		t.Errorf("at the bank: %q %+v", inv.AtBank, inv.Bank.Stacks)
+	if inv.At != resources.BuildingBank || inv.AtVillage != testVillage || inv.Bank.Count(resources.ItemIronOre) != 7 {
+		t.Errorf("at the bank: %q %q %+v", inv.At, inv.AtVillage, inv.Bank.Stacks)
 	}
 
 	// A running action list keeps the bank closed, even standing there.
@@ -61,7 +61,7 @@ func TestDepositAndWithdrawKeepQuality(t *testing.T) {
 
 func TestNoBankingOrBankEquipFromAfar(t *testing.T) {
 	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{8, 8})
+	p := joinAt(t, w, "tom", tile{12, 12})
 	p.backpack.Add(resources.ItemIronOre, 3)
 	w.bankCommand(p, resources.BankCommandContents{Op: resources.BankOpDepositAll})
 	if p.bank.Count(resources.ItemIronOre) != 0 {
@@ -83,7 +83,7 @@ func TestNoBankingOrBankEquipFromAfar(t *testing.T) {
 
 func TestPurchasesGoToTheBackpack(t *testing.T) {
 	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{8, 8})
+	p := joinAt(t, w, "tom", atStore)
 	w.shopCommand(p, resources.ShopCommandContents{Op: resources.ShopOpBuy, Village: testVillage, Item: resources.ItemCabbage, Count: 2})
 	if p.backpack.Count(resources.ItemCabbage) != 2 {
 		t.Errorf("backpack %+v", p.backpack.Stacks)

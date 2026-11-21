@@ -157,8 +157,7 @@ const (
 	stateFighting
 	stateWalkToInn // too tired: off to rest, then back to the action
 	stateRelaxing
-	stateWalkToStore // selling: carrying goods to the store
-	stateSelling
+	stateWalkToVisit // visiting: walking to a village building
 )
 
 // job is the running state of the action at the top of the list.
@@ -167,14 +166,15 @@ type job struct {
 	state     jobState
 	material  resources.Material
 	skill     resources.Skill
-	gather    *gatherKind // gathering actions
-	node      *node       // the node being walked to or gathered, and returned to after banking
-	recipe    *recipe     // crafting actions
-	station   tile        // where to craft
-	mob       *mob        // fighting: the enemy being fought
-	countdown int         // ticks left in a swing, a craft step or a wait
-	restTicks int         // at the inn: ticks per point of stamina (slower in the stable)
-	finishing bool        // goal met or time up: bank what's carried, then move on
+	gather    *gatherKind             // gathering actions
+	node      *node                   // the node being walked to or gathered, and returned to after banking
+	recipe    *recipe                 // crafting actions
+	station   tile                    // where to craft
+	mob       *mob                    // fighting: the enemy being fought
+	fightXP   map[resources.Skill]int // fighting: XP earned against mob, paid when it dies
+	countdown int                     // ticks left in a swing, a craft step or a wait
+	restTicks int                     // at the inn: ticks per point of stamina (slower in the stable)
+	finishing bool                    // goal met or time up: bank what's carried, then move on
 }
 
 // initNodes finds everything to gather from and every crafting station.
@@ -310,11 +310,9 @@ func (w *World) validAction(p *player, a resources.ActionSpec) bool {
 	if pl == nil || pl.Kind != kind {
 		return false
 	}
-	if resources.IsSelling(a.Kind) {
-		if !resources.Sellable(resources.ItemKind(a.Material)) || w.storeIn(a.Place) == nil {
-			return false
-		}
-		return validGoal(a)
+	if resources.IsVisit(a.Kind) {
+		_, ok := w.buildingTile(resources.Building(a.Material), a.Place)
+		return ok
 	}
 	m, ok := resources.FindMaterial(a.Kind, a.Material)
 	if !ok || p.level(resources.ActionSkill[a.Kind]) < m.Level {
@@ -411,6 +409,7 @@ func (w *World) releaseNode(p *player) {
 		p.job.mob.release()
 		p.job.mob = nil
 	}
+	p.job.fightXP = nil // nothing for a fight that didn't end in a kill
 }
 
 func amountMet(p *player, a *queuedAction) bool {
@@ -434,9 +433,15 @@ func (w *World) startNextAction(p *player) {
 		w.goBank(p) // a fighting trip starts at the bank, collecting food
 		return
 	}
-	if resources.IsSelling(a.spec.Kind) {
-		p.job = &job{action: a, station: w.storeIn(a.spec.Place).t}
-		w.goBank(p) // a selling trip starts at the bank, collecting goods
+	if resources.IsVisit(a.spec.Kind) {
+		b := resources.Building(a.spec.Material)
+		t, _ := w.buildingTile(b, a.spec.Place)
+		p.job = &job{action: a, station: t, state: stateWalkToVisit}
+		if !w.moveTo(p, t) {
+			w.failAction(p, activityNoPath)
+			return
+		}
+		w.startAction(p, "Walking to the "+resources.BuildingNames[b], walkTicks(p))
 		return
 	}
 	if g := gatherKinds[a.spec.Kind]; g != nil {
@@ -593,8 +598,6 @@ func (w *World) atBank(p *player) {
 	switch {
 	case resources.IsCombat(j.action.spec.Kind):
 		w.atBankForFight(p)
-	case resources.IsSelling(j.action.spec.Kind):
-		w.collectForSale(p)
 	case j.gather != nil:
 		w.gatherNext(p) // back to the same node if it's still free
 	default:
@@ -727,19 +730,15 @@ func (w *World) tickJob(p *player) {
 	case stateRelaxing:
 		w.tickRelaxing(p)
 
-	case stateWalkToStore:
+	case stateWalkToVisit:
 		if !arrived {
 			return
 		}
-		j.state = stateSelling
-		j.countdown = ticks(sellTime)
-		w.startAction(p, activitySelling, j.countdown)
-
-	case stateSelling:
-		j.countdown--
-		if j.countdown <= 0 {
-			w.sellCarried(p)
-		}
+		// Done on arrival. The list stops so the building's window opens;
+		// Start carries on with the rest.
+		w.finishAction(p, activityIdle)
+		p.running = false
+		w.setActivity(p, activityIdle)
 
 	case stateWalkToStation:
 		if !arrived || w.exhausted(p) {
@@ -828,6 +827,19 @@ func (p *player) skillTicks(base time.Duration, s resources.Skill) int {
 // are multiplied by it; fractions carry over per skill.
 const xpRateNum, xpRateDen = 1, 2
 
+// earnXP gives p XP for a step of work. In a fight it's held until the
+// enemy dies, so nobody trains on an enemy they can't beat.
+func (w *World) earnXP(p *player, s resources.Skill, xp int) {
+	if j := p.job; j != nil && j.mob != nil {
+		if j.fightXP == nil {
+			j.fightXP = map[resources.Skill]int{}
+		}
+		j.fightXP[s] += xp
+		return
+	}
+	w.addXP(p, s, xp)
+}
+
 func (w *World) addXP(p *player, s resources.Skill, xp int) {
 	before := p.level(s)
 	scaled := xp*xpRateNum + p.xpCarry[s]
@@ -854,12 +866,13 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 	}
 	// The bank's contents only go to a player standing at it.
 	bank := resources.Inventory{Slots: p.bank.Slots, Stacking: true}
-	if p.bankShown != "" {
+	if p.visit.at == resources.BuildingBank {
 		bank = p.bank.Clone()
 	}
 	return resources.NewInventoryMessage(resources.InventoryContents{
 		Backpack:      p.backpack.Clone(),
-		AtBank:        p.bankShown,
+		At:            p.visit.at,
+		AtVillage:     p.visit.village,
 		Bank:          bank,
 		Activity:      p.activity,
 		ActionSeconds: seconds(p.actionTicks),

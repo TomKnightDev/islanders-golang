@@ -6,7 +6,7 @@ The plan for the next big phase: the item quality and improving rules from `docs
 
 - **Persistence waits.** The game is early in development; deploys wiping characters is acceptable for now, so the economy is built first.
 - **Items break at 100 damage** and are gone.
-- **Selling to merchants is a walk-and-sell action.**
+- **Selling to merchants is a walk-and-sell action.** *(Changed 2026-11-21: for now, stores, banks and inns just have a Visit action; buying and selling happen in the store window, at the store.)*
 - **Player markets are per village**, not one global market (see "Player markets").
 - **Quality changes gear power by ±30%.**
 - **Inn stays cost coins**, with the stable as a free, slower fallback.
@@ -123,7 +123,7 @@ Each village gets a **general store**, run by the game.
   - starter materials, at 2× value.
 
   Prices are high on purpose: players should usually be the cheaper source.
-- **Selling to the store** is an **action**: "Sell [item] at the Saltmere store until N sold". The character takes goods from the bank, walks them to that village's store and sells them. This keeps the idle loop and makes villages matter.
+- **Selling to the store** happens in the store window, from the backpack, standing at the store (reached with a Visit action or by walking there). An earlier version had a Sell action that carried goods from the bank automatically; it may come back.
 - **Prices move with supply.** Each store pays around 40% of value. Every unit it buys lowers its price for that item a little, and the price recovers over a few hours. Flooding one store with ore gets you less, so it pays to spread sales around or sell to players instead.
 
 ### Player markets (a trading post in each village)

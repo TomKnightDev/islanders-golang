@@ -30,7 +30,7 @@ var Classes = []Class{
 		Desc:     "Fights up close with sword and shield. Starts stronger and tougher.",
 		Gear:     []Stack{{Kind: ItemCopperSword, Count: 1}, {Kind: ItemCopperShield, Count: 1}},
 		Equipped: []ItemKind{ItemCopperSword, ItemCopperShield},
-		Levels:   map[Skill]int{SkillAttack: 5, SkillStrength: 5, SkillDefence: 3},
+		Levels:   map[Skill]int{SkillMelee: 5, SkillStrength: 5, SkillDefence: 3},
 	},
 	{
 		ID: ClassArcher, Name: "Archer", Sprite: [2]int{0, 24},

@@ -49,6 +49,7 @@ var EquipmentWindow = &gui.Equipment{}
 var FightPanel = &gui.FightPanel{}
 var ShopWindow = &gui.Shop{}
 var BankWindow = &gui.Bank{}
+var InnWindow = &gui.Inn{}
 var DevWindow *gui.Dev
 var world *entities.World
 var client = &Client{}
@@ -140,6 +141,11 @@ func handleMessages(g *Game) {
 				var dev resources.DevStateContents
 				if err := resources.DecodeContents(message.Contents, &dev); err == nil && DevWindow != nil {
 					DevWindow.SetState(dev)
+				}
+			case resources.InnMessage:
+				var inn resources.InnContents
+				if err := resources.DecodeContents(message.Contents, &inn); err == nil {
+					InnWindow.SetInn(inn)
 				}
 			case resources.StoreMessage:
 				var st resources.StoreContents
@@ -235,11 +241,12 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	InventoryWindow = gui.NewInventory(g.renderMgr)
 	g.Gui = append(g.Gui, InventoryWindow)
 
-	ShopWindow = gui.NewShop(g.renderMgr, worldMap.Places, func(c resources.ShopCommandContents) {
+	ShopWindow = gui.NewShop(g.renderMgr, func(c resources.ShopCommandContents) {
 		go func() { client.SendChan <- resources.NewShopCommandMessage(c) }()
 	})
-	InventoryWindow.OpenShop = ShopWindow.Open
 	g.Gui = append(g.Gui, ShopWindow)
+	InnWindow = gui.NewInn(g.renderMgr)
+	g.Gui = append(g.Gui, InnWindow)
 
 	DevWindow = gui.NewDev(func(c resources.DevCommandContents) {
 		go func() { client.SendChan <- resources.NewDevCommandMessage(c) }()
@@ -423,6 +430,7 @@ func receiveInventoryMessage(message *resources.Message) {
 	ShopWindow.SetState(contents)
 	EquipmentWindow.SetState(contents)
 	BankWindow.SetState(contents)
+	InnWindow.SetState(contents)
 	if client.Player != nil {
 		client.Player.Health, client.Player.MaxHealth = contents.Health, contents.MaxHealth
 		client.Player.Stamina, client.Player.MaxStamina = contents.Stamina, contents.MaxStamina

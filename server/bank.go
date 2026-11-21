@@ -2,24 +2,65 @@ package main
 
 import "github.com/tomknightdev/islanders-golang/resources"
 
-// bankReach is how close (in tiles, either way) a player must stand to a
-// bank to use it.
-const bankReach = 1
+// buildingReach is how close (in tiles, either way) a player must stand to
+// a building to use it.
+const buildingReach = 1
 
-// bankOpen is the village whose bank p is standing at, if any. The bank is
-// only open to a player who's stopped there with the action list stopped;
-// jobs bank on their own.
-func (w *World) bankOpen(p *player) (string, bool) {
-	if p.running || len(p.path) > 0 {
-		return "", false
+// visit is a building a player is standing at, in a village.
+type visit struct {
+	at      resources.Building
+	village string
+}
+
+// buildingTiles is every tile of a kind of building.
+func (w *World) buildingTiles(b resources.Building) []tile {
+	switch b {
+	case resources.BuildingBank:
+		return w.banks
+	case resources.BuildingInn:
+		return w.inns
+	case resources.BuildingStore:
+		var out []tile
+		for _, s := range w.stores {
+			out = append(out, s.t)
+		}
+		return out
 	}
-	at := p.currentTile()
-	for _, b := range w.banks {
-		if max(abs(b.x-at.x), abs(b.y-at.y)) <= bankReach {
-			return w.villageAt(b), true
+	return nil
+}
+
+// buildingTile is a village's building of a kind.
+func (w *World) buildingTile(b resources.Building, village string) (tile, bool) {
+	for _, t := range w.buildingTiles(b) {
+		if w.villageAt(t) == village {
+			return t, true
 		}
 	}
-	return "", false
+	return tile{}, false
+}
+
+// visiting is the building p is standing at, if any. Buildings only open to
+// a player who's stopped there with the action list stopped; jobs bank and
+// rest on their own.
+func (w *World) visiting(p *player) visit {
+	if p.running || len(p.path) > 0 {
+		return visit{}
+	}
+	at := p.currentTile()
+	for _, b := range resources.Buildings {
+		for _, t := range w.buildingTiles(b) {
+			if max(abs(t.x-at.x), abs(t.y-at.y)) <= buildingReach {
+				return visit{b, w.villageAt(t)}
+			}
+		}
+	}
+	return visit{}
+}
+
+// bankOpen is the village whose bank p is standing at, if any.
+func (w *World) bankOpen(p *player) (string, bool) {
+	v := w.visiting(p)
+	return v.village, v.at == resources.BuildingBank
 }
 
 // villageAt is the name of the village nearest a tile.
@@ -36,13 +77,23 @@ func (w *World) villageAt(t tile) string {
 	return name
 }
 
-// tickBankWindow tells the client when p arrives at or leaves a bank, so
-// the bank window opens and closes.
-func (w *World) tickBankWindow(p *player) {
-	at, _ := w.bankOpen(p)
-	if at != p.bankShown {
-		p.bankShown = at
-		p.invDirty = true
+// tickVisit tells the client when p arrives at or leaves a building, so its
+// window opens and closes, and sends what the window shows.
+func (w *World) tickVisit(p *player) {
+	v := w.visiting(p)
+	if v == p.visit {
+		return
+	}
+	p.visit = v
+	p.invDirty = true
+	if p.sess == nil {
+		return
+	}
+	switch v.at {
+	case resources.BuildingStore:
+		p.sess.push(resources.NewStoreMessage(w.storeContents(p, w.storeIn(v.village))))
+	case resources.BuildingInn:
+		p.sess.push(resources.NewInnMessage(resources.InnContents{Village: v.village, Rumours: w.rumours(p, v.village)}))
 	}
 }
 

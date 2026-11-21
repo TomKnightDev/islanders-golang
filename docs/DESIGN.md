@@ -17,7 +17,7 @@ bank bars ──► craft equipment at the anvil ──► better equipment make
 - **Finding places.** A village, mine, named forest or farm is *found* once the player walks into it (within its radius plus 2 tiles). Everyone starts having found their spawn village.
 - **Adding actions.** The Actions window holds just the list and its buttons: **Add action**, **Start**/**Stop**. **Add action** opens a separate picker window, which stays open while you add several. It shows one row per action (Mine, Chop, Farm, Smelt, Fletch), at the **nearest found place** for it, with its distance and a button per material. Materials the player doesn't have the level for are greyed out with the level needed. Actions with no place found yet say what to look for.
 - **The action list** holds up to 5 actions. Clicking an action adds it to the end. Entries can be moved up or down or removed.
-- **Goals.** Each action has an amount: gather, make, defeat or sell **10, 20, 50 or 100**, picked with buttons and changeable at any time. New actions start at 10. Only what the action itself does counts, not what's already in the bank.
+- **Goals.** Each action has an amount: gather, make or defeat **10, 20, 50 or 100**, picked with buttons and changeable at any time. New actions start at 10. Only what the action itself does counts, not what's already in the bank.
 - **Running the list.** **Start** works through the list from the top. When an action's goal is met, the character first banks anything it's carrying, then moves on. When the list is empty the character goes idle.
 - **Stop** halts the list where it is; anything carried stays in the backpack. Reordering or removing the running action stops it and starts whatever is now first.
 - **Clicks never cancel the list.** While the list is running, clicking the map does nothing. While it's stopped, clicking walks, which is how the player explores and finds new places.
@@ -28,7 +28,7 @@ The game is meant to be played for hundreds of hours, so skills level slowly, wi
 
 - **Gathering and crafting skills:** Mining, Woodcutting, Farming, Smithing (smelting), Fletching. Each action trains one. The six combat skills are under Combat, and Stamina under Stamina and inns.
 - **Levels 1–99.** The XP curve roughly doubles every seven levels: level 2 at 83 XP, level 50 at about 100,000, level 99 at about 13 million.
-- **XP** comes from every item gathered, and every input crafted. Higher tiers give more. Every award is then halved (`xpRateNum`/`xpRateDen` in `server/jobs.go`), so the tables below show XP before that.
+- **XP** comes from every item gathered, every input crafted and every enemy defeated. Higher tiers give more. Every award is then halved (`xpRateNum`/`xpRateDen` in `server/jobs.go`), so the tables below show XP before that.
 - **Speed.** Each level takes 0.4% off that skill's step time, so level 99 works in about 61% of the base time.
 - **Tiers.** Levels unlock materials:
 
@@ -55,6 +55,11 @@ All three work the same way, from *nodes* of the chosen material at the action's
 
 Mines are ranked by distance from the spawn: the nearest has copper and iron, the next iron and gold, the farthest gold and mithril. Forests have whichever trees grew there. Every farm has rows of cabbages and cotton. Only trees inside a named forest can be chopped; scattered trees are scenery. A node with no walkable tile beside it is skipped.
 
+### Visiting buildings
+- **Visit** is an action for a village's **bank**, **store** or **inn**. The character walks there, the action finishes, and the list stops so the building's window opens; **Start** carries on with the rest of the list. Walking up to a building by clicking does the same.
+- **Store:** buy into the backpack and sell from it. Prices are in `docs/ECONOMY.md`.
+- **Inn:** a Quests and Rumours window. There are no quests yet. Rumours give directions from the inn to the three nearest places the player hasn't found ("Travellers speak of a mine called Greyrock, about 40 tiles north-east of here, where copper ore is mined.").
+
 ### The bank
 - Each player has their own bank account, shared between every village's bank. Its contents are only visible at a bank: walk up to one with the action list stopped and the **Bank** window opens, showing the backpack beside the bank.
 - In the Bank window, items move either way (gear and tools piece by piece, materials one at a time or all at once, or **Deposit all**), and gear in the bank can be equipped. Elsewhere, gear is equipped from the backpack.
@@ -80,7 +85,7 @@ Both run in trips from the action's village:
 
 ### Combat
 - **Six combat skills**: Attack (melee accuracy), Strength (melee max hit), Defence (how often enemies hit you), Ranged (bow accuracy and max hit), Magic (staff accuracy and max hit) and Hitpoints (max health). Hitpoints starts at level 10; max health is 10 × the Hitpoints level, so 100 to start.
-- **XP.** Each point of melee damage gives 2 Attack and 2 Strength XP; ranged damage gives 4 Ranged XP; all damage gives 1⅓ Hitpoints XP; each enemy attack you block gives 2 Defence XP.
+- **XP.** Each point of melee damage earns 2 Melee and 2 Strength XP; ranged damage earns 4 Ranged XP; all damage earns 1⅓ Hitpoints XP; each enemy attack you block earns 2 Defence XP; each attack's stamina earns Stamina XP. It's all paid **only when the enemy dies**: a fight that ends any other way (resting, defeat, stopping) pays nothing, so nobody can train on an enemy they can't beat.
 - **Formulas**, scaled 10× to match the health numbers: an attack roll `(level + 8) × (accuracy + 64)` against a defence roll `(level + 9) × (armour + 64)` sets the hit chance, and `(level + 8) × (strength + 64) / 64` is the max hit.
 - **Health** regenerates slowly out of combat and quickly while resting at a bank. **Food** heals when eaten: a cabbage restores 30.
 - **Defeat.** At 0 health you lose everything in the backpack (not your equipment), wake up in your spawn village at full health, and the action list stops.
@@ -93,14 +98,14 @@ Both run in trips from the action's village:
 - Stamina shows under health in the Info window.
 
 ### Coins and stores
-Every player has a coin balance in their bank account (50 to start; never lost on defeat), shown in the inventory window. Coins come from enemy drops and selling to village general stores; they go on inn stays (5 coins, or a free half-speed rest in the stable) and buying from stores. Each village has a general store (the gold-door building): the **Shop** window buys from it for any found village, and a **Sell** action carries an item from the bank to a store and sells it. Full details and what comes next are in `docs/ECONOMY.md`.
+Every player has a coin balance in their bank account (50 to start; never lost on defeat), shown in the inventory window. Coins come from enemy drops and selling to village general stores; they go on inn stays (5 coins, or a free half-speed rest in the stable) and buying from stores. Each village has a general store (the gold-door building): visit it to buy into the backpack or sell from it. Full details and what comes next are in `docs/ECONOMY.md`.
 
 ### Classes
 A new name gets a **Create your character** screen before the character exists. Each class sets the character's look, starting gear and a head start; after that anyone can train anything.
 
 | Class | Look (characters.png) | Starts with | Head start |
 |---|---|---|---|
-| Warrior | grey knight (8, 0) | copper sword and shield | Attack 5, Strength 5, Defence 3 |
+| Warrior | grey knight (8, 0) | copper sword and shield | Melee 5, Strength 5, Defence 3 |
 | Archer | elf (0, 24) | oak shortbow, 150 oak arrows | Ranged 5, Defence 3 |
 | Mage | lavender wizard (16, 0) | apprentice staff | Magic 5, Defence 3 |
 | Necromancer | necromancer (0, 16) | bone staff | Magic 5, Defence 3 |
@@ -115,7 +120,7 @@ A new name gets a **Create your character** screen before the character exists. 
 - **Quality.** Gear, tools and materials have a quality from 1 to 100 (see `docs/ECONOMY.md`). Gear and tools are individual pieces, each with its own quality; materials stack and keep the average. Gear bonuses scale from 70% at quality 0 to 130% at 100.
 - **Tool belt.** A pickaxe, hatchet, sickle, hammer and knife each have their own slot. A tool speeds up its action (up to 30% faster for mithril at quality 100) and raises the quality of what it gathers or makes; without one, the action runs at half speed and gathers only quality 1–10. Everyone starts with copper tools at quality 10; stores sell them too.
 - **Slots:** weapon, ammo, head, body, shield. The Equipment window shows them, your combat stats, and the gear in your bank; click to equip, Remove to put back. Gear above your level is greyed out with the level it needs.
-- **Weapons:** a training sword; copper, iron, gold and mithril swords (Attack 1/15/30/45); oak, pine, maple and dark oak shortbows (Ranged 1/15/30/45). Bows are two-handed, attack from up to 5 tiles, and use one arrow from the ammo slot per shot; equipping arrows moves all of that kind from the bank. Better arrows hit harder.
+- **Weapons:** a training sword; copper, iron, gold and mithril swords (Melee 1/15/30/45); oak, pine, maple and dark oak shortbows (Ranged 1/15/30/45). Bows are two-handed, attack from up to 5 tiles, and use one arrow from the ammo slot per shot; equipping arrows moves all of that kind from the bank. Better arrows hit harder.
 - **Armour:** helmet, platebody and shield in each metal (Defence 1/15/30/45).
 - **Starting kit:** set by the character's class (see Classes), plus 5 cabbages in the bank.
 - Gear comes from camp loot for now; crafting it at the anvil is a later phase.

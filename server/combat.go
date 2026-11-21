@@ -442,14 +442,14 @@ func (w *World) playerAttack(p *player, m *mob) bool {
 	defer w.fightEvent(p, m, resources.AttackerPlayer, true, dmg) // after any drain healing below
 	switch {
 	case b.Magic:
-		w.addXP(p, resources.SkillMagic, 4*dmg)
+		w.earnXP(p, resources.SkillMagic, 4*dmg)
 	case b.Ranged:
-		w.addXP(p, resources.SkillRanged, 4*dmg)
+		w.earnXP(p, resources.SkillRanged, 4*dmg)
 	default:
-		w.addXP(p, resources.SkillAttack, 2*dmg)
-		w.addXP(p, resources.SkillStrength, 2*dmg)
+		w.earnXP(p, resources.SkillMelee, 2*dmg)
+		w.earnXP(p, resources.SkillStrength, 2*dmg)
 	}
-	w.addXP(p, resources.SkillHitpoints, dmg*4/3)
+	w.earnXP(p, resources.SkillHitpoints, dmg*4/3)
 	if b.Drain > 0 {
 		w.heal(p, dmg*b.Drain/100)
 	}
@@ -465,7 +465,7 @@ func (w *World) playerAttack(p *player, m *mob) bool {
 func (w *World) enemyAttack(m *mob, p *player) {
 	roll := resources.AttackRoll(m.kind.Attack, 0)
 	if rand.Float64() >= resources.HitChance(roll, resources.DefenceRoll(p.level(resources.SkillDefence), p.bonuses().Defence)) {
-		w.addXP(p, resources.SkillDefence, 2) // blocked
+		w.earnXP(p, resources.SkillDefence, 2) // blocked
 		w.fightEvent(p, m, resources.AttackerEnemy, false, 0)
 		return
 	}
@@ -484,6 +484,12 @@ func (w *World) afterKill(p *player) {
 	j := p.job
 	kind := j.mob.kind
 	j.mob = nil
+	for _, s := range resources.Skills {
+		if xp := j.fightXP[s]; xp > 0 {
+			w.addXP(p, s, xp)
+		}
+	}
+	j.fightXP = nil
 	j.action.count++
 	w.dropCoins(p, kind)
 	for _, drop := range kind.Loot {
@@ -517,6 +523,7 @@ func (w *World) defeat(p *player, m *mob) {
 	m.release()
 	if p.job != nil {
 		p.job.mob = nil
+		p.job.fightXP = nil
 	}
 	p.backpack.Stacks = nil
 	p.path = nil

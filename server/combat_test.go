@@ -26,7 +26,7 @@ func fighter(t *testing.T, w *World, name string, level int) *player {
 	t.Helper()
 	p := joinAt(t, w, name, tile{12, 4})
 	p.found[testCamp] = true
-	for _, s := range []resources.Skill{resources.SkillAttack, resources.SkillStrength, resources.SkillDefence, resources.SkillRanged} {
+	for _, s := range []resources.Skill{resources.SkillMelee, resources.SkillStrength, resources.SkillDefence, resources.SkillRanged} {
 		p.xp[s] = resources.XPForLevel(level)
 	}
 	return p
@@ -43,7 +43,7 @@ func TestClassStartingKits(t *testing.T) {
 		skill  resources.Skill
 		style  string
 	}{
-		resources.ClassWarrior:     {resources.ItemCopperSword, resources.SkillAttack, "Melee"},
+		resources.ClassWarrior:     {resources.ItemCopperSword, resources.SkillMelee, "Melee"},
 		resources.ClassArcher:      {resources.ItemOakShortbow, resources.SkillRanged, "Ranged"},
 		resources.ClassMage:        {resources.ItemApprenticeStaff, resources.SkillMagic, "Magic"},
 		resources.ClassNecromancer: {resources.ItemBoneStaff, resources.SkillMagic, "Necromancy"},
@@ -85,8 +85,8 @@ func TestMagicFighting(t *testing.T) {
 		addAction(w, p, fightGoblins(2))
 		run(w, p)
 		runUntil(t, w, 60000, string(class)+" kills 2", func() bool { return len(p.actions) == 0 })
-		if p.xp[resources.SkillMagic] <= resources.XPForLevel(40) || p.xp[resources.SkillAttack] != 0 {
-			t.Errorf("%s should train Magic, not melee: magic %d, attack %d", class, p.xp[resources.SkillMagic], p.xp[resources.SkillAttack])
+		if p.xp[resources.SkillMagic] <= resources.XPForLevel(40) || p.xp[resources.SkillMelee] != 0 {
+			t.Errorf("%s should train Magic, not melee: magic %d, melee %d", class, p.xp[resources.SkillMagic], p.xp[resources.SkillMelee])
 		}
 	}
 }
@@ -133,7 +133,7 @@ func TestFightUntilKills(t *testing.T) {
 	if p.running || p.activity != activityIdle {
 		t.Errorf("should finish idle: running %v, %q", p.running, p.activity)
 	}
-	if p.xp[resources.SkillAttack] == 0 || p.xp[resources.SkillStrength] == 0 || p.xp[resources.SkillHitpoints] <= resources.XPForLevel(10) {
+	if p.xp[resources.SkillMelee] == 0 || p.xp[resources.SkillStrength] == 0 || p.xp[resources.SkillHitpoints] <= resources.XPForLevel(10) {
 		t.Error("melee should train Attack, Strength and Hitpoints")
 	}
 	dead := 0
@@ -244,7 +244,7 @@ func TestEquipping(t *testing.T) {
 	}
 	equip(resources.ItemIronSword)
 	if p.equipment[resources.SlotWeapon].Kind != resources.ItemCopperSword {
-		t.Error("iron sword needs Attack 15")
+		t.Error("iron sword needs Melee 15")
 	}
 	equip(resources.ItemCopperShield)
 	equip(resources.ItemOakShortbow)
@@ -342,7 +342,7 @@ func TestFightPanelMessages(t *testing.T) {
 	w.login("watcher", "pw", other)
 	p.pos[0], p.pos[1] = tile{12, 4}.pixel()
 	p.found[testCamp] = true
-	p.xp[resources.SkillAttack] = resources.XPForLevel(40)
+	p.xp[resources.SkillMelee] = resources.XPForLevel(40)
 	p.xp[resources.SkillStrength] = resources.XPForLevel(40)
 	addAction(w, p, fightGoblins(1))
 	run(w, p)
@@ -378,5 +378,37 @@ func TestFightPanelMessages(t *testing.T) {
 	}
 	if !sawPlayer {
 		t.Error("no player attacks were reported")
+	}
+}
+
+func TestFightXPOnlyOnKill(t *testing.T) {
+	w := campWorld(t)
+	p := fighter(t, w, "tom", 40)
+	total := func() int {
+		n := 0
+		for _, xp := range p.xp {
+			n += xp
+		}
+		return n
+	}
+	addAction(w, p, fightGoblins(1))
+	run(w, p)
+	runUntil(t, w, 20000, "fighting", func() bool { return p.job != nil && p.job.mob != nil })
+	m := p.job.mob
+	m.health = 1_000_000 // an enemy that can't be beaten
+	before := total()
+	for i := 0; i < ticks(playerAttackTime)*5; i++ {
+		w.tick()
+	}
+	if total() != before {
+		t.Fatalf("XP gained without a kill: %d -> %d", before, total())
+	}
+	if len(p.job.fightXP) == 0 {
+		t.Fatal("the fight's XP should be held until the kill")
+	}
+	m.health = 1
+	runUntil(t, w, ticks(playerAttackTime)*20, "killed", func() bool { return len(p.actions) == 0 || p.actions[0].count >= 1 })
+	if total() <= before || p.xp[resources.SkillMelee] == 0 {
+		t.Errorf("the kill should pay the fight's XP: %d -> %d", before, total())
 	}
 }

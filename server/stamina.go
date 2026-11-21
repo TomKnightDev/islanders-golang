@@ -26,7 +26,7 @@ func (p *player) maxStamina() int {
 // spendStamina uses up stamina on a step of work, training Stamina.
 func (w *World) spendStamina(p *player, n int) {
 	p.stamina = max(0, p.stamina-n)
-	w.addXP(p, resources.SkillStamina, n)
+	w.earnXP(p, resources.SkillStamina, n)
 	p.invDirty = true
 }
 

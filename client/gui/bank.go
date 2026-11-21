@@ -28,9 +28,13 @@ func NewBank(mgr *renderer.Manager, sendBank func(resources.BankCommandContents)
 // SetState opens the window on arriving at a bank and closes it on leaving.
 func (b *Bank) SetState(c resources.InventoryContents) {
 	b.state = c
-	if c.AtBank != b.shownAt {
-		b.open = c.AtBank != ""
-		b.shownAt = c.AtBank
+	at := ""
+	if c.At == resources.BuildingBank {
+		at = c.AtVillage
+	}
+	if at != b.shownAt {
+		b.open = at != ""
+		b.shownAt = at
 	}
 }
 
@@ -44,13 +48,13 @@ func (b *Bank) level(s resources.Skill) int {
 }
 
 func (b *Bank) Update() error {
-	if !b.open || b.state.AtBank == "" {
+	if !b.open || b.shownAt == "" {
 		return nil
 	}
 	w, h := screenSize()
 	placeWindow("Bank", imgui.Vec2{X: w / 2, Y: h / 2}, imgui.Vec2{X: 0.5, Y: 0.5})
 	imgui.BeginV("Bank", &b.open, imgui.WindowFlagsAlwaysAutoResize)
-	imgui.Text(fmt.Sprintf("%s bank  ·  Coins: %d", b.state.AtBank, b.state.Coins))
+	imgui.Text(fmt.Sprintf("%s bank  ·  Coins: %d", b.shownAt, b.state.Coins))
 	imgui.Separator()
 
 	imgui.BeginGroup()

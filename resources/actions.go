@@ -9,11 +9,11 @@ const (
 	ActionSmelt  ActionKind = "smelt"  // turn banked ore into bars at a village blacksmith
 	ActionFletch ActionKind = "fletch" // turn banked logs into arrows at a village fletcher
 	ActionFight  ActionKind = "fight"  // fight enemies at a camp for loot
-	ActionSell   ActionKind = "sell"   // carry an item from the bank to a village store and sell it
+	ActionVisit  ActionKind = "visit"  // walk to a village building and open its window
 )
 
 // ActionKinds lists the actions in the order the action window shows them.
-var ActionKinds = []ActionKind{ActionFight, ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionFletch, ActionSell}
+var ActionKinds = []ActionKind{ActionFight, ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionFletch, ActionVisit}
 
 // ActionNames is the verb for each action; with a material it reads
 // "Mine copper", "Fletch oak arrows".
@@ -24,7 +24,7 @@ var ActionNames = map[ActionKind]string{
 	ActionSmelt:  "Smelt",
 	ActionFletch: "Fletch",
 	ActionFight:  "Fight",
-	ActionSell:   "Sell",
+	ActionVisit:  "Visit",
 }
 
 // ActionPlaceKind is the kind of place each action happens at.
@@ -35,7 +35,7 @@ var ActionPlaceKind = map[ActionKind]PlaceKind{
 	ActionSmelt:  PlaceVillage,
 	ActionFletch: PlaceVillage,
 	ActionFight:  PlaceCamp,
-	ActionSell:   PlaceVillage,
+	ActionVisit:  PlaceVillage,
 }
 
 // ActionSkill is the skill each action trains, and which sets its speed
@@ -46,7 +46,7 @@ var ActionSkill = map[ActionKind]Skill{
 	ActionFarm:   SkillFarming,
 	ActionSmelt:  SkillSmithing,
 	ActionFletch: SkillFletching,
-	ActionFight:  SkillAttack, // enemies aren't level-gated; combat skills train from the fight itself
+	ActionFight:  SkillMelee, // enemies aren't level-gated; combat skills train from the fight itself
 }
 
 // Gathering actions take materials from nodes at a place; crafting actions
@@ -56,12 +56,31 @@ func IsGathering(k ActionKind) bool { return k == ActionMine || k == ActionChop 
 // IsCombat reports whether an action is fighting, whose goal counts kills.
 func IsCombat(k ActionKind) bool { return k == ActionFight }
 
-// IsSelling reports whether an action is selling to a store. Its material
-// is the item to sell, any sellable item, and its goal counts items sold.
-func IsSelling(k ActionKind) bool { return k == ActionSell }
+// IsVisit reports whether an action is a visit to a village building. Its
+// material is the Building, and it has no amount: it's done on arrival.
+func IsVisit(k ActionKind) bool { return k == ActionVisit }
+
+// Building is a village building a player can visit; standing at one with
+// the action list stopped opens its window.
+type Building string
+
+const (
+	BuildingBank  Building = "bank"
+	BuildingStore Building = "store"
+	BuildingInn   Building = "inn"
+)
+
+// Buildings lists them in the order the action window offers them.
+var Buildings = []Building{BuildingBank, BuildingStore, BuildingInn}
+
+var BuildingNames = map[Building]string{
+	BuildingBank:  "bank",
+	BuildingStore: "store",
+	BuildingInn:   "inn",
+}
 
 // GoalAmounts are the amounts the action window offers: how many to gather,
-// make, defeat or sell. New actions start at the first.
+// make or defeat. New actions start at the first.
 var GoalAmounts = []int{10, 20, 50, 100}
 
 // Material is one tier an action can work with.
@@ -160,10 +179,10 @@ func (a ActionSpec) Product() ItemKind {
 }
 
 // Label is how the action reads: "Mine copper", "Smelt iron bars",
-// "Sell iron ore".
+// "Visit the store".
 func (a ActionSpec) Label() string {
-	if IsSelling(a.Kind) {
-		return ActionNames[a.Kind] + " " + Items[ItemKind(a.Material)].Unit
+	if IsVisit(a.Kind) {
+		return ActionNames[a.Kind] + " the " + BuildingNames[Building(a.Material)]
 	}
 	m, _ := FindMaterial(a.Kind, a.Material)
 	return ActionNames[a.Kind] + " " + m.Label
@@ -172,7 +191,7 @@ func (a ActionSpec) Label() string {
 // QueuedAction is an entry in the action list as the server reports it.
 type QueuedAction struct {
 	ActionSpec
-	// Done is how many it has gathered, made, defeated or sold so far.
+	// Done is how many it has gathered, made or defeated so far.
 	Done int `json:"done"`
 }
 

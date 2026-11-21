@@ -24,8 +24,7 @@ type Actions struct {
 	Send func(resources.ActionCommandContents)
 
 	state   resources.InventoryContents
-	picking bool               // the "Add an action" window is open
-	selling resources.ItemKind // the item picked in the sell list
+	picking bool // the "Add an action" window is open
 }
 
 func NewActions(mgr *renderer.Manager, player *entities.Player, places []resources.Place) *Actions {
@@ -153,8 +152,8 @@ func (a *Actions) foundPlaces() {
 		imgui.SameLine()
 		dimmed(fmt.Sprintf("%d tiles away", dist))
 
-		if resources.IsSelling(kind) {
-			a.sellButtons(place, full)
+		if resources.IsVisit(kind) {
+			a.visitButtons(place, full)
 			continue
 		}
 
@@ -187,44 +186,19 @@ func (a *Actions) foundPlaces() {
 	dimmed("Walk into a village, mine, forest, farm or camp to find it.")
 }
 
-// sellableItems is every item stores buy, cheapest first.
-var sellableItems = func() []resources.ItemKind {
-	var out []resources.ItemKind
-	for k := range resources.Values {
-		if resources.Sellable(k) {
-			out = append(out, k)
+// visitButtons offers each building in the village to walk to; its window
+// opens on arrival.
+func (a *Actions) visitButtons(place resources.Place, full bool) {
+	for i, b := range resources.Buildings {
+		if i > 0 {
+			imgui.SameLine()
 		}
-	}
-	slices.SortFunc(out, func(x, y resources.ItemKind) int {
-		if d := resources.Values[x] - resources.Values[y]; d != 0 {
-			return d
+		name := resources.BuildingNames[b]
+		if button(strings.ToUpper(name[:1])+name[1:]+"##visit", !full) {
+			a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
+				Kind: resources.ActionVisit, Material: string(b), Place: place.Name, Amount: 1,
+			}})
 		}
-		return strings.Compare(resources.ItemNames[x], resources.ItemNames[y])
-	})
-	return out
-}()
-
-// sellButtons picks any item to sell. The bank isn't visible from here, so
-// every sellable item is offered; the trip takes whatever the bank has.
-func (a *Actions) sellButtons(place resources.Place, full bool) {
-	if a.selling == "" {
-		a.selling = sellableItems[0]
-	}
-	imgui.PushItemWidth(260)
-	if imgui.BeginComboV("##sellitem", resources.ItemNames[a.selling], 0) {
-		for _, k := range sellableItems {
-			if imgui.SelectableV(resources.ItemNames[k], k == a.selling, 0, imgui.Vec2{}) {
-				a.selling = k
-			}
-		}
-		imgui.EndCombo()
-	}
-	imgui.PopItemWidth()
-	imgui.SameLine()
-	if button("Add##sell", !full) {
-		a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
-			Kind: resources.ActionSell, Material: string(a.selling), Place: place.Name, Amount: resources.GoalAmounts[0],
-		}})
 	}
 }
 
@@ -262,12 +236,14 @@ func (a *Actions) row(i int, q resources.QueuedAction) {
 		a.send(resources.ActionCommandContents{Op: resources.ActionOpRemove, Index: i})
 	}
 
+	if resources.IsVisit(spec.Kind) {
+		dimmed("Walks there, then stops so you can use it. Start carries on.")
+		return
+	}
 	verb, unit := "Gather", resources.ItemUnits[spec.Product()]
 	switch {
 	case resources.IsCombat(spec.Kind):
 		verb, unit = "Defeat", "enemies"
-	case resources.IsSelling(spec.Kind):
-		verb, unit = "Sell", resources.ItemUnits[resources.ItemKind(spec.Material)]
 	case resources.ActionSkill[spec.Kind] == resources.SkillSmithing || resources.ActionSkill[spec.Kind] == resources.SkillFletching:
 		verb = "Make"
 	}

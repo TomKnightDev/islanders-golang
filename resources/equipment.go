@@ -158,11 +158,11 @@ func init() {
 }
 
 var Equipment = map[ItemKind]EquipDef{
-	ItemTrainingSword: {Slot: SlotWeapon, Skill: SkillAttack, Level: 1, Accuracy: 0, Strength: 2},
-	ItemCopperSword:   {Slot: SlotWeapon, Skill: SkillAttack, Level: 1, Accuracy: 6, Strength: 6},
-	ItemIronSword:     {Slot: SlotWeapon, Skill: SkillAttack, Level: 15, Accuracy: 14, Strength: 13},
-	ItemGoldSword:     {Slot: SlotWeapon, Skill: SkillAttack, Level: 30, Accuracy: 24, Strength: 22},
-	ItemMithrilSword:  {Slot: SlotWeapon, Skill: SkillAttack, Level: 45, Accuracy: 36, Strength: 33},
+	ItemTrainingSword: {Slot: SlotWeapon, Skill: SkillMelee, Level: 1, Accuracy: 0, Strength: 2},
+	ItemCopperSword:   {Slot: SlotWeapon, Skill: SkillMelee, Level: 1, Accuracy: 6, Strength: 6},
+	ItemIronSword:     {Slot: SlotWeapon, Skill: SkillMelee, Level: 15, Accuracy: 14, Strength: 13},
+	ItemGoldSword:     {Slot: SlotWeapon, Skill: SkillMelee, Level: 30, Accuracy: 24, Strength: 22},
+	ItemMithrilSword:  {Slot: SlotWeapon, Skill: SkillMelee, Level: 45, Accuracy: 36, Strength: 33},
 
 	ItemOakShortbow:     {Slot: SlotWeapon, Skill: SkillRanged, Level: 1, Accuracy: 8, Ranged: true, TwoHanded: true},
 	ItemPineShortbow:    {Slot: SlotWeapon, Skill: SkillRanged, Level: 15, Accuracy: 16, Ranged: true, TwoHanded: true},
@@ -261,7 +261,7 @@ func (b Bonuses) Skills() (accuracy, strength Skill) {
 	case b.Ranged:
 		return SkillRanged, SkillRanged
 	}
-	return SkillAttack, SkillStrength
+	return SkillMelee, SkillStrength
 }
 
 // EquipmentBonuses adds up the bonuses of equipped items.

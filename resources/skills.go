@@ -5,7 +5,7 @@ import "math"
 type Skill string
 
 const (
-	SkillAttack      Skill = "attack"    // melee accuracy
+	SkillMelee       Skill = "melee"     // melee accuracy
 	SkillStrength    Skill = "strength"  // melee max hit
 	SkillDefence     Skill = "defence"   // how often enemies hit you
 	SkillRanged      Skill = "ranged"    // bow accuracy and max hit
@@ -21,13 +21,13 @@ const (
 
 // Skills lists every skill in the order the skills window shows them.
 var Skills = []Skill{
-	SkillAttack, SkillStrength, SkillDefence, SkillRanged, SkillMagic, SkillHitpoints,
+	SkillMelee, SkillStrength, SkillDefence, SkillRanged, SkillMagic, SkillHitpoints,
 	SkillMining, SkillWoodcutting, SkillFarming, SkillSmithing, SkillFletching,
 	SkillStamina,
 }
 
 var SkillNames = map[Skill]string{
-	SkillAttack:      "Attack",
+	SkillMelee:       "Melee",
 	SkillStrength:    "Strength",
 	SkillDefence:     "Defence",
 	SkillRanged:      "Ranged",

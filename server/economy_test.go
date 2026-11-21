@@ -7,9 +7,8 @@ import (
 	"github.com/tomknightdev/islanders-golang/resources"
 )
 
-func sellIron(amount int) resources.ActionSpec {
-	return resources.ActionSpec{Kind: resources.ActionSell, Material: string(resources.ItemIronOre), Place: testVillage, Amount: amount}
-}
+// atStore is next to the test village's store, at (1,6).
+var atStore = tile{2, 6}
 
 func TestStartingCoins(t *testing.T) {
 	w := jobWorld(t)
@@ -19,40 +18,36 @@ func TestStartingCoins(t *testing.T) {
 	}
 }
 
-func TestSellTripPaysAndPricesFall(t *testing.T) {
+func TestSellingAtTheStore(t *testing.T) {
 	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{4, 5})
-	p.bank.Add(resources.ItemIronOre, 30)
+	p := joinAt(t, w, "tom", atStore)
+	p.backpack.Add(resources.ItemIronOre, 10)
+	sword := w.newPiece(resources.ItemIronSword, 90)
+	p.backpack.AddStack(sword)
 	st := w.storeIn(testVillage)
 	fullPrice := st.pays(resources.ItemIronOre, resources.DefaultQuality)
-	addAction(w, p, sellIron(30))
-	if len(p.actions) != 1 {
-		t.Fatal("sell action refused")
-	}
-	run(w, p)
-	runUntil(t, w, 20000, "sold 30", func() bool { return len(p.actions) == 0 })
+	swordPrice := st.pays(resources.ItemIronSword, 90)
 
+	w.shopCommand(p, resources.ShopCommandContents{Op: resources.ShopOpSell, Item: resources.ItemIronOre, Count: 10})
 	earned := p.coins - resources.StartingCoins
-	if p.bank.Count(resources.ItemIronOre) != 0 || !p.backpack.Empty() {
-		t.Errorf("all 30 should be sold: bank %d, backpack %v", p.bank.Count(resources.ItemIronOre), p.backpack.Stacks)
-	}
-	if earned <= 0 || earned > 30*fullPrice {
-		t.Errorf("earned %d for 30 iron ore at up to %d each", earned, fullPrice)
+	if p.backpack.Count(resources.ItemIronOre) != 0 || earned <= 0 || earned > 10*fullPrice {
+		t.Errorf("earned %d for 10 iron ore at up to %d each; %d left", earned, fullPrice, p.backpack.Count(resources.ItemIronOre))
 	}
 	if st.demandFor(resources.ItemIronOre) >= 1 {
 		t.Error("selling should lower the store's demand")
 	}
-}
+	before := p.coins
+	w.shopCommand(p, resources.ShopCommandContents{Op: resources.ShopOpSell, ID: sword.ID})
+	if p.coins-before != swordPrice || p.backpack.Count(resources.ItemIronSword) != 0 {
+		t.Errorf("sword sold for %d, want %d", p.coins-before, swordPrice)
+	}
 
-func TestSellingStopsWhenNothingIsLeft(t *testing.T) {
-	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{4, 5})
-	p.bank.Add(resources.ItemIronOre, 5)
-	addAction(w, p, sellIron(100))
-	run(w, p)
-	runUntil(t, w, 20000, "finished", func() bool { return len(p.actions) == 0 })
-	if p.activity != activityNoGoods || p.coins <= resources.StartingCoins {
-		t.Errorf("activity %q, coins %d", p.activity, p.coins)
+	// Not from afar.
+	p.backpack.Add(resources.ItemIronOre, 3)
+	p.pos[0], p.pos[1] = tile{12, 12}.pixel()
+	w.shopCommand(p, resources.ShopCommandContents{Op: resources.ShopOpSell, Item: resources.ItemIronOre, Count: 3})
+	if p.backpack.Count(resources.ItemIronOre) != 3 {
+		t.Error("sold away from the store")
 	}
 }
 
@@ -71,7 +66,7 @@ func TestStorePricesRecover(t *testing.T) {
 
 func TestShop(t *testing.T) {
 	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{4, 5})
+	p := joinAt(t, w, "tom", atStore)
 	p.bank.Remove(resources.ItemCabbage, startingFood)
 	buy := func(village string, k resources.ItemKind, n int) {
 		w.shopCommand(p, resources.ShopCommandContents{Op: resources.ShopOpBuy, Village: village, Item: k, Count: n})
@@ -96,11 +91,11 @@ func TestShop(t *testing.T) {
 	if p.backpack.Count(resources.ItemCabbage) != 6 || p.coins != 1 {
 		t.Errorf("should only buy what's affordable: backpack %d, coins %d", p.backpack.Count(resources.ItemCabbage), p.coins)
 	}
-	delete(p.found, testVillage)
+	p.pos[0], p.pos[1] = tile{12, 12}.pixel()
 	p.coins = 100
 	buy(testVillage, resources.ItemCabbage, 1)
 	if p.coins != 100 {
-		t.Error("can't shop in a village you haven't found")
+		t.Error("can't shop away from the store")
 	}
 }
 
@@ -138,20 +133,5 @@ func TestKillsDropCoins(t *testing.T) {
 	earned := p.coins - resources.StartingCoins
 	if earned < 3*goblin.Coins[0] || earned > 3*goblin.Coins[1] {
 		t.Errorf("3 goblins dropped %d coins, want %d–%d", earned, 3*goblin.Coins[0], 3*goblin.Coins[1])
-	}
-}
-
-func TestSellValidation(t *testing.T) {
-	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{4, 5})
-	for _, a := range []resources.ActionSpec{
-		{Kind: resources.ActionSell, Material: "nothing", Place: testVillage, Amount: 5},
-		{Kind: resources.ActionSell, Material: string(resources.ItemIronOre), Place: testMine, Amount: 5},
-		{Kind: resources.ActionSell, Material: string(resources.ItemIronOre), Place: testVillage, Amount: 0},
-	} {
-		addAction(w, p, a)
-	}
-	if len(p.actions) != 0 {
-		t.Errorf("invalid sell actions accepted: %d", len(p.actions))
 	}
 }

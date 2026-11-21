@@ -9,19 +9,13 @@ import (
 
 // Economy tuning. See docs/ECONOMY.md.
 const (
-	sellTime          = 3 * time.Second // handing goods over at a store
-	demandDropPerUnit = 0.98            // each unit a store buys lowers its price for that item by 2%
-	demandFloor       = 0.2             // a store never pays less than 20% of its full price
-	demandRecovery    = 0.03            // share of the gap back to full price recovered each minute
-	stableSlowdown    = 2               // resting in the stable takes this many times as long
+	demandDropPerUnit = 0.98 // each unit a store buys lowers its price for that item by 2%
+	demandFloor       = 0.2  // a store never pays less than 20% of its full price
+	demandRecovery    = 0.03 // share of the gap back to full price recovered each minute
+	stableSlowdown    = 2    // resting in the stable takes this many times as long
 )
 
-const (
-	activityToStore = "Walking to the store"
-	activitySelling = "Selling"
-	activityNoGoods = "Nothing left to sell"
-	activityStable  = "Resting in the stable"
-)
+const activityStable = "Resting in the stable"
 
 // store is a village general store. Its demand for each item sets how much
 // it pays: buying lowers demand, and demand recovers over time.
@@ -72,62 +66,22 @@ func (w *World) tickStores() {
 	}
 }
 
-// --- the sell trip ---
-
-// collectForSale takes the item to sell from the bank, as much as the
-// backpack holds and the goal still needs, and heads for the store.
-func (w *World) collectForSale(p *player) {
-	j := p.job
-	k := resources.ItemKind(j.action.spec.Material)
-	want := min(p.bank.Count(k), j.action.spec.Amount-j.action.count)
-	added := moveItems(&p.bank, &p.backpack, k, want)
-	if added == 0 {
-		w.finishAction(p, activityNoGoods)
-		return
-	}
-	p.invDirty = true
-	j.state = stateWalkToStore
-	if !w.moveTo(p, j.station) {
-		w.failAction(p, activityNoPath)
-		return
-	}
-	w.startAction(p, activityToStore, walkTicks(p))
-}
-
-// sellCarried sells everything of the action's item in the backpack to the
-// store. Each unit is priced as the store's demand falls.
-func (w *World) sellCarried(p *player) {
-	j := p.job
-	k := resources.ItemKind(j.action.spec.Material)
-	st := w.storeIn(j.action.spec.Place)
-	n, total := 0, 0
-	for _, part := range p.backpack.Take(k, p.backpack.Count(k)) {
-		for i := 0; i < part.Count; i++ {
-			total += st.buy(k, part.Quality)
-		}
-		n += part.Count
-	}
-	p.coins += total
-	j.action.count += n
-	p.invDirty = true
-	if amountMet(p, j.action) {
-		w.wrapUp(p)
-		return
-	}
-	w.goBank(p) // for the next load
-}
-
 // --- the shop ---
 
-// shopCommand shows a store's prices or buys from it. Purchases go into the
-// backpack; the player must have found the village.
+// shopCommand shows the store's prices, buys from it or sells to it. Only
+// allowed standing at the store; purchases go into the backpack and sales
+// come out of it.
 func (w *World) shopCommand(p *player, c resources.ShopCommandContents) {
-	st := w.storeIn(c.Village)
-	if st == nil || !p.found[c.Village] {
+	v := w.visiting(p)
+	st := w.storeIn(v.village)
+	if v.at != resources.BuildingStore || st == nil {
 		return
 	}
-	if c.Op == resources.ShopOpBuy {
+	switch c.Op {
+	case resources.ShopOpBuy:
 		w.shopBuy(p, c.Item, c.Count)
+	case resources.ShopOpSell:
+		w.shopSell(p, st, c)
 	}
 	if p.sess != nil {
 		p.sess.push(resources.NewStoreMessage(w.storeContents(p, st)))
@@ -155,21 +109,44 @@ func (w *World) shopBuy(p *player, k resources.ItemKind, count int) {
 	p.invDirty = true
 }
 
-// storeContents is a store's prices: what it sells and, for anything the
-// player carries, what it pays. The bank stays private unless they're at it.
+// shopSell sells a piece by ID, or Count of a material, from the backpack.
+// Each unit is priced as the store's demand falls.
+func (w *World) shopSell(p *player, st *store, c resources.ShopCommandContents) {
+	var sold []resources.Stack
+	if c.ID != 0 {
+		if piece, ok := p.backpack.TakeID(c.ID); ok {
+			sold = append(sold, piece)
+		}
+	} else if c.Count > 0 {
+		sold = p.backpack.Take(c.Item, c.Count)
+	}
+	for _, part := range sold {
+		if !resources.Sellable(part.Kind) {
+			p.backpack.AddStack(part)
+			continue
+		}
+		for i := 0; i < part.Count; i++ {
+			p.coins += st.buy(part.Kind, part.Quality)
+		}
+	}
+	p.invDirty = true
+}
+
+// storeContents is a store's prices: what it sells, and what it pays for
+// everything the player carries (gear and tools piece by piece).
 func (w *World) storeContents(p *player, st *store) resources.StoreContents {
 	c := resources.StoreContents{Village: st.village}
-	seen := map[resources.ItemKind]bool{}
 	for _, s := range resources.StoreStock {
-		seen[s.Item] = true
-		q := p.backpack.AverageQuality(s.Item)
-		if q == 0 {
-			q = resources.StarterQuality
-		}
-		c.Prices = append(c.Prices, resources.StorePrices{Item: s.Item, Buy: resources.StorePrice(s), Pays: st.pays(s.Item, q)})
+		c.Prices = append(c.Prices, resources.StorePrices{Item: s.Item, Buy: resources.StorePrice(s)})
 	}
+	seen := map[resources.ItemKind]bool{}
 	for _, s := range p.backpack.Stacks {
-		if !seen[s.Kind] && resources.Sellable(s.Kind) {
+		if !resources.Sellable(s.Kind) {
+			continue
+		}
+		if resources.IsPiece(s.Kind) {
+			c.Prices = append(c.Prices, resources.StorePrices{Item: s.Kind, ID: s.ID, Pays: st.pays(s.Kind, s.Quality)})
+		} else if !seen[s.Kind] {
 			seen[s.Kind] = true
 			c.Prices = append(c.Prices, resources.StorePrices{Item: s.Kind, Pays: st.pays(s.Kind, p.backpack.AverageQuality(s.Kind))})
 		}

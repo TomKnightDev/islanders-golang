@@ -61,16 +61,19 @@ func StorePrice(s StoreItem) int {
 // Sellable reports whether stores will buy an item.
 func Sellable(k ItemKind) bool { return Values[k] > 0 }
 
-// Shop window commands, sent by the client.
+// Shop window commands, sent by the client while standing at the store.
+// Purchases go into the backpack; sales come out of it.
 const (
-	ShopOpView = "view" // ask for a village store's prices
+	ShopOpView = "view" // ask for the store's prices
 	ShopOpBuy  = "buy"
+	ShopOpSell = "sell"
 )
 
 type ShopCommandContents struct {
 	Op      string   `json:"op"`
 	Village string   `json:"village"`
 	Item    ItemKind `json:"item"`
+	ID      uint32   `json:"id"` // sell: a piece of gear or a tool
 	Count   int      `json:"count"`
 }
 
@@ -79,9 +82,11 @@ func NewShopCommandMessage(c ShopCommandContents) *Message {
 }
 
 // StorePrices is one item at a village store: what it costs to buy there
-// (0 if the store doesn't sell it) and what the store pays right now.
+// (0 if the store doesn't sell it) and what the store pays right now for
+// one at the quality the player carries (or, for gear, for the piece ID).
 type StorePrices struct {
 	Item ItemKind `json:"item"`
+	ID   uint32   `json:"id,omitempty"`
 	Buy  int      `json:"buy"`
 	Pays int      `json:"pays"`
 }
