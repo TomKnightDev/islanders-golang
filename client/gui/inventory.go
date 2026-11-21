@@ -14,6 +14,7 @@ import (
 // character is doing is shown by the action bar instead.
 type Inventory struct {
 	Open     bool // shown; the menu bar toggles it
+	picker   stackPicker
 	mgr      *renderer.Manager
 	Contents resources.InventoryContents
 }
@@ -37,28 +38,28 @@ func (inv *Inventory) Update() error {
 	imgui.BeginV("Inventory", &inv.Open, imgui.WindowFlagsAlwaysAutoResize)
 	imgui.Text(fmt.Sprintf("Coins: %d", inv.Contents.Coins))
 	imgui.Separator()
-	section("Backpack", inv.Contents.Backpack, inv.Contents.Skills)
+	section("Backpack", inv.Contents.Backpack, inv.Contents.Skills, &inv.picker)
 	inventoryTop = imgui.WindowPos().Y
 	imgui.End()
 
 	return nil
 }
 
-func section(title string, c resources.Inventory, skills []resources.SkillState) {
+func section(title string, c resources.Inventory, skills []resources.SkillState, picker *stackPicker) {
 	imgui.Text(fmt.Sprintf("%s  %d/%d slots", title, len(c.Stacks), c.Slots))
 	if len(c.Stacks) == 0 {
 		imgui.Text("  Empty")
 		return
 	}
 	// A line per slot: each material stack has one quality.
-	combined := map[resources.ItemKind]bool{}
 	for _, i := range slotOrder(c) {
 		s := c.Stacks[i]
-		imgui.Text("  " + stackLabel(s))
+		picker.checkbox(s, fmt.Sprint(i))
+		imgui.Text(stackLabel(s))
 		itemTooltip(s.Kind)
 		repairButton(s, skills, resources.RepairCommandContents{ID: s.ID})
-		combineButton(c, s, false, combined)
 	}
+	picker.combineButton(c, false)
 }
 
 // itemTooltip describes an item when the line just drawn is hovered.

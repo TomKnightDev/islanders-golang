@@ -19,6 +19,8 @@ type Bank struct {
 	state     resources.InventoryContents
 	open      bool
 	shownAt   string // the bank the window was last opened for
+	packPick  stackPicker
+	bankPick  stackPicker
 }
 
 func NewBank(mgr *renderer.Manager, sendBank func(resources.BankCommandContents), sendEquip func(resources.EquipCommandContents)) *Bank {
@@ -62,14 +64,14 @@ func (b *Bank) Update() error {
 	if button("Deposit all", !b.state.Backpack.Empty()) {
 		b.sendBank(resources.BankCommandContents{Op: resources.BankOpDepositAll})
 	}
-	b.items(b.state.Backpack, resources.BankOpDeposit, "Deposit")
+	b.items(b.state.Backpack, resources.BankOpDeposit, "Deposit", &b.packPick)
 	imgui.EndGroup()
 
 	imgui.SameLineV(0, 40)
 
 	imgui.BeginGroup()
 	imgui.Text(fmt.Sprintf("Bank  %d/%d", len(b.state.Bank.Stacks), b.state.Bank.Slots))
-	b.items(b.state.Bank, resources.BankOpWithdraw, "Take")
+	b.items(b.state.Bank, resources.BankOpWithdraw, "Take", &b.bankPick)
 	imgui.EndGroup()
 
 	imgui.Separator()
@@ -83,15 +85,15 @@ func (b *Bank) Update() error {
 
 // items lists an inventory with buttons to move things out of it: gear and
 // tools piece by piece, materials as 1 or all.
-func (b *Bank) items(inv resources.Inventory, op, verb string) {
+func (b *Bank) items(inv resources.Inventory, op, verb string, picker *stackPicker) {
 	if inv.Empty() {
 		dimmed("  Empty")
 		return
 	}
-	combined := map[resources.ItemKind]bool{}
 	for _, i := range slotOrder(inv) {
 		s := inv.Stacks[i]
 		imgui.PushID(fmt.Sprintf("%s%d", op, i))
+		picker.checkbox(s, fmt.Sprint(i))
 		imgui.Text(stackLabel(s))
 		itemTooltip(s.Kind)
 		if resources.IsPiece(s.Kind) {
@@ -111,9 +113,9 @@ func (b *Bank) items(inv resources.Inventory, op, verb string) {
 				b.sendBank(resources.BankCommandContents{Op: op, Item: s.Kind, Quality: s.Quality, Count: s.Count})
 			}
 		}
-		combineButton(inv, s, op == resources.BankOpWithdraw, combined)
 		imgui.PopID()
 	}
+	picker.combineButton(inv, op == resources.BankOpWithdraw)
 }
 
 func (b *Bank) Draw(screen *ebiten.Image) {}

@@ -17,12 +17,13 @@ type BankCommandContents struct {
 	Count   int      `json:"count"`
 }
 
-// CombineCommandContents merges every stack of a material into as few
-// slots as it fits in, at their average quality: in the backpack anywhere,
-// or in the bank while standing at one.
+// CombineCommandContents merges the player's chosen stacks of a material
+// (those at Qualities) into as few slots as they fit in, at their average
+// quality: in the backpack anywhere, or in the bank while standing at one.
 type CombineCommandContents struct {
-	Item ItemKind `json:"item"`
-	Bank bool     `json:"bank"`
+	Item      ItemKind `json:"item"`
+	Qualities []int    `json:"qualities"`
+	Bank      bool     `json:"bank"`
 }
 
 func NewCombineCommandMessage(c CombineCommandContents) *Message {

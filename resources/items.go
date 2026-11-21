@@ -1,5 +1,7 @@
 package resources
 
+import "slices"
+
 type ItemKind string
 
 const (
@@ -237,15 +239,17 @@ func (inv *Inventory) TakeID(id uint32) (Stack, bool) {
 	return Stack{}, false
 }
 
-// Combine merges every stack of a material into as few slots as it fits
-// in, all at their average quality. It reports whether anything changed.
-func (inv *Inventory) Combine(kind ItemKind) bool {
+// Combine merges the stacks of a material at the given qualities into as
+// few slots as they fit in, all at their average quality. Stacks at other
+// qualities are left alone. It reports whether anything changed.
+func (inv *Inventory) Combine(kind ItemKind, qualities []int) bool {
 	if IsPiece(kind) {
 		return false
 	}
+	picked := func(s Stack) bool { return s.Kind == kind && slices.Contains(qualities, s.Quality) }
 	stacks, total, sum := 0, 0, 0
 	for _, s := range inv.Stacks {
-		if s.Kind == kind {
+		if picked(s) {
 			stacks++
 			total += s.Count
 			sum += s.Quality * s.Count
@@ -254,7 +258,7 @@ func (inv *Inventory) Combine(kind ItemKind) bool {
 	if stacks < 2 || total == 0 {
 		return false
 	}
-	inv.Take(kind, total)
+	inv.take(total, picked)
 	inv.AddStack(Stack{Kind: kind, Count: total, Quality: sum / total}) // fits: it needs no more slots than it had
 	return true
 }

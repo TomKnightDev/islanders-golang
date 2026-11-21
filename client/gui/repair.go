@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"slices"
 	"sort"
 
 	"github.com/inkyblackness/imgui-go/v4"
@@ -77,28 +78,88 @@ func stackLabel(s resources.Stack) string {
 	return fmt.Sprintf("%s x%d q%d", resources.ItemNames[s.Kind], s.Count, s.Quality)
 }
 
-// combineButton draws a Combine button, on the same line, the first time a
-// material with more than one stack is listed. first tracks which kinds
-// already have one.
-func combineButton(inv resources.Inventory, s resources.Stack, bank bool, first map[resources.ItemKind]bool) {
-	if resources.IsPiece(s.Kind) || first[s.Kind] || SendCombine == nil {
+// stackPicker is the checkboxes next to an inventory's material stacks and
+// the Combine selected button beneath them. Stacks are picked by kind and
+// quality, which is what tells them apart, so a pick survives the list
+// changing.
+type stackPicker struct {
+	picked map[resources.Stack]bool // Kind and Quality only
+}
+
+func pickKey(s resources.Stack) resources.Stack {
+	return resources.Stack{Kind: s.Kind, Quality: s.Quality}
+}
+
+// checkbox draws a stack's checkbox at the start of its line; pieces have
+// none.
+func (sp *stackPicker) checkbox(s resources.Stack, id string) {
+	if resources.IsPiece(s.Kind) {
+		imgui.Dummy(imgui.Vec2{X: imgui.FrameHeight()})
+		imgui.SameLine()
 		return
 	}
-	first[s.Kind] = true
-	stacks := 0
-	for _, o := range inv.Stacks {
-		if o.Kind == s.Kind {
-			stacks++
-		}
+	if sp.picked == nil {
+		sp.picked = map[resources.Stack]bool{}
 	}
-	if stacks < 2 {
-		return
-	}
-	imgui.SameLine()
-	if imgui.Button(fmt.Sprintf("Combine##combine%s%v", s.Kind, bank)) {
-		SendCombine(resources.CombineCommandContents{Item: s.Kind, Bank: bank})
+	on := sp.picked[pickKey(s)]
+	if imgui.Checkbox("##pick"+id, &on) {
+		sp.picked[pickKey(s)] = on
 	}
 	if imgui.IsItemHovered() {
-		imgui.SetTooltip(fmt.Sprintf("Merge all %d stacks into as few as possible, at their average quality (q%d).", stacks, inv.AverageQuality(s.Kind)))
+		imgui.SetTooltip("Pick stacks of one material, then Combine selected.")
+	}
+	imgui.SameLine()
+}
+
+// combineButton draws Combine selected for the picked stacks still in inv.
+// It's enabled for two or more stacks of one material.
+func (sp *stackPicker) combineButton(inv resources.Inventory, bank bool) {
+	var kind resources.ItemKind
+	var qualities []int
+	stacks, total, sum, mixed := 0, 0, 0, false
+	present := map[resources.Stack]bool{}
+	for _, s := range inv.Stacks {
+		key := pickKey(s)
+		present[key] = true
+		if !sp.picked[key] {
+			continue
+		}
+		if kind != "" && s.Kind != kind {
+			mixed = true
+		}
+		kind = s.Kind
+		if !slices.Contains(qualities, s.Quality) {
+			qualities = append(qualities, s.Quality)
+		}
+		stacks++
+		total += s.Count
+		sum += s.Quality * s.Count
+	}
+	for key := range sp.picked {
+		if !present[key] {
+			delete(sp.picked, key) // gone from the inventory
+		}
+	}
+	if stacks == 0 {
+		return
+	}
+	label := fmt.Sprintf("Combine selected (%d)##combine%v", stacks, bank)
+	if button(label, !mixed && stacks >= 2 && SendCombine != nil) {
+		SendCombine(resources.CombineCommandContents{Item: kind, Qualities: qualities, Bank: bank})
+		sp.picked = map[resources.Stack]bool{}
+	}
+	if imgui.IsItemHovered() {
+		switch {
+		case mixed:
+			imgui.SetTooltip("Only stacks of the same material can be combined.")
+		case stacks < 2:
+			imgui.SetTooltip("Pick at least two stacks.")
+		default:
+			imgui.SetTooltip(fmt.Sprintf("Merge %d %s into as few slots as possible, at q%d.", total, resources.ItemUnits[kind], sum/total))
+		}
+	}
+	imgui.SameLine()
+	if imgui.Button(fmt.Sprintf("Clear##clear%v", bank)) {
+		sp.picked = map[resources.Stack]bool{}
 	}
 }

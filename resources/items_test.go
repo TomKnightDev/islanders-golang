@@ -41,25 +41,31 @@ func TestOnlyEqualQualityStacks(t *testing.T) {
 	}
 }
 
-func TestCombineAveragesQuality(t *testing.T) {
+func TestCombineOnlyThePickedStacks(t *testing.T) {
 	inv := NewInventory(10)
-	inv.AddStack(Stack{Kind: ItemIronOre, Count: 6, Quality: 20})
-	inv.AddStack(Stack{Kind: ItemIronOre, Count: 6, Quality: 40})
-	inv.AddStack(Stack{Kind: ItemCopperOre, Count: 1, Quality: 90})
-	if !inv.Combine(ItemIronOre) {
+	inv.AddStack(Stack{Kind: ItemIronOre, Count: 6, Quality: 8})
+	inv.AddStack(Stack{Kind: ItemIronOre, Count: 6, Quality: 4})
+	inv.AddStack(Stack{Kind: ItemIronOre, Count: 3, Quality: 50})
+	inv.AddStack(Stack{Kind: ItemCopperOre, Count: 1, Quality: 6})
+	// Combine the ore under 10: the q8 and q4 stacks.
+	if !inv.Combine(ItemIronOre, []int{8, 4}) {
 		t.Fatal("combine did nothing")
 	}
-	// 12 ore at q30, in a full stack of 10 and one of 2; the copper untouched.
-	if inv.Count(ItemIronOre) != 12 || inv.AverageQuality(ItemIronOre) != 30 || len(inv.Stacks) != 3 {
-		t.Errorf("after combining: %+v", inv.Stacks)
-	}
+	// 12 ore at q6 (a full 10 and a 2); the q50 iron and the copper untouched.
+	n6 := 0
 	for _, s := range inv.Stacks {
-		if s.Kind == ItemIronOre && s.Quality != 30 {
-			t.Errorf("stack %+v should be q30", s)
+		switch {
+		case s.Kind == ItemIronOre && s.Quality == 6:
+			n6 += s.Count
+		case s.Kind == ItemIronOre && s.Quality != 50:
+			t.Errorf("unexpected stack %+v", s)
 		}
 	}
-	if inv.Combine(ItemCopperOre) {
-		t.Error("one stack has nothing to combine with")
+	if n6 != 12 || inv.Count(ItemIronOre) != 15 || inv.Count(ItemCopperOre) != 1 || len(inv.Stacks) != 4 {
+		t.Errorf("after combining: %+v", inv.Stacks)
+	}
+	if inv.Combine(ItemIronOre, []int{50}) || inv.Combine(ItemIronOre, []int{99, 98}) {
+		t.Error("one stack, or none, has nothing to combine")
 	}
 }
 

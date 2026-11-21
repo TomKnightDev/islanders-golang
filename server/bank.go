@@ -166,7 +166,7 @@ func (w *World) combineCommand(p *player, c resources.CombineCommandContents) {
 		}
 		inv = &p.bank
 	}
-	if inv.Combine(c.Item) {
+	if inv.Combine(c.Item, c.Qualities) {
 		p.invDirty = true
 	}
 }
