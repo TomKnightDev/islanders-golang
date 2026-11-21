@@ -97,6 +97,7 @@ type player struct {
 
 	health       int
 	stamina      int  // used up by work; recovered only at an inn
+	fightShown   *mob // the enemy the client's fight panel shows, if any
 	healthDirty  bool // changed since last broadcast, for everyone's health bars
 	regenCounter int
 	equipment    map[resources.EquipSlot]resources.Stack
@@ -237,6 +238,7 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 	}
 	p.sess = sess
 	p.sentDest = &tile{-1, -1} // force the current path to be sent
+	p.fightShown = nil         // and the current fight
 	sess.push(resources.NewConnectResponseMessage(resources.ConnectResponseContents{
 		ClientId: p.id,
 		Pos:      p.pos,
@@ -321,6 +323,7 @@ func (w *World) tick() {
 		w.tickDiscovery(p)
 		w.tickJob(p)
 		w.tickHealth(p)
+		w.sendFightState(p)
 		if moved || p.healthDirty {
 			w.broadcast(p.updateMessage())
 			p.healthDirty = false

@@ -334,3 +334,49 @@ func TestCampsOnTheIsland(t *testing.T) {
 		}
 	}
 }
+
+func TestFightPanelMessages(t *testing.T) {
+	w := campWorld(t)
+	s, other := testSession(), testSession()
+	p, _ := w.login("tom", "pw", s)
+	w.login("watcher", "pw", other)
+	p.pos[0], p.pos[1] = tile{12, 4}.pixel()
+	p.found[testCamp] = true
+	p.xp[resources.SkillAttack] = resources.XPForLevel(40)
+	p.xp[resources.SkillStrength] = resources.XPForLevel(40)
+	addAction(w, p, fightGoblins(1))
+	run(w, p)
+
+	var fights []resources.FightContents
+	for i := 0; i < 40000 && (len(p.actions) > 0 || len(fights) == 0 || fights[len(fights)-1].Active); i++ {
+		w.tick()
+		for _, m := range drain(s) {
+			if m.MessageType == resources.FightMessage {
+				fights = append(fights, m.Contents.(resources.FightContents))
+			}
+		}
+		for _, m := range drain(other) {
+			if m.MessageType == resources.FightMessage {
+				t.Fatal("another player was sent the fight")
+			}
+		}
+	}
+	if len(fights) < 3 {
+		t.Fatalf("expected a start, attacks and an end, got %d messages", len(fights))
+	}
+	if first := fights[0]; !first.Active || first.Attacker != "" || first.EnemyMaxHealth != 50 || first.PlayerMaxHealth != 100 {
+		t.Errorf("start: %+v", first)
+	}
+	if last := fights[len(fights)-1]; last.Active {
+		t.Error("the fight should end with Active false")
+	}
+	sawPlayer := false
+	for _, f := range fights {
+		if f.Attacker == resources.AttackerPlayer {
+			sawPlayer = true
+		}
+	}
+	if !sawPlayer {
+		t.Error("no player attacks were reported")
+	}
+}

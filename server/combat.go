@@ -421,11 +421,13 @@ func (w *World) playerAttack(p *player, m *mob) bool {
 	}
 	roll := resources.AttackRoll(p.level(attackSkill), b.Accuracy)
 	if rand.Float64() >= resources.HitChance(roll, resources.DefenceRoll(m.kind.Defence, 0)) {
+		w.fightEvent(p, m, resources.AttackerPlayer, false, 0)
 		return true // missed
 	}
 	dmg := min(m.health, rand.Intn(resources.MaxHit(p.level(strengthSkill), b.Strength)+1))
 	m.health -= dmg
 	m.dirty = true
+	defer w.fightEvent(p, m, resources.AttackerPlayer, true, dmg) // after any drain healing below
 	switch {
 	case b.Magic:
 		w.addXP(p, resources.SkillMagic, 4*dmg)
@@ -452,15 +454,14 @@ func (w *World) enemyAttack(m *mob, p *player) {
 	roll := resources.AttackRoll(m.kind.Attack, 0)
 	if rand.Float64() >= resources.HitChance(roll, resources.DefenceRoll(p.level(resources.SkillDefence), p.bonuses().Defence)) {
 		w.addXP(p, resources.SkillDefence, 2) // blocked
+		w.fightEvent(p, m, resources.AttackerEnemy, false, 0)
 		return
 	}
 	dmg := rand.Intn(m.kind.MaxHit + 1)
-	if dmg == 0 {
-		return
-	}
 	p.health -= dmg
 	p.healthDirty = true
 	p.invDirty = true
+	w.fightEvent(p, m, resources.AttackerEnemy, true, dmg)
 	if p.health <= 0 {
 		w.defeat(p, m)
 	}
@@ -571,4 +572,48 @@ func (p *player) equippedItems() []resources.EquippedItem {
 		}
 	}
 	return out
+}
+
+// --- the fight panel ---
+
+func (w *World) fightContents(p *player, m *mob) resources.FightContents {
+	return resources.FightContents{
+		Active:          true,
+		EnemyName:       fmt.Sprintf("%s (level %d)", m.kind.Name, m.kind.Level),
+		EnemySprite:     m.kind.Sprite,
+		EnemyHealth:     max(m.health, 0),
+		EnemyMaxHealth:  m.kind.Health,
+		PlayerHealth:    max(p.health, 0),
+		PlayerMaxHealth: p.maxHealth(),
+	}
+}
+
+// fightEvent tells the fighter about one attack, for the fight panel's
+// animation.
+func (w *World) fightEvent(p *player, m *mob, attacker string, hit bool, dmg int) {
+	if p.sess == nil {
+		return
+	}
+	c := w.fightContents(p, m)
+	c.Attacker, c.Hit, c.Damage = attacker, hit, dmg
+	p.sess.push(resources.NewFightMessage(c))
+}
+
+// sendFightState tells the player when they start fighting an enemy or
+// stop, so the fight panel opens and closes.
+func (w *World) sendFightState(p *player) {
+	var cur *mob
+	if p.job != nil && p.job.state == stateFighting {
+		cur = p.job.mob
+	}
+	if cur == p.fightShown || p.sess == nil {
+		p.fightShown = cur
+		return
+	}
+	p.fightShown = cur
+	if cur == nil {
+		p.sess.push(resources.NewFightMessage(resources.FightContents{Active: false}))
+		return
+	}
+	p.sess.push(resources.NewFightMessage(w.fightContents(p, cur)))
 }

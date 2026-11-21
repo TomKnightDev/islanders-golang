@@ -46,6 +46,7 @@ var ActionBar = gui.NewActionBar()
 var ActionsWindow = &gui.Actions{}
 var SkillsWindow = &gui.Skills{}
 var EquipmentWindow = &gui.Equipment{}
+var FightPanel = &gui.FightPanel{}
 var world *entities.World
 var client = &Client{}
 
@@ -132,6 +133,11 @@ func handleMessages(g *Game) {
 		select {
 		case message := <-client.RecvChan:
 			switch message.MessageType {
+			case resources.FightMessage:
+				var fight resources.FightContents
+				if err := resources.DecodeContents(message.Contents, &fight); err == nil {
+					FightPanel.Set(fight)
+				}
 			case resources.ChooseClassMessage:
 				showCharacterCreation(g)
 			case resources.ConnectResponseMessage:
@@ -200,6 +206,8 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 
 	// Add gui. The action bar goes first so the imgui windows draw over it.
 	g.Gui = append(g.Gui, ActionBar)
+	FightPanel = gui.NewFightPanel(CharactersImage, [2]int{int(tile[0].(float64)), int(tile[1].(float64))}, g.username)
+	g.Gui = append(g.Gui, FightPanel)
 
 	ChatWindow = gui.NewChat(g.screenWidth, g.screenHeight, g.renderMgr)
 	g.Gui = append(g.Gui, ChatWindow)

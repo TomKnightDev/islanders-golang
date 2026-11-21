@@ -118,6 +118,7 @@ A new name gets a **Create your character** screen before the character exists. 
 - **In a fight** the character eats below half health, retreats to the bank to rest when below 30% with no food left, and banks the loot when the backpack is full. A bow user runs out of arrows and the list stops.
 - **Loot** per kill rolls each drop in the enemy's table: their tier's ore and bars, food, arrows, and small chances of each piece of their tier's gear.
 - Fights run on the fighter's clock.
+- **The fight panel** sits above the action bar while fighting: your character and the enemy face each other with their names and health bars, "VS" between. Whoever attacks lunges towards the other; a hit flashes the target red and floats the damage up (gold for damage you deal, red for damage you take), a miss floats "Miss". After the last blow the panel stays a moment, with a defeated enemy greyed out.
 
 ### Items and stacking
 Backpacks and bank accounts are made of slots.

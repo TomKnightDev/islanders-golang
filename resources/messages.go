@@ -21,6 +21,7 @@ const (
 	PathMessage               MessageType = "pathMessage"
 	ChooseClassMessage        MessageType = "chooseClassMessage"     // server: a new name; pick a class
 	CreateCharacterMessage    MessageType = "createCharacterMessage" // client: the class picked
+	FightMessage              MessageType = "fightMessage"           // server: a fight the player is in
 )
 
 type Message struct {
@@ -185,4 +186,31 @@ type PathContents struct {
 
 func NewPathMessage(c PathContents) *Message {
 	return &Message{MessageType: PathMessage, Contents: c}
+}
+
+// Who made an attack in a FightContents event.
+const (
+	AttackerPlayer = "player"
+	AttackerEnemy  = "enemy"
+)
+
+// FightContents tells a player about the fight they're in, for the fight
+// panel. It's sent when a fight starts (Attacker empty), after every attack
+// by either side, and with Active false when the fight ends. Only the
+// fighter receives it.
+type FightContents struct {
+	Active          bool   `json:"active"`
+	EnemyName       string `json:"enemyName"`
+	EnemySprite     [2]int `json:"enemySprite"` // pixel position in characters.png
+	EnemyHealth     int    `json:"enemyHealth"`
+	EnemyMaxHealth  int    `json:"enemyMaxHealth"`
+	PlayerHealth    int    `json:"playerHealth"`
+	PlayerMaxHealth int    `json:"playerMaxHealth"`
+	Attacker        string `json:"attacker"` // AttackerPlayer, AttackerEnemy, or empty
+	Hit             bool   `json:"hit"`
+	Damage          int    `json:"damage"`
+}
+
+func NewFightMessage(c FightContents) *Message {
+	return &Message{MessageType: FightMessage, Contents: c}
 }
