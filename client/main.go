@@ -5,6 +5,7 @@ import (
 
 	"github.com/gabstv/ebiten-imgui/renderer"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 
 	"github.com/inkyblackness/imgui-go/v4"
 	"github.com/tomknightdev/islanders-golang/client/entities"
@@ -16,7 +17,10 @@ type Entity interface {
 	Draw(*ebiten.Image)
 }
 
-const uiScale = 1.75
+// uiFontSize is the UI text size in pixels. The UI uses a real TrueType
+// font at this size; scaling imgui's small built-in bitmap font up instead
+// makes it blurry.
+const uiFontSize = 22
 
 type Game struct {
 	username             string
@@ -30,6 +34,7 @@ type Game struct {
 	screenHeight         int
 	ConnectFailedMessage chan string
 	renderMgr            *renderer.Manager
+	uiFont               imgui.Font
 }
 
 func (g *Game) Update() error {
@@ -43,11 +48,11 @@ func (g *Game) Update() error {
 
 	g.renderMgr.Update(1.0 / 60.0)
 	g.renderMgr.BeginFrame()
-	{
-		for _, gui := range g.Gui {
-			gui.Update()
-		}
+	imgui.PushFont(g.uiFont)
+	for _, gui := range g.Gui {
+		gui.Update()
 	}
+	imgui.PopFont()
 	g.renderMgr.EndFrame()
 
 	for _, e := range g.Entities {
@@ -113,9 +118,12 @@ func main() {
 		renderMgr:            renderer.New(nil),
 	}
 
-	// Bigger UI: scale imgui's font and spacing together.
-	imgui.CurrentIO().SetFontGlobalScale(uiScale)
-	imgui.CurrentStyle().ScaleAllSizes(uiScale)
+	// Load the UI font, rebuild imgui's font texture with it, and have the
+	// renderer pick up the new texture. Nearest filtering keeps the glyphs
+	// crisp, since they're drawn at their native size.
+	game.uiFont = imgui.CurrentIO().Fonts().AddFontFromMemoryTTF(fonts.MPlus1pRegular_ttf, uiFontSize)
+	imgui.CurrentIO().Fonts().TextureDataRGBA32()
+	game.renderMgr.Cache.ResetFontAtlasCache(ebiten.FilterNearest)
 
 	mm := gui.NewMainMenu(game.screenWidth, game.screenHeight, game.renderMgr)
 
