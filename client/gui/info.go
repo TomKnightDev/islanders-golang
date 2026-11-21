@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gabstv/ebiten-imgui/renderer"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -28,6 +29,7 @@ func NewInfo(screenWidth, screenHeight int, player *entities.Player, mgr *render
 }
 
 func (info *Info) Update() error {
+	placeWindow("Info", imgui.Vec2{X: windowMargin, Y: windowMargin}, imgui.Vec2{})
 	imgui.BeginV("Info", nil, imgui.WindowFlagsAlwaysAutoResize)
 	imgui.Text(fmt.Sprintf("Name: %s", info.player.Username))
 
@@ -36,20 +38,21 @@ func (info *Info) Update() error {
 	tx, ty := resources.TileAt(info.player.Position[0], info.player.Position[1])
 	location := resources.Location(tx, ty)
 	imgui.Text("Location: " + location)
-	landmark := ""
+	where := "" // "in Oakhaven", "near Ironridge Mine", ...
 	if info.player.WorldMap != nil {
-		landmark = info.player.WorldMap.Landmark(tx, ty)
+		where = info.player.WorldMap.Describe(tx, ty)
 	}
-	if landmark != "" {
-		imgui.Text("Near " + landmark)
+	if where != "" {
+		imgui.Text(strings.ToUpper(where[:1]) + where[1:])
 	}
 	if imgui.Button("Share location") && info.SendChat != nil {
 		msg := "I'm at " + location
-		if landmark != "" {
-			msg += ", near " + landmark
+		if where != "" {
+			msg += ", " + where
 		}
 		info.SendChat(msg)
 	}
+	infoBottom = imgui.WindowPos().Y + imgui.WindowSize().Y
 	imgui.End()
 
 	return nil

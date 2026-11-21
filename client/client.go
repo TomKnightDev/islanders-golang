@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image/png"
 	"log"
+	"math"
 	"net/url"
 	"reflect"
 
@@ -42,6 +43,8 @@ var ChatWindow = &gui.Chat{}
 var InfoWindow = &gui.Info{}
 var InventoryWindow = &gui.Inventory{}
 var ActionBar = gui.NewActionBar()
+var ActionsWindow = &gui.Actions{}
+var SkillsWindow = &gui.Skills{}
 var world *entities.World
 var client = &Client{}
 
@@ -202,6 +205,31 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	InventoryWindow = gui.NewInventory(g.renderMgr)
 	g.Gui = append(g.Gui, InventoryWindow)
 
+	// Action commands go through one queue so they reach the server in the
+	// order the player made them.
+	actionOut := make(chan resources.ActionCommandContents, 32)
+	go func() {
+		for c := range actionOut {
+			client.SendChan <- resources.NewActionCommandMessage(c)
+		}
+	}()
+	ActionsWindow = gui.NewActions(g.renderMgr, client.Player, worldMap.Places)
+	ActionsWindow.Send = func(c resources.ActionCommandContents) {
+		select {
+		case actionOut <- c:
+		default: // backed up; drop rather than freeze the game
+		}
+	}
+	g.Gui = append(g.Gui, ActionsWindow)
+
+	SkillsWindow = gui.NewSkills(g.renderMgr)
+	g.Gui = append(g.Gui, SkillsWindow)
+
+	g.Gui = append(g.Gui, gui.NewHover(worldMap, func() (int, int) {
+		wx, wy := cam.GetCursorCoords()
+		return int(math.Floor(wx / resources.TileSize)), int(math.Floor(wy / resources.TileSize))
+	}))
+
 	// Messages from chat send channel will be forwarded to the client send channel
 	go func(client *Client, chat *gui.Chat) {
 		for {
@@ -309,6 +337,8 @@ func receiveInventoryMessage(message *resources.Message) {
 	}
 	InventoryWindow.Contents = contents
 	ActionBar.Set(contents.Activity, contents.ActionSeconds, contents.ActionElapsed)
+	ActionsWindow.SetState(contents)
+	SkillsWindow.SetState(contents.Skills)
 }
 
 func receiveObjectUpdateMessage(message *resources.Message) {

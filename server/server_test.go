@@ -57,19 +57,22 @@ func TestEndToEndLoginAndWalk(t *testing.T) {
 	if err := resources.DecodeContents(resp.Contents, &contents); err != nil {
 		t.Fatal(err)
 	}
-	if contents.Pos[0] != 400 || contents.Pos[1] != 400 {
-		t.Fatalf("spawned at %v", contents.Pos)
+	spawn := tile{contents.WorldMap.SpawnX, contents.WorldMap.SpawnY}
+	if sx, sy := spawn.pixel(); contents.Pos[0] != sx || contents.Pos[1] != sy {
+		t.Fatalf("spawned at %v, want the map's spawn %v", contents.Pos, spawn)
 	}
 
-	// Walk three tiles east of spawn (still inside the clearing).
-	conn.WriteJSON(resources.NewMoveRequestMessage(contents.ClientId, resources.MoveRequestContents{X: 53, Y: 50}))
+	// Walk three tiles east of spawn (still on the village square).
+	dest := spawn.add(tile{3, 0})
+	conn.WriteJSON(resources.NewMoveRequestMessage(contents.ClientId, resources.MoveRequestContents{X: dest.x, Y: dest.y}))
 	readUntil(t, conn, 3*time.Second, func(m *resources.Message) bool {
 		if m.MessageType != resources.UpdateMessage || m.ClientId != contents.ClientId {
 			return false
 		}
 		var u resources.UpdateContents
 		resources.DecodeContents(m.Contents, &u)
-		return u.Pos[0] == 53*8 && u.Pos[1] == 50*8
+		dx, dy := dest.pixel()
+		return u.Pos[0] == dx && u.Pos[1] == dy
 	})
 
 	// Wrong password on a second connection is refused.
@@ -81,38 +84,41 @@ func TestEndToEndLoginAndWalk(t *testing.T) {
 	})
 }
 
-func TestEndToEndMining(t *testing.T) {
+func TestEndToEndActionList(t *testing.T) {
 	startWorld()
 	ts := httptest.NewServer(httpHandler())
 	defer ts.Close()
 
 	conn := dial(t, ts.URL)
 	defer conn.Close()
-	conn.WriteJSON(resources.NewConnectRequestMessage(resources.ConnectRequestContents{Username: "miner", Password: "pw"}))
-	resp := readUntil(t, conn, 2*time.Second, func(m *resources.Message) bool {
-		return m.MessageType == resources.ConnectResponseMessage
-	})
-	var contents resources.ConnectResponseContents
-	resources.DecodeContents(resp.Contents, &contents)
+	conn.WriteJSON(resources.NewConnectRequestMessage(resources.ConnectRequestContents{Username: "planner", Password: "pw"}))
 
-	var rockAt *resources.WorldObject
-	for _, o := range contents.WorldMap.Objects {
-		if o.Kind == resources.ObjectIronRock {
-			rockAt = &o
-			break
-		}
-	}
-	if rockAt == nil {
-		t.Fatal("no iron rock in the world")
-	}
-
-	conn.WriteJSON(resources.NewMoveRequestMessage(contents.ClientId, resources.MoveRequestContents{X: rockAt.X, Y: rockAt.Y}))
-	readUntil(t, conn, 15*time.Second, func(m *resources.Message) bool {
+	// The first inventory lists the spawn village as found.
+	var village string
+	readUntil(t, conn, 2*time.Second, func(m *resources.Message) bool {
 		if m.MessageType != resources.InventoryMessage {
 			return false
 		}
 		var inv resources.InventoryContents
 		resources.DecodeContents(m.Contents, &inv)
-		return inv.Backpack.Count(resources.ItemIronOre) >= 1 && inv.Activity == activityMining
+		if len(inv.Found) == 1 {
+			village = inv.Found[0]
+		}
+		return village != ""
+	})
+
+	// Smelting with an empty bank runs, then stops with nothing to smelt.
+	conn.WriteJSON(resources.NewActionCommandMessage(resources.ActionCommandContents{
+		Op:     resources.ActionOpAdd,
+		Action: resources.ActionSpec{Kind: resources.ActionSmelt, Material: "copper", Place: village, Goal: resources.GoalAmount, Amount: 10},
+	}))
+	conn.WriteJSON(resources.NewActionCommandMessage(resources.ActionCommandContents{Op: resources.ActionOpStart}))
+	readUntil(t, conn, 10*time.Second, func(m *resources.Message) bool {
+		if m.MessageType != resources.InventoryMessage {
+			return false
+		}
+		var inv resources.InventoryContents
+		resources.DecodeContents(m.Contents, &inv)
+		return inv.Activity == activityNoOre && !inv.Running && len(inv.Actions) == 0
 	})
 }

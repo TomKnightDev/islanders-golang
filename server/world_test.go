@@ -244,7 +244,7 @@ func TestOfflineCharacterKeepsWalking(t *testing.T) {
 	p.pos[0], p.pos[1] = tile{2, 2}.pixel()
 	w.moveTo(p, tile{10, 2})
 	w.disconnect(p, s)
-	for i := 0; i < 200; i++ {
+	for i := 0; i < 200*offlineSlowdown; i++ {
 		w.tick()
 	}
 	if x, _ := (tile{10, 2}).pixel(); p.pos[0] != x {
@@ -259,5 +259,49 @@ func TestSlowClientIsDisconnectedNotBlocking(t *testing.T) {
 	}
 	if !s.closed {
 		t.Error("overflowing session should be closed")
+	}
+}
+
+func TestPathsFollowRoads(t *testing.T) {
+	// A road along y=5 from x=0 to x=19. Walking from (2,3) to (17,3)
+	// straight across grass is 15 steps; dropping to the road, along it and
+	// back up is cheaper even though it's longer.
+	wm := testMap(20, 10)
+	for x := 0; x < 20; x++ {
+		wm.Layers[resources.LayerGround].Data[5*wm.Width+x] = resources.TileRoad
+	}
+	path := findPath(&wm, tile{2, 3}, tile{17, 3})
+	onRoad := 0
+	for _, p := range path {
+		if p.y == 5 {
+			onRoad++
+		}
+	}
+	if onRoad < 8 {
+		t.Errorf("only %d of %d steps on the road: %v", onRoad, len(path), path)
+	}
+
+	// But a road far out of the way is ignored: a short hop stays direct.
+	path = findPath(&wm, tile{2, 0}, tile{4, 0})
+	if len(path) != 2 {
+		t.Errorf("short walk should go straight, got %v", path)
+	}
+}
+
+func TestWaterBlocks(t *testing.T) {
+	for _, gid := range []int{resources.TileWaterDeep, resources.TileWaterShallow, resources.TileRiver} {
+		if resources.IsPassable(gid) {
+			t.Errorf("water tile %d is walkable", gid)
+		}
+	}
+	wm := testIsland
+	ground := wm.Layers[resources.LayerGround].Data
+	for i, gid := range ground {
+		switch gid {
+		case resources.TileWaterDeep, resources.TileWaterShallow, resources.TileRiver:
+			if wm.TilePassable(i%wm.Width, i/wm.Width) {
+				t.Fatalf("water at (%d,%d) is walkable", i%wm.Width, i/wm.Width)
+			}
+		}
 	}
 }

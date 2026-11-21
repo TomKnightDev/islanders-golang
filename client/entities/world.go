@@ -28,6 +28,18 @@ func (w *World) Update() error {
 	return nil
 }
 
+// drawTile draws a sprite at tile (x, y) of dst, tinting it if it's one of
+// the made-up tinted sprites.
+func (w *World) drawTile(dst *ebiten.Image, gid, x, y int) {
+	opts := &ebiten.DrawImageOptions{}
+	opts.GeoM.Translate(float64(x*shared_resources.TileSize), float64(y*shared_resources.TileSize))
+	if tint, ok := shared_resources.TintedTiles[gid]; ok {
+		gid = tint.Base
+		opts.ColorScale.Scale(tint.R, tint.G, tint.B, 1)
+	}
+	dst.DrawImage(w.tileImage(gid), opts)
+}
+
 // tileImage returns the 8x8 sprite for a Tiled-style gid (row*16 + col + 1).
 func (w *World) tileImage(gid int) *ebiten.Image {
 	const size = shared_resources.TileSize
@@ -49,9 +61,7 @@ func (w *World) renderMap() {
 			if gid == shared_resources.TileNone {
 				continue
 			}
-			opts := &ebiten.DrawImageOptions{}
-			opts.GeoM.Translate(float64(i%wm.Width*size), float64(i/wm.Width*size))
-			w.mapImage.DrawImage(w.tileImage(gid), opts)
+			w.drawTile(w.mapImage, gid, i%wm.Width, i/wm.Width)
 		}
 	}
 }
@@ -74,9 +84,7 @@ func (w *World) SetTile(x, y, layer, gid int) {
 		if l.Data[i] == shared_resources.TileNone {
 			continue
 		}
-		opts := &ebiten.DrawImageOptions{}
-		opts.GeoM.Translate(float64(x*size), float64(y*size))
-		w.mapImage.DrawImage(w.tileImage(l.Data[i]), opts)
+		w.drawTile(w.mapImage, l.Data[i], x, y)
 	}
 }
 
@@ -87,4 +95,11 @@ func (w *World) Draw(screen *ebiten.Image) {
 
 	w.Cam.Surface.Clear()
 	w.Cam.Surface.DrawImage(w.mapImage, w.Cam.GetTranslation(&ebiten.DrawImageOptions{}, 0, 0))
+}
+
+// DrawLabel names the villages and mines on the map.
+func (w *World) DrawLabel(screen *ebiten.Image) {
+	for _, p := range w.worldMap.Places {
+		drawPlaceLabel(screen, w.Cam, p)
+	}
 }

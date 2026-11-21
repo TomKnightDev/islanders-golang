@@ -22,8 +22,6 @@ const (
 	sessionBuffer = 256
 )
 
-var spawnTile = tile{50, 50}
-
 // playerSprite is the sprite's pixel position in characters.png.
 var playerSprite = f64.Vec2{0, 0}
 
@@ -91,8 +89,16 @@ type player struct {
 	bank     resources.Inventory // this player's own bank account
 	job      *job
 	activity string
-	// The current action's timing, for the client's progress bar.
-	// actionTicks is 0 for actions with no set length (idle, waiting).
+	actions  []*queuedAction // the action list; [0] is the one that runs
+	running  bool            // working through the action list
+	found    map[string]bool // places this player has found
+	xp       map[resources.Skill]int
+	// ticks is this character's own clock. It advances every world tick
+	// while the player is online and every offlineSlowdown ticks while
+	// they're offline, so idle progress runs slower without them.
+	ticks int
+	// The current action's timing, for the client's progress bar, on the
+	// character's clock. actionTicks is 0 for actions with no set length.
 	actionStart int
 	actionTicks int
 	invDirty    bool // backpack, bank or action changed since last sent
@@ -122,14 +128,15 @@ type command func(w *World)
 // World owns all game state. Only its Run goroutine touches it; connection
 // handlers send it commands with Do.
 type World struct {
-	wm      resources.WorldMap
-	players map[uint16]*player
-	byName  map[string]*player
-	nextID  uint16
-	rocks   map[tile]*rock
-	bank    *resources.WorldObject
-	ticks   int
-	cmds    chan command
+	wm       resources.WorldMap
+	players  map[uint16]*player
+	byName   map[string]*player
+	nextID   uint16
+	nodes    map[tile]*node // rocks and trees to gather from
+	banks    []tile
+	stations map[resources.ObjectKind]map[string]tile // crafting stations by kind, then village
+	ticks    int
+	cmds     chan command
 }
 
 func NewWorld(wm resources.WorldMap) *World {
@@ -139,7 +146,7 @@ func NewWorld(wm resources.WorldMap) *World {
 		byName:  make(map[string]*player),
 		cmds:    make(chan command, 256),
 	}
-	w.initRocks()
+	w.initNodes()
 	return w
 }
 
@@ -177,7 +184,7 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 			p.sess.close() // logged in somewhere else; that connection loses
 		}
 	} else {
-		x, y := spawnTile.pixel()
+		x, y := tile{w.wm.SpawnX, w.wm.SpawnY}.pixel()
 		p = &player{
 			id:       w.nextID,
 			username: username,
@@ -186,6 +193,12 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 			backpack: resources.NewInventory(backpackSlots, false),
 			bank:     resources.NewInventory(bankSlots, true),
 			activity: activityIdle,
+			found:    map[string]bool{},
+			xp:       map[resources.Skill]int{},
+		}
+		// Everyone knows the village they start in.
+		if pl := w.placeAt(tile{w.wm.SpawnX, w.wm.SpawnY}, resources.PlaceVillage); pl != nil {
+			p.found[pl.Name] = true
 		}
 		w.nextID++
 		w.players[p.id] = p
@@ -267,14 +280,19 @@ func (p *player) step() bool {
 func (w *World) tick() {
 	w.ticks++
 	for _, p := range w.players {
+		if p.sess == nil && w.ticks%offlineSlowdown != 0 {
+			continue
+		}
+		p.ticks++
 		if p.step() {
 			w.broadcast(p.updateMessage())
 		}
+		w.tickDiscovery(p)
 		w.tickJob(p)
 		if p.invDirty && p.sess != nil {
 			p.sess.push(w.inventoryMessage(p))
 			p.invDirty = false
 		}
 	}
-	w.tickRocks()
+	w.tickNodes()
 }

@@ -16,6 +16,7 @@ const (
 	MoveRequestMessage        MessageType = "moveRequestMessage"
 	InventoryMessage          MessageType = "inventoryMessage"
 	ObjectUpdateMessage       MessageType = "objectUpdateMessage"
+	ActionCommandMessage      MessageType = "actionCommandMessage"
 )
 
 type Message struct {
@@ -123,7 +124,7 @@ func NewMoveRequestMessage(clientId uint16, contents MoveRequestContents) *Messa
 }
 
 // InventoryContents is sent to a player whenever their backpack, bank
-// account or current activity changes.
+// account, current activity, found places or action list changes.
 type InventoryContents struct {
 	Backpack Inventory `json:"backpack"`
 	Bank     Inventory `json:"bank"`
@@ -132,6 +133,11 @@ type InventoryContents struct {
 	// set length. ActionElapsed is how far into it the player already is.
 	ActionSeconds float64 `json:"actionSeconds"`
 	ActionElapsed float64 `json:"actionElapsed"`
+
+	Found   []string       `json:"found"`   // names of places the player has found
+	Actions []QueuedAction `json:"actions"` // the action list; [0] runs first
+	Running bool           `json:"running"` // whether the list is being worked through
+	Skills  []SkillState   `json:"skills"`
 }
 
 func NewInventoryMessage(contents InventoryContents) *Message {
