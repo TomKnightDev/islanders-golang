@@ -1,0 +1,6 @@
+#!/bin/sh
+# Run from a writable folder so the client can save imgui.ini (window layout).
+DIR="$HOME/Library/Application Support/Islanders"
+mkdir -p "$DIR"
+cd "$DIR" || exit 1
+exec "$(dirname "$0")/islanders-client"
