@@ -60,20 +60,9 @@ func IsCombat(k ActionKind) bool { return k == ActionFight }
 // is the item to sell, any sellable item, and its goal counts items sold.
 func IsSelling(k ActionKind) bool { return k == ActionSell }
 
-// CountsProgress reports whether an action's amount goal counts what the
-// action itself did (kills, sales) rather than what's in the bank.
-func CountsProgress(k ActionKind) bool { return IsCombat(k) || IsSelling(k) }
-
-// ActionDefaultAmounts is the bank total a new action aims for.
-var ActionDefaultAmounts = map[ActionKind]int{
-	ActionMine:   100,
-	ActionChop:   100,
-	ActionFarm:   100,
-	ActionSmelt:  50,
-	ActionFletch: 500,
-	ActionFight:  20, // kills
-	ActionSell:   100,
-}
+// GoalAmounts are the amounts the action window offers: how many to gather,
+// make, defeat or sell. New actions start at the first.
+var GoalAmounts = []int{10, 20, 50, 100}
 
 // Material is one tier an action can work with.
 type Material struct {
@@ -150,30 +139,21 @@ func NodeMaterial(gid int) (ActionKind, Material, bool) {
 	return "", Material{}, false
 }
 
-type GoalKind string
-
-const (
-	GoalAmount GoalKind = "amount" // until the bank holds Amount of the action's product
-	GoalTime   GoalKind = "time"   // for Minutes of the character's time
-)
-
 const (
 	MaxActions    = 5
 	MaxGoalAmount = 10000
-	MaxGoalMins   = 24 * 60
 )
 
-// ActionSpec is one entry in a player's action list.
+// ActionSpec is one entry in a player's action list. It's done once it has
+// gathered, made, defeated or sold Amount.
 type ActionSpec struct {
 	Kind     ActionKind `json:"kind"`
 	Material string     `json:"material"` // a Material ID for this kind
 	Place    string     `json:"place"`
-	Goal     GoalKind   `json:"goal"`
 	Amount   int        `json:"amount"`
-	Minutes  int        `json:"minutes"`
 }
 
-// Product is the item an action's amount goal counts in the bank.
+// Product is the item an action gathers or makes.
 func (a ActionSpec) Product() ItemKind {
 	m, _ := FindMaterial(a.Kind, a.Material)
 	return m.Item
@@ -192,10 +172,8 @@ func (a ActionSpec) Label() string {
 // QueuedAction is an entry in the action list as the server reports it.
 type QueuedAction struct {
 	ActionSpec
-	// For the action that's running: how many of the product are banked,
-	// and for a time goal, the seconds left.
-	Banked      int     `json:"banked"`
-	SecondsLeft float64 `json:"secondsLeft"`
+	// Done is how many it has gathered, made, defeated or sold so far.
+	Done int `json:"done"`
 }
 
 // Action list commands, sent by the client.

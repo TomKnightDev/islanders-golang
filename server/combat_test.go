@@ -33,7 +33,7 @@ func fighter(t *testing.T, w *World, name string, level int) *player {
 }
 
 func fightGoblins(kills int) resources.ActionSpec {
-	return resources.ActionSpec{Kind: resources.ActionFight, Material: "goblin", Place: testCamp, Goal: resources.GoalAmount, Amount: kills}
+	return resources.ActionSpec{Kind: resources.ActionFight, Material: "goblin", Place: testCamp, Amount: kills}
 }
 
 func TestClassStartingKits(t *testing.T) {
@@ -232,15 +232,15 @@ func TestEquipping(t *testing.T) {
 	equip := func(k resources.ItemKind) {
 		w.equipCommand(p, resources.EquipCommandContents{Op: resources.EquipOpEquip, Item: k})
 	}
-	p.bank.Add(resources.ItemCopperSword, 1)
-	p.bank.Add(resources.ItemIronSword, 1)
-	p.bank.Add(resources.ItemCopperShield, 1)
-	p.bank.Add(resources.ItemOakShortbow, 1)
-	p.bank.Add(resources.ItemOakArrows, 120)
+	p.backpack.Add(resources.ItemCopperSword, 1)
+	p.backpack.Add(resources.ItemIronSword, 1)
+	p.backpack.Add(resources.ItemCopperShield, 1)
+	p.backpack.Add(resources.ItemOakShortbow, 1)
+	p.backpack.Add(resources.ItemOakArrows, 120)
 
 	equip(resources.ItemCopperSword)
-	if p.equipment[resources.SlotWeapon].Kind != resources.ItemCopperSword || p.bank.Count(resources.ItemTrainingSword) != 1 {
-		t.Fatal("swapping swords should put the old one in the bank")
+	if p.equipment[resources.SlotWeapon].Kind != resources.ItemCopperSword || p.backpack.Count(resources.ItemTrainingSword) != 1 {
+		t.Fatal("swapping swords should put the old one in the backpack")
 	}
 	equip(resources.ItemIronSword)
 	if p.equipment[resources.SlotWeapon].Kind != resources.ItemCopperSword {
@@ -251,15 +251,15 @@ func TestEquipping(t *testing.T) {
 	if p.equipment[resources.SlotWeapon].Kind != resources.ItemOakShortbow {
 		t.Fatal("bow not equipped")
 	}
-	if _, ok := p.equipment[resources.SlotShield]; ok || p.bank.Count(resources.ItemCopperShield) != 1 {
+	if _, ok := p.equipment[resources.SlotShield]; ok || p.backpack.Count(resources.ItemCopperShield) != 1 {
 		t.Error("a two-handed bow should put the shield away")
 	}
 	equip(resources.ItemOakArrows)
-	if p.equipment[resources.SlotAmmo].Count != 120 || p.bank.Count(resources.ItemOakArrows) != 0 {
+	if p.equipment[resources.SlotAmmo].Count != 120 || p.backpack.Count(resources.ItemOakArrows) != 0 {
 		t.Errorf("all arrows should go to the ammo slot: %+v", p.equipment[resources.SlotAmmo])
 	}
 	w.equipCommand(p, resources.EquipCommandContents{Op: resources.EquipOpUnequip, Slot: resources.SlotAmmo})
-	if p.bank.Count(resources.ItemOakArrows) != 120 {
+	if p.backpack.Count(resources.ItemOakArrows) != 120 {
 		t.Error("unequipping should return the arrows")
 	}
 }

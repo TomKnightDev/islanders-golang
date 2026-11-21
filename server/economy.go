@@ -79,10 +79,7 @@ func (w *World) tickStores() {
 func (w *World) collectForSale(p *player) {
 	j := p.job
 	k := resources.ItemKind(j.action.spec.Material)
-	want := p.bank.Count(k)
-	if j.action.spec.Goal == resources.GoalAmount {
-		want = min(want, j.action.spec.Amount-j.action.count)
-	}
+	want := min(p.bank.Count(k), j.action.spec.Amount-j.action.count)
 	added := moveItems(&p.bank, &p.backpack, k, want)
 	if added == 0 {
 		w.finishAction(p, activityNoGoods)
@@ -122,8 +119,8 @@ func (w *World) sellCarried(p *player) {
 
 // --- the shop ---
 
-// shopCommand shows a store's prices or buys from it. Purchases go straight
-// to the bank; the player must have found the village.
+// shopCommand shows a store's prices or buys from it. Purchases go into the
+// backpack; the player must have found the village.
 func (w *World) shopCommand(p *player, c resources.ShopCommandContents) {
 	st := w.storeIn(c.Village)
 	if st == nil || !p.found[c.Village] {
@@ -153,28 +150,28 @@ func (w *World) shopBuy(p *player, k resources.ItemKind, count int) {
 	if resources.IsPiece(k) {
 		quality = resources.StarterQuality
 	}
-	added := w.give(&p.bank, k, count, quality)
+	added := w.give(&p.backpack, k, count, quality)
 	p.coins -= added * price
 	p.invDirty = true
 }
 
 // storeContents is a store's prices: what it sells and, for anything the
-// player has in the bank, what it pays.
+// player carries, what it pays. The bank stays private unless they're at it.
 func (w *World) storeContents(p *player, st *store) resources.StoreContents {
 	c := resources.StoreContents{Village: st.village}
 	seen := map[resources.ItemKind]bool{}
 	for _, s := range resources.StoreStock {
 		seen[s.Item] = true
-		q := p.bank.AverageQuality(s.Item)
+		q := p.backpack.AverageQuality(s.Item)
 		if q == 0 {
 			q = resources.StarterQuality
 		}
 		c.Prices = append(c.Prices, resources.StorePrices{Item: s.Item, Buy: resources.StorePrice(s), Pays: st.pays(s.Item, q)})
 	}
-	for _, s := range p.bank.Stacks {
+	for _, s := range p.backpack.Stacks {
 		if !seen[s.Kind] && resources.Sellable(s.Kind) {
 			seen[s.Kind] = true
-			c.Prices = append(c.Prices, resources.StorePrices{Item: s.Kind, Pays: st.pays(s.Kind, p.bank.AverageQuality(s.Kind))})
+			c.Prices = append(c.Prices, resources.StorePrices{Item: s.Kind, Pays: st.pays(s.Kind, p.backpack.AverageQuality(s.Kind))})
 		}
 	}
 	return c

@@ -17,10 +17,8 @@ bank bars ──► craft equipment at the anvil ──► better equipment make
 - **Finding places.** A village, mine, named forest or farm is *found* once the player walks into it (within its radius plus 2 tiles). Everyone starts having found their spawn village.
 - **Adding actions.** The Actions window holds just the list and its buttons: **Add action**, **Start**/**Stop**. **Add action** opens a separate picker window, which stays open while you add several. It shows one row per action (Mine, Chop, Farm, Smelt, Fletch), at the **nearest found place** for it, with its distance and a button per material. Materials the player doesn't have the level for are greyed out with the level needed. Actions with no place found yet say what to look for.
 - **The action list** holds up to 5 actions. Clicking an action adds it to the end. Entries can be moved up or down or removed.
-- **Goals.** Each action has one goal, which the player can change at any time:
-  - **Until the bank has N** of the action's product. New actions start at 100 (ore, logs, crops), 50 bars or 500 arrows.
-  - **For N minutes** of the character's time. The timer pauses while the list is stopped.
-- **Running the list.** **Start** works through the list from the top. When an action's goal is met, or its time is up, the character first banks anything it's carrying, then moves on. When the list is empty the character goes idle.
+- **Goals.** Each action has an amount: gather, make, defeat or sell **10, 20, 50 or 100**, picked with buttons and changeable at any time. New actions start at 10. Only what the action itself does counts, not what's already in the bank.
+- **Running the list.** **Start** works through the list from the top. When an action's goal is met, the character first banks anything it's carrying, then moves on. When the list is empty the character goes idle.
 - **Stop** halts the list where it is; anything carried stays in the backpack. Reordering or removing the running action stops it and starts whatever is now first.
 - **Clicks never cancel the list.** While the list is running, clicking the map does nothing. While it's stopped, clicking walks, which is how the player explores and finds new places.
 - **Failures.** If the bank account is full, or there's no way to a place, the list stops and the action stays in it, so the player can sort things out and press Start again.
@@ -57,9 +55,14 @@ All three work the same way, from *nodes* of the chosen material at the action's
 
 Mines are ranked by distance from the spawn: the nearest has copper and iron, the next iron and gold, the farthest gold and mithril. Forests have whichever trees grew there. Every farm has rows of cabbages and cotton. Only trees inside a named forest can be chopped; scattered trees are scenery. A node with no walkable tile beside it is skipped.
 
+### The bank
+- Each player has their own bank account, shared between every village's bank. Its contents are only visible at a bank: walk up to one with the action list stopped and the **Bank** window opens, showing the backpack beside the bank.
+- In the Bank window, items move either way (gear and tools piece by piece, materials one at a time or all at once, or **Deposit all**), and gear in the bank can be equipped. Elsewhere, gear is equipped from the backpack.
+- Away from a bank, everything a character collects or buys goes into the backpack. Jobs still bank on their own as they work.
+
 ### Mining
 - Mines only at the action's mine. The character walks to a free rock there and mines one **iron ore** per swing.
-- When the backpack is full, or when it holds enough to reach the goal, the character walks to the nearest bank, deposits, and goes back to the same rock.
+- When the backpack is full, or the goal is met, the character walks to the nearest bank, deposits, and goes back to the same rock.
 - **One miner per rock.** A rock is reserved when a miner is sent to it. If every rock in the mine is taken or depleted, the character waits at the mine until one frees up.
 - **Rocks run out.** Each rock holds a random amount of ore. When it's empty it turns into a depleted rock and respawns after a delay. The miner moves on to the nearest free rock in the same mine.
 
@@ -84,7 +87,7 @@ Both run in trips from the action's village:
 
 ### Stamina and inns
 - **Stamina** is used up by work: each gathering swing, smelt or fletch costs 1, each attack costs 2. Walking and idling cost nothing.
-- **Running out.** At the start of the next step, a character with no stamina lets go of their rock, tree or enemy and walks to the **nearest inn**. They relax there, recovering 2 stamina a second, until fully rested, then go back to the same action; progress such as kills carries over. Time at the inn doesn't count towards a "for N minutes" goal.
+- **Running out.** At the start of the next step, a character with no stamina lets go of their rock, tree or enemy and walks to the **nearest inn**. They relax there, recovering 2 stamina a second, until fully rested, then go back to the same action; progress such as kills carries over.
 - **Inns** are the only place stamina comes back. Every village has one (the open-doored wooden building).
 - **The Stamina skill** trains like any other: each point spent gives 1 XP. Max stamina is 100 at level 1 and rises by 5 a level, to 590 at level 99. At level 1 that's about 13 minutes of mining or 8 of fighting before a rest.
 - Stamina shows under health in the Info window.
@@ -119,7 +122,7 @@ A new name gets a **Create your character** screen before the character exists. 
 
 ### Camps and fighting
 - **Four camps**, easiest nearest the spawn: Goblin Camp (goblins, level 3), Bandit Hideout (bandits, 12), Orc Warband (orc warriors, 28), Skeleton Ruins (skeletons, 45). Each is a dirt clearing with huts (ruins for the skeletons) and four enemies who wander near home, with health bars when hurt.
-- **Fight** is an action at a found camp, with a goal of N kills or a time. Each trip: deposit at the bank (resting first below 60% health until 90%), take up to 10 food, walk to the camp, then fight enemy after enemy. One player fights an enemy at a time; it respawns 30 s after it dies.
+- **Fight** is an action at a found camp, with a goal of N kills. Each trip: deposit at the bank (resting first below 60% health until 90%), take up to 10 food, walk to the camp, then fight enemy after enemy. One player fights an enemy at a time; it respawns 30 s after it dies.
 - **In a fight** the character eats below half health, retreats to the bank to rest when below 30% with no food left, and banks the loot when the backpack is full. A bow user runs out of arrows and the list stops.
 - **Loot** per kill rolls each drop in the enemy's table: their tier's ore and bars, food, arrows, and small chances of each piece of their tier's gear.
 - Fights run on the fighter's clock.
@@ -262,7 +265,7 @@ Each phase is one PR and leaves the game playable.
 1. **World objects.** Object layer, town and iron rocks in world generation, shared passability check, fix for last-column tiles, pre-rendered map. *(done)*
 2. **Server-authoritative movement.** World goroutine and command channel, click-to-move with A*, client renders the server's position, WASD removed. *(done)*
 3. **Mining and inventory.** Action system with the rules above, the mining loop, rock claiming, depletion and respawn, backpack and per-player bank accounts, an inventory window, and new messages for inventory, action state and rock state. *(done)*
-4. **Smelting and the action window.** Found places, a 5-action list with amount or time goals, smelting trips. *(done)*
+4. **Smelting and the action window.** Found places, a 5-action list with amount or time goals, smelting trips. *(done; time goals were later removed in favour of fixed amounts)*
 5. **Skills, tiers and farms.** Five skills levelling 1–99, four material tiers each, farms with cabbages and cotton, a nearest-place action window, a skills window. *(done)*
 6. **Equipment, combat and health.** Five combat skills, health and food, an equipment window, four tiered camps with enemies and loot, the Fight action. Also half-speed actions and walking, a draggable camera, the route line, and a Windows build in CI. *(done)*
 6½. **Classes and magic.** A character creation screen with four classes (warrior, archer, mage, necromancer), the Magic skill and mage and necromancer staves. Also full speed while offline, doubled action timers, and stamina with inns in every village. *(done)*

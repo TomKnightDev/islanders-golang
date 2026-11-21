@@ -149,6 +149,17 @@ func connect(w http.ResponseWriter, r *http.Request) {
 			}
 			world.Do(func(w *World) { w.equipCommand(p, cmd) })
 
+		case resources.BankCommandMessage:
+			if p == nil {
+				continue
+			}
+			var cmd resources.BankCommandContents
+			if err := resources.DecodeContents(message.Contents, &cmd); err != nil {
+				log.Println("Bad bank command:", err)
+				continue
+			}
+			world.Do(func(w *World) { w.bankCommand(p, cmd) })
+
 		case resources.UpdateMessage:
 			// Older clients still send their own position. The server owns
 			// movement now, so these are ignored.

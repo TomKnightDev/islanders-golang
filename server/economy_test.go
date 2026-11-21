@@ -8,7 +8,7 @@ import (
 )
 
 func sellIron(amount int) resources.ActionSpec {
-	return resources.ActionSpec{Kind: resources.ActionSell, Material: string(resources.ItemIronOre), Place: testVillage, Goal: resources.GoalAmount, Amount: amount}
+	return resources.ActionSpec{Kind: resources.ActionSell, Material: string(resources.ItemIronOre), Place: testVillage, Amount: amount}
 }
 
 func TestStartingCoins(t *testing.T) {
@@ -84,17 +84,17 @@ func TestShop(t *testing.T) {
 	}
 
 	buy(testVillage, resources.ItemCabbage, 4)
-	if p.bank.Count(resources.ItemCabbage) != 4 || p.coins != resources.StartingCoins-4*price {
-		t.Errorf("bought 4 cabbages: bank %d, coins %d", p.bank.Count(resources.ItemCabbage), p.coins)
+	if p.backpack.Count(resources.ItemCabbage) != 4 || p.coins != resources.StartingCoins-4*price {
+		t.Errorf("bought 4 cabbages: backpack %d, coins %d", p.backpack.Count(resources.ItemCabbage), p.coins)
 	}
 	buy(testVillage, resources.ItemIronSword, 1)
-	if p.bank.Count(resources.ItemIronSword) != 0 {
+	if p.backpack.Count(resources.ItemIronSword) != 0 {
 		t.Error("the store doesn't sell iron swords")
 	}
 	p.coins = price*2 + 1
 	buy(testVillage, resources.ItemCabbage, 10)
-	if p.bank.Count(resources.ItemCabbage) != 6 || p.coins != 1 {
-		t.Errorf("should only buy what's affordable: bank %d, coins %d", p.bank.Count(resources.ItemCabbage), p.coins)
+	if p.backpack.Count(resources.ItemCabbage) != 6 || p.coins != 1 {
+		t.Errorf("should only buy what's affordable: backpack %d, coins %d", p.backpack.Count(resources.ItemCabbage), p.coins)
 	}
 	delete(p.found, testVillage)
 	p.coins = 100
@@ -145,9 +145,9 @@ func TestSellValidation(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
 	for _, a := range []resources.ActionSpec{
-		{Kind: resources.ActionSell, Material: "nothing", Place: testVillage, Goal: resources.GoalAmount, Amount: 5},
-		{Kind: resources.ActionSell, Material: string(resources.ItemIronOre), Place: testMine, Goal: resources.GoalAmount, Amount: 5},
-		{Kind: resources.ActionSell, Material: string(resources.ItemIronOre), Place: testVillage, Goal: resources.GoalAmount, Amount: 0},
+		{Kind: resources.ActionSell, Material: "nothing", Place: testVillage, Amount: 5},
+		{Kind: resources.ActionSell, Material: string(resources.ItemIronOre), Place: testMine, Amount: 5},
+		{Kind: resources.ActionSell, Material: string(resources.ItemIronOre), Place: testVillage, Amount: 0},
 	} {
 		addAction(w, p, a)
 	}

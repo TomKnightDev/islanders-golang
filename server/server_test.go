@@ -122,7 +122,7 @@ func TestEndToEndActionList(t *testing.T) {
 	// Smelting with an empty bank runs, then stops with nothing to smelt.
 	conn.WriteJSON(resources.NewActionCommandMessage(resources.ActionCommandContents{
 		Op:     resources.ActionOpAdd,
-		Action: resources.ActionSpec{Kind: resources.ActionSmelt, Material: "copper", Place: village, Goal: resources.GoalAmount, Amount: 10},
+		Action: resources.ActionSpec{Kind: resources.ActionSmelt, Material: "copper", Place: village, Amount: 10},
 	}))
 	conn.WriteJSON(resources.NewActionCommandMessage(resources.ActionCommandContents{Op: resources.ActionOpStart}))
 	readUntil(t, conn, 10*time.Second, func(m *resources.Message) bool {

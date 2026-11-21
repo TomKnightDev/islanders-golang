@@ -26,6 +26,7 @@ const (
 	StoreMessage              MessageType = "storeMessage"           // server: a village store's prices
 	DevCommandMessage         MessageType = "devCommandMessage"      // client: change the game speed (dev servers only)
 	DevStateMessage           MessageType = "devStateMessage"        // server: dev tools on or off, and the game speed
+	BankCommandMessage        MessageType = "bankCommandMessage"     // client: move items at the bank
 )
 
 type Message struct {
@@ -141,6 +142,9 @@ func NewMoveRequestMessage(clientId uint16, contents MoveRequestContents) *Messa
 // account, current activity, found places or action list changes.
 type InventoryContents struct {
 	Backpack Inventory `json:"backpack"`
+	// AtBank names the village whose bank the player is standing at, with
+	// the action list stopped. Bank is only filled in then.
+	AtBank   string    `json:"atBank"`
 	Bank     Inventory `json:"bank"`
 	Activity string    `json:"activity"`
 	// ActionSeconds is how long the current action takes, or 0 if it has no

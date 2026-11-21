@@ -302,10 +302,13 @@ const (
 )
 
 type EquipCommandContents struct {
-	Op   string    `json:"op"`
-	Item ItemKind  `json:"item"` // for equip: the kind, used when ID is 0 (the best of that kind is equipped)
-	ID   uint32    `json:"id"`   // for equip: the exact piece from the bank
-	Slot EquipSlot `json:"slot"` // for unequip
+	Op   string   `json:"op"`
+	Item ItemKind `json:"item"` // for equip: the kind, used when ID is 0 (the best of that kind is equipped)
+	ID   uint32   `json:"id"`   // for equip: the exact piece
+	// FromBank equips from the bank instead of the backpack; only allowed
+	// while standing at a bank.
+	FromBank bool      `json:"fromBank"`
+	Slot     EquipSlot `json:"slot"` // for unequip
 }
 
 func NewEquipCommandMessage(c EquipCommandContents) *Message {

@@ -532,62 +532,75 @@ func (w *World) defeat(p *player, m *mob) {
 
 // --- equipment ---
 
-// equipCommand equips an item from the bank or puts one back.
+// equipCommand equips an item from the backpack (or, standing at a bank,
+// from the bank) or takes one off.
 func (w *World) equipCommand(p *player, c resources.EquipCommandContents) {
 	defer func() { p.invDirty = true }()
+	_, atBank := w.bankOpen(p)
 	switch c.Op {
 	case resources.EquipOpUnequip:
-		w.unequip(p, c.Slot)
+		// Into the backpack, or the bank if the backpack's full and the
+		// player is at one.
+		if !w.unequip(p, c.Slot, &p.backpack) && atBank {
+			w.unequip(p, c.Slot, &p.bank)
+		}
 	case resources.EquipOpEquip:
+		src := &p.backpack
+		if c.FromBank {
+			if !atBank {
+				return
+			}
+			src = &p.bank
+		}
 		kind := c.Item
 		if c.ID != 0 {
 			kind = ""
-			for _, s := range p.bank.Stacks {
+			for _, s := range src.Stacks {
 				if s.ID == c.ID {
 					kind = s.Kind
 				}
 			}
 		}
 		def, ok := resources.Equipment[kind]
-		if !ok || p.bank.Count(kind) == 0 || p.level(def.Skill) < def.Level {
+		if !ok || src.Count(kind) == 0 || p.level(def.Skill) < def.Level {
 			return
 		}
 		// Two hands or a shield, not both.
-		if def.TwoHanded && !w.unequip(p, resources.SlotShield) {
+		if def.TwoHanded && !w.unequip(p, resources.SlotShield, src) {
 			return
 		}
 		if def.Slot == resources.SlotShield {
-			if weapon, ok := p.equipment[resources.SlotWeapon]; ok && resources.Equipment[weapon.Kind].TwoHanded && !w.unequip(p, resources.SlotWeapon) {
+			if weapon, ok := p.equipment[resources.SlotWeapon]; ok && resources.Equipment[weapon.Kind].TwoHanded && !w.unequip(p, resources.SlotWeapon, src) {
 				return
 			}
 		}
 		if def.Slot == resources.SlotAmmo {
-			w.equipAmmo(p, kind)
+			w.equipAmmo(p, kind, src)
 			return
 		}
 		var piece resources.Stack
 		if c.ID != 0 {
-			piece, ok = p.bank.TakeID(c.ID)
+			piece, ok = src.TakeID(c.ID)
 		} else {
-			piece, ok = takeBest(&p.bank, kind)
+			piece, ok = takeBest(src, kind)
 		}
 		if !ok {
 			return
 		}
-		if !w.unequip(p, def.Slot) {
-			p.bank.AddStack(piece) // no room to put the old one away
+		if !w.unequip(p, def.Slot, src) {
+			src.AddStack(piece) // no room to put the old one away
 			return
 		}
 		p.equipment[def.Slot] = piece
 	}
 }
 
-// equipAmmo moves every arrow of a kind from the bank to the ammo slot, the
+// equipAmmo moves every arrow of a kind from src to the ammo slot, the
 // stack taking their average quality. The ammo slot has no size limit.
-func (w *World) equipAmmo(p *player, kind resources.ItemKind) {
+func (w *World) equipAmmo(p *player, kind resources.ItemKind, src *resources.Inventory) {
 	cur, ok := p.equipment[resources.SlotAmmo]
 	if ok && cur.Kind != kind {
-		if !w.unequip(p, resources.SlotAmmo) {
+		if !w.unequip(p, resources.SlotAmmo, src) {
 			return
 		}
 		cur, ok = resources.Stack{}, false
@@ -596,7 +609,7 @@ func (w *World) equipAmmo(p *player, kind resources.ItemKind) {
 		cur = resources.Stack{Kind: kind}
 	}
 	quality := cur.Quality * cur.Count
-	for _, part := range p.bank.Take(kind, p.bank.Count(kind)) {
+	for _, part := range src.Take(kind, src.Count(kind)) {
 		quality += part.Quality * part.Count
 		cur.Count += part.Count
 	}
@@ -606,15 +619,15 @@ func (w *World) equipAmmo(p *player, kind resources.ItemKind) {
 	}
 }
 
-// unequip puts a slot's item back in the bank, if there's room. An empty
-// slot counts as done.
-func (w *World) unequip(p *player, slot resources.EquipSlot) bool {
+// unequip puts a slot's item into dst, if there's room. An empty slot
+// counts as done.
+func (w *World) unequip(p *player, slot resources.EquipSlot, dst *resources.Inventory) bool {
 	cur, ok := p.equipment[slot]
 	if !ok {
 		return true
 	}
-	if added := p.bank.AddStack(cur); added < cur.Count {
-		p.bank.Remove(cur.Kind, added)
+	if added := dst.AddStack(cur); added < cur.Count {
+		dst.Remove(cur.Kind, added)
 		return false
 	}
 	delete(p.equipment, slot)

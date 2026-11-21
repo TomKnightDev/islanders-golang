@@ -30,21 +30,6 @@ func TestTiredMinerRestsAtInnThenCarriesOn(t *testing.T) {
 	}
 }
 
-func TestInnTimeDoesntCountTowardsTimeGoals(t *testing.T) {
-	w := jobWorld(t)
-	w.nodes[tile{10, 10}].amount = 100
-	p := joinAt(t, w, "tom", tile{9, 10})
-	p.stamina = 1
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Material: "copper", Place: testMine, Goal: resources.GoalTime, Minutes: 5})
-	run(w, p)
-	runUntil(t, w, ticks(swingTime)*3, "to the inn", func() bool { return p.job != nil && p.job.state == stateWalkToInn })
-	ran := p.actions[0].ran
-	runUntil(t, w, 40000, "rested", func() bool { return p.job == nil || !p.job.atInn() })
-	if p.actions[0].ran != ran {
-		t.Errorf("the time goal advanced while at the inn: %d -> %d", ran, p.actions[0].ran)
-	}
-}
-
 func TestTiredFighterLetsGoAndComesBack(t *testing.T) {
 	w := campWorld(t)
 	p := fighter(t, w, "tom", 40)

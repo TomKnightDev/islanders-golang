@@ -4,7 +4,6 @@ import (
 	"math"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/tomknightdev/islanders-golang/resources"
 )
@@ -65,11 +64,11 @@ func joinAt(t *testing.T, w *World, name string, at tile) *player {
 }
 
 func mineFor(amount int) resources.ActionSpec {
-	return resources.ActionSpec{Kind: resources.ActionMine, Material: "copper", Place: testMine, Goal: resources.GoalAmount, Amount: amount}
+	return resources.ActionSpec{Kind: resources.ActionMine, Material: "copper", Place: testMine, Amount: amount}
 }
 
 func smeltFor(amount int) resources.ActionSpec {
-	return resources.ActionSpec{Kind: resources.ActionSmelt, Material: "copper", Place: testVillage, Goal: resources.GoalAmount, Amount: amount}
+	return resources.ActionSpec{Kind: resources.ActionSmelt, Material: "copper", Place: testVillage, Amount: amount}
 }
 
 func addAction(w *World, p *player, a resources.ActionSpec) {
@@ -115,22 +114,16 @@ func TestMineUntilBankHasAmount(t *testing.T) {
 	}
 }
 
-func TestMineForTime(t *testing.T) {
+func TestMineCountsWhatItGathers(t *testing.T) {
 	w := jobWorld(t)
 	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Material: "copper", Place: testMine, Goal: resources.GoalTime, Minutes: 1})
+	p.bank.Add(resources.ItemCopperOre, 50) // already banked ore doesn't count
+	addAction(w, p, mineFor(10))
 	run(w, p)
-
-	runUntil(t, w, ticks(swingTime)*40, "time up", func() bool { return p.job != nil && p.job.finishing })
-	if p.job.state != stateWalkToBank {
-		t.Fatal("time up should send the miner to bank what's carried")
-	}
-	runUntil(t, w, 5000, "finished", func() bool { return len(p.actions) == 0 })
-	// One minute of swings is at most 60s/swingTime ore.
-	maxOre := int(time.Minute / swingTime)
-	if got := ore(p.bank); got < maxOre-3 || got > maxOre || !p.backpack.Empty() {
-		t.Errorf("bank %d ore, backpack %v", got, p.backpack.Stacks)
+	runUntil(t, w, ticks(swingTime)*40, "finished", func() bool { return len(p.actions) == 0 })
+	if got := ore(p.bank); got != 60 || !p.backpack.Empty() {
+		t.Errorf("bank %d ore, want 50 + 10; backpack %v", got, p.backpack.Stacks)
 	}
 }
 
@@ -252,11 +245,10 @@ func TestActionValidation(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
 	bad := []resources.ActionSpec{
-		{Kind: resources.ActionMine, Material: "copper", Place: testVillage, Goal: resources.GoalAmount, Amount: 5}, // not a mine
-		{Kind: resources.ActionSmelt, Material: "copper", Place: testMine, Goal: resources.GoalAmount, Amount: 5},   // no blacksmith
-		{Kind: resources.ActionMine, Material: "copper", Place: testMine, Goal: resources.GoalAmount, Amount: 0},
-		{Kind: resources.ActionMine, Material: "copper", Place: testMine, Goal: resources.GoalTime, Minutes: 0},
-		{Kind: "fish", Place: testMine, Goal: resources.GoalAmount, Amount: 5},
+		{Kind: resources.ActionMine, Material: "copper", Place: testVillage, Amount: 5}, // not a mine
+		{Kind: resources.ActionSmelt, Material: "copper", Place: testMine, Amount: 5},   // no blacksmith
+		{Kind: resources.ActionMine, Material: "copper", Place: testMine, Amount: 0},
+		{Kind: "fish", Place: testMine, Amount: 5},
 	}
 	for _, a := range bad {
 		addAction(w, p, a)
@@ -295,22 +287,20 @@ func TestReorderAndRemove(t *testing.T) {
 	}
 }
 
-func TestStopPausesTimer(t *testing.T) {
+func TestStopPausesProgress(t *testing.T) {
 	w := jobWorld(t)
 	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Material: "copper", Place: testMine, Goal: resources.GoalTime, Minutes: 5})
+	addAction(w, p, mineFor(50))
 	run(w, p)
-	for i := 0; i < 100; i++ {
-		w.tick()
-	}
+	runUntil(t, w, ticks(swingTime)*20, "some ore", func() bool { return p.actions[0].count >= 2 })
 	w.actionCommand(p, resources.ActionCommandContents{Op: resources.ActionOpStop})
-	ran := p.actions[0].ran
-	for i := 0; i < 1000; i++ {
+	count := p.actions[0].count
+	for i := 0; i < ticks(swingTime)*3; i++ {
 		w.tick()
 	}
-	if p.actions[0].ran != ran || p.job != nil || p.running {
-		t.Errorf("stopped list kept running: ran %d -> %d", ran, p.actions[0].ran)
+	if p.actions[0].count != count || p.job != nil || p.running {
+		t.Errorf("stopped list kept running: count %d -> %d", count, p.actions[0].count)
 	}
 }
 
@@ -472,11 +462,11 @@ func TestInventoryReportsListAndPlaces(t *testing.T) {
 		t.Errorf("found %v", inv.Found)
 	}
 	p.bank.Add(resources.ItemCopperBar, 4)
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionSmelt, Material: "copper", Place: testVillage, Goal: resources.GoalTime, Minutes: 2})
+	addAction(w, p, smeltFor(20))
 	addAction(w, p, smeltFor(10))
 	w.tick()
 	inv = lastInventory(t, s)
-	if len(inv.Actions) != 2 || inv.Actions[0].SecondsLeft != 120 || inv.Actions[1].Banked != 4 {
+	if len(inv.Actions) != 2 || inv.Actions[0].Amount != 20 || inv.Actions[1].Done != 0 {
 		t.Errorf("actions %+v", inv.Actions)
 	}
 }
@@ -519,7 +509,7 @@ func TestChopWoodFellsAndRegrowsTrees(t *testing.T) {
 		}
 	}
 	p := joinAt(t, w, "tom", tile{14, 16})
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionChop, Material: "oak", Place: testWood, Goal: resources.GoalAmount, Amount: 5})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionChop, Material: "oak", Place: testWood, Amount: 5})
 	run(w, p)
 
 	runUntil(t, w, 20000, "chopped 5 logs", func() bool { return len(p.actions) == 0 })
@@ -545,7 +535,7 @@ func TestFletchArrows(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
 	p.bank.Add(resources.ItemOakLogs, 25)
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFletch, Material: "oak", Place: testVillage, Goal: resources.GoalAmount, Amount: 200})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFletch, Material: "oak", Place: testVillage, Amount: 200})
 	run(w, p)
 
 	runUntil(t, w, 20000, "fletched", func() bool { return len(p.actions) == 0 })
@@ -569,7 +559,7 @@ func TestFletchingFillsBackpackWithStackedArrows(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
 	p.bank.Add(resources.ItemOakLogs, 20)
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFletch, Material: "oak", Place: testVillage, Goal: resources.GoalAmount, Amount: 1000})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFletch, Material: "oak", Place: testVillage, Amount: 1000})
 	run(w, p)
 	runUntil(t, w, 20000, "heading back with arrows", func() bool {
 		return p.job != nil && p.job.state == stateWalkToBank && arrows(p.backpack) > 0
@@ -582,7 +572,7 @@ func TestFletchingFillsBackpackWithStackedArrows(t *testing.T) {
 func TestHigherTiersNeedLevels(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
-	iron := resources.ActionSpec{Kind: resources.ActionSmelt, Material: "iron", Place: testVillage, Goal: resources.GoalAmount, Amount: 5}
+	iron := resources.ActionSpec{Kind: resources.ActionSmelt, Material: "iron", Place: testVillage, Amount: 5}
 	addAction(w, p, iron)
 	if len(p.actions) != 0 {
 		t.Fatal("level 1 smith shouldn't be able to smelt iron")
@@ -594,7 +584,7 @@ func TestHigherTiersNeedLevels(t *testing.T) {
 	}
 	// A mine only offers the ore it has.
 	p.xp[resources.SkillMining] = resources.XPForLevel(99)
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Material: "gold", Place: testMine, Goal: resources.GoalAmount, Amount: 5})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Material: "gold", Place: testMine, Amount: 5})
 	if len(p.actions) != 1 {
 		t.Error("Test Mine has no gold")
 	}
@@ -657,11 +647,11 @@ func TestFarming(t *testing.T) {
 	p.found["Test Farm"] = true
 	p.bank.Remove(resources.ItemCabbage, startingFood) // start without the starting kit's food
 
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFarm, Material: "cotton", Place: "Test Farm", Goal: resources.GoalAmount, Amount: 3})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFarm, Material: "cotton", Place: "Test Farm", Amount: 3})
 	if len(p.actions) != 0 {
 		t.Fatal("cotton needs Farming 10")
 	}
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFarm, Material: "cabbage", Place: "Test Farm", Goal: resources.GoalAmount, Amount: 3})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFarm, Material: "cabbage", Place: "Test Farm", Amount: 3})
 	run(w, p)
 	runUntil(t, w, 20000, "harvested", func() bool { return len(p.actions) == 0 })
 	if got := p.bank.Count(resources.ItemCabbage); got != 3 {

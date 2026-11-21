@@ -102,7 +102,3 @@ func (w *World) tickRelaxing(p *player) {
 		w.setActivity(p, activityIdle)
 	}
 }
-
-// atInn reports whether the job is on an inn trip, which doesn't count
-// towards an action's time goal.
-func (j *job) atInn() bool { return j.state == stateWalkToInn || j.state == stateRelaxing }

@@ -9,8 +9,9 @@ import (
 	"github.com/tomknightdev/islanders-golang/resources"
 )
 
-// Inventory shows what the character is carrying and what's in the bank.
-// What it's doing is shown by the action bar instead.
+// Inventory shows the character's coins and what they're carrying. The
+// bank is only seen in the bank window, standing at a bank. What the
+// character is doing is shown by the action bar instead.
 type Inventory struct {
 	mgr      *renderer.Manager
 	Contents resources.InventoryContents
@@ -38,8 +39,6 @@ func (inv *Inventory) Update() error {
 	}
 	imgui.Separator()
 	section("Backpack", inv.Contents.Backpack)
-	imgui.Separator()
-	section("Bank", inv.Contents.Bank)
 	inventoryTop = imgui.WindowPos().Y
 	imgui.End()
 

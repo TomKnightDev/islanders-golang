@@ -48,6 +48,7 @@ var SkillsWindow = &gui.Skills{}
 var EquipmentWindow = &gui.Equipment{}
 var FightPanel = &gui.FightPanel{}
 var ShopWindow = &gui.Shop{}
+var BankWindow = &gui.Bank{}
 var DevWindow *gui.Dev
 var world *entities.World
 var client = &Client{}
@@ -245,10 +246,15 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	})
 	g.Gui = append(g.Gui, DevWindow)
 
-	EquipmentWindow = gui.NewEquipment(g.renderMgr, func(c resources.EquipCommandContents) {
+	sendEquip := func(c resources.EquipCommandContents) {
 		go func() { client.SendChan <- resources.NewEquipCommandMessage(c) }()
-	})
+	}
+	EquipmentWindow = gui.NewEquipment(g.renderMgr, sendEquip)
 	g.Gui = append(g.Gui, EquipmentWindow)
+	BankWindow = gui.NewBank(g.renderMgr, func(c resources.BankCommandContents) {
+		go func() { client.SendChan <- resources.NewBankCommandMessage(c) }()
+	}, sendEquip)
+	g.Gui = append(g.Gui, BankWindow)
 	g.Gui = append(g.Gui, gui.NewCameraControls(client.Player))
 
 	// Action commands go through one queue so they reach the server in the
@@ -416,6 +422,7 @@ func receiveInventoryMessage(message *resources.Message) {
 	SkillsWindow.SetState(contents.Skills)
 	ShopWindow.SetState(contents)
 	EquipmentWindow.SetState(contents)
+	BankWindow.SetState(contents)
 	if client.Player != nil {
 		client.Player.Health, client.Player.MaxHealth = contents.Health, contents.MaxHealth
 		client.Player.Stamina, client.Player.MaxStamina = contents.Stamina, contents.MaxStamina

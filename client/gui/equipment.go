@@ -10,7 +10,8 @@ import (
 )
 
 // Equipment shows what the character wears and wields, their combat stats,
-// and the gear in the bank they can equip.
+// and the gear in the backpack they can equip. Gear in the bank is equipped
+// from the bank window.
 type Equipment struct {
 	mgr   *renderer.Manager
 	send  func(resources.EquipCommandContents)
@@ -54,39 +55,45 @@ func (e *Equipment) Update() error {
 	imgui.Text(fmt.Sprintf("%s  ·  accuracy +%d  ·  max hit %d  ·  armour +%d",
 		style, b.Accuracy, resources.MaxHit(e.level(strengthSkill), b.Strength), b.Defence))
 
-	// Gear and tools waiting in the bank, piece by piece; arrows by kind.
 	imgui.Separator()
-	imgui.Text("Equip from the bank")
+	imgui.Text("Equip from the backpack")
+	if !equipButtons(e.state.Backpack, false, e.level, e.send) {
+		dimmed("No gear in the backpack. Gear in the bank is equipped at a bank.")
+	}
+	imgui.End()
+	return nil
+}
+
+// equipButtons offers a button per piece of gear in an inventory (arrows
+// once per kind), greyed out where the player lacks the level. It reports
+// whether there was any gear.
+func equipButtons(inv resources.Inventory, fromBank bool, level func(resources.Skill) int, send func(resources.EquipCommandContents)) bool {
 	any := false
 	seenAmmo := map[resources.ItemKind]bool{}
-	for i, s := range e.state.Bank.Stacks {
+	for i, s := range inv.Stacks {
 		def, ok := resources.Equipment[s.Kind]
 		if !ok || seenAmmo[s.Kind] {
 			continue
 		}
 		any = true
 		label := fmt.Sprintf("%s q%d", resources.ItemNames[s.Kind], s.Quality)
-		cmd := resources.EquipCommandContents{Op: resources.EquipOpEquip, Item: s.Kind, ID: s.ID}
+		cmd := resources.EquipCommandContents{Op: resources.EquipOpEquip, Item: s.Kind, ID: s.ID, FromBank: fromBank}
 		if def.Slot == resources.SlotAmmo {
 			seenAmmo[s.Kind] = true
-			label = fmt.Sprintf("%s x%d q%d", resources.ItemNames[s.Kind], e.state.Bank.Count(s.Kind), e.state.Bank.AverageQuality(s.Kind))
+			label = fmt.Sprintf("%s x%d q%d", resources.ItemNames[s.Kind], inv.Count(s.Kind), inv.AverageQuality(s.Kind))
 			cmd.ID = 0
 		}
-		id := fmt.Sprintf("##bank%d", i)
-		if have := e.level(def.Skill); have < def.Level {
+		id := fmt.Sprintf("##equip%v%d", fromBank, i)
+		if have := level(def.Skill); have < def.Level {
 			button(fmt.Sprintf("%s (%s %d)%s", label, resources.SkillNames[def.Skill], def.Level, id), false)
 		} else if button(label+id, true) {
-			e.send(cmd)
+			send(cmd)
 		}
 		if imgui.IsItemHovered() {
 			imgui.SetTooltip(gearTooltip(def, s))
 		}
 	}
-	if !any {
-		dimmed("No gear in the bank. Camps drop it and stores sell copper gear.")
-	}
-	imgui.End()
-	return nil
+	return any
 }
 
 // slots draws a list of slots, each with what's in it and a Remove button.

@@ -85,8 +85,8 @@ func TestEquipASpecificPiece(t *testing.T) {
 	p.xp[resources.SkillAttack] = resources.XPForLevel(15)
 	rough := w.newPiece(resources.ItemIronSword, 20)
 	fine := w.newPiece(resources.ItemIronSword, 80)
-	p.bank.AddStack(rough)
-	p.bank.AddStack(fine)
+	p.backpack.AddStack(rough)
+	p.backpack.AddStack(fine)
 
 	w.equipCommand(p, resources.EquipCommandContents{Op: resources.EquipOpEquip, ID: rough.ID})
 	if got := p.equipment[resources.SlotWeapon]; got.ID != rough.ID || got.Quality != 20 {
@@ -96,8 +96,8 @@ func TestEquipASpecificPiece(t *testing.T) {
 	if got := p.equipment[resources.SlotWeapon]; got.ID != fine.ID {
 		t.Errorf("equipping by kind should pick the best: %+v", got)
 	}
-	if _, ok := p.bank.TakeID(rough.ID); !ok {
-		t.Error("the swapped-out sword should be back in the bank with its ID")
+	if _, ok := p.backpack.TakeID(rough.ID); !ok {
+		t.Error("the swapped-out sword should be back in the backpack with its ID")
 	}
 }
 
