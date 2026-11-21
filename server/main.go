@@ -8,10 +8,17 @@ import (
 	"net/http"
 )
 
-var addr = flag.String("addr", GetOutboundIP().String()+":8285", "http service address")
+var (
+	addr = flag.String("addr", GetOutboundIP().String()+":8285", "http service address")
+	dev  = flag.Bool("dev", false, "allow dev tools, such as changing the game speed, for testing")
+)
 
 func main() {
 	flag.Parse()
+	world.dev = *dev
+	if *dev {
+		log.Println("Dev tools are on")
+	}
 	go world.Run()
 
 	fmt.Println(*addr)

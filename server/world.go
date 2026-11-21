@@ -153,6 +153,8 @@ type World struct {
 	stations map[resources.ObjectKind]map[string]tile // crafting stations by kind, then village
 	mobs     []*mob
 	ticks    int
+	dev      bool // started with -dev: dev tools such as game speed are allowed
+	speed    int  // world ticks per real tick; 1 is normal
 	cmds     chan command
 }
 
@@ -176,8 +178,28 @@ func (w *World) Run() {
 		case c := <-w.cmds:
 			c(w)
 		case <-ticker.C:
-			w.tick()
+			// At game speed N the world advances N ticks for each real one.
+			for i := 0; i < max(w.speed, 1); i++ {
+				w.tick()
+			}
 		}
+	}
+}
+
+// devState is what clients are told about dev tools.
+func (w *World) devState() *resources.Message {
+	return resources.NewDevStateMessage(resources.DevStateContents{Enabled: w.dev, Speed: max(w.speed, 1)})
+}
+
+// devCommand changes the game speed, on servers started with -dev only.
+func (w *World) devCommand(c resources.DevCommandContents) {
+	if !w.dev {
+		return
+	}
+	w.speed = min(max(c.Speed, 1), resources.MaxGameSpeed)
+	w.broadcast(w.devState())
+	for _, p := range w.players {
+		p.invDirty = true // re-send action timings at the new speed
 	}
 }
 
@@ -251,6 +273,7 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 	}))
 	sess.push(w.inventoryMessage(p))
 	sess.push(w.mobSnapshot())
+	sess.push(w.devState())
 	for _, other := range w.players {
 		if other != p {
 			sess.push(other.updateMessage())

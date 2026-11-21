@@ -28,14 +28,16 @@ build-client-windows: $(BINARY_DIR)
 	go build -trimpath -ldflags "-s -w -H windowsgui -extldflags=-static" \
 	-o $(BINARY_DIR)/windows/Islanders.exe ./client/
 
+# Local servers start with dev tools on (game speed, from the client's F12
+# window). The production deploy doesn't use -dev.
 run-server:
-	go run ./server/ -addr "$(SERVER_ADDR)"
+	go run ./server/ -addr "$(SERVER_ADDR)" -dev
 
 run-client:
 	go run ./client/
 
 server: build-server
-	./$(SERVER_BIN) -addr "$(SERVER_ADDR)"
+	./$(SERVER_BIN) -addr "$(SERVER_ADDR)" -dev
 
 client: build-client
 	./$(CLIENT_BIN)

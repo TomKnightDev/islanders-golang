@@ -16,7 +16,7 @@ Game design, the planned gathering/crafting loop and the phase plan live in `doc
 
 ```bash
 make build          # builds bin/server and bin/client
-make run-server     # go run ./server/ -addr 0.0.0.0:8285 (override with SERVER_ADDR=...)
+make run-server     # go run ./server/ -addr 0.0.0.0:8285 -dev (override with SERVER_ADDR=...)
 make run-client     # go run ./client/
 make build-client-windows   # bin/windows/Islanders.exe; needs brew install mingw-w64. CI also builds it and uploads it as the Islanders-windows artifact
 go build ./server/  # what CI runs, plus the Windows client build
@@ -78,7 +78,7 @@ Every push to `master` triggers `.github/workflows/server.yml`. It builds the se
 - **Mac app on the Desktop.** `~/Desktop/Islanders.app` wraps the client: `Contents/MacOS/Islanders` is a shell script that `cd`s to `~/Library/Application Support/Islanders` (so `imgui.ini` can be written) and runs `Contents/MacOS/islanders-client`, built with `go build -o … ./client/`; `Contents/Info.plist` names it. After rebuilding, re-sign it with `codesign --force --deep -s - ~/Desktop/Islanders.app`.
 - **Matching the live server.** To build a client for what's deployed while a branch has unmerged changes, check out the deployed commit (`gh run list --branch master --workflow server.yml` shows it) in a temporary `git worktree` and build there.
 - **Windows.** `make build-client-windows`, zipped to `~/Desktop/Islanders-windows.zip`, or the CI artifact.
-- **Local testing.** `./bin/server -addr 127.0.0.1:8285`, then **Play locally**. A new server or client must be paired: protocol changes mean an old client can't play a new server and vice versa.
+- **Local testing.** `./bin/server -addr 127.0.0.1:8285 -dev`, then **Play locally**. `-dev` allows dev tools: **F12** in the client opens a Dev window to set the game speed (1×–20×, `World.speed` world ticks per real tick; action timings sent to the client are divided by it so bars stay in real time). The production container runs without `-dev`, so the live server refuses dev commands. A new server or client must be paired: protocol changes mean an old client can't play a new server and vice versa.
 
 ## Known pitfalls
 

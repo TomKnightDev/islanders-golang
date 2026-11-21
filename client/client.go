@@ -48,6 +48,7 @@ var SkillsWindow = &gui.Skills{}
 var EquipmentWindow = &gui.Equipment{}
 var FightPanel = &gui.FightPanel{}
 var ShopWindow = &gui.Shop{}
+var DevWindow *gui.Dev
 var world *entities.World
 var client = &Client{}
 
@@ -134,6 +135,11 @@ func handleMessages(g *Game) {
 		select {
 		case message := <-client.RecvChan:
 			switch message.MessageType {
+			case resources.DevStateMessage:
+				var dev resources.DevStateContents
+				if err := resources.DecodeContents(message.Contents, &dev); err == nil && DevWindow != nil {
+					DevWindow.SetState(dev)
+				}
 			case resources.StoreMessage:
 				var st resources.StoreContents
 				if err := resources.DecodeContents(message.Contents, &st); err == nil {
@@ -233,6 +239,11 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	})
 	InventoryWindow.OpenShop = ShopWindow.Open
 	g.Gui = append(g.Gui, ShopWindow)
+
+	DevWindow = gui.NewDev(func(c resources.DevCommandContents) {
+		go func() { client.SendChan <- resources.NewDevCommandMessage(c) }()
+	})
+	g.Gui = append(g.Gui, DevWindow)
 
 	EquipmentWindow = gui.NewEquipment(g.renderMgr, func(c resources.EquipCommandContents) {
 		go func() { client.SendChan <- resources.NewEquipCommandMessage(c) }()

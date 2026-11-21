@@ -872,7 +872,8 @@ func (w *World) addXP(p *player, s resources.Skill, xp int) {
 }
 
 func (w *World) inventoryMessage(p *player) *resources.Message {
-	seconds := func(t int) float64 { return float64(t) * tickInterval.Seconds() }
+	// Real seconds, so the client's bars and timers match at any game speed.
+	seconds := func(t int) float64 { return float64(t) * tickInterval.Seconds() / float64(max(w.speed, 1)) }
 	var found []string
 	for _, pl := range w.wm.Places {
 		if p.found[pl.Name] {

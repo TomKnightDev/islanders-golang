@@ -24,6 +24,8 @@ const (
 	FightMessage              MessageType = "fightMessage"           // server: a fight the player is in
 	ShopCommandMessage        MessageType = "shopCommandMessage"     // client: view a store or buy from it
 	StoreMessage              MessageType = "storeMessage"           // server: a village store's prices
+	DevCommandMessage         MessageType = "devCommandMessage"      // client: change the game speed (dev servers only)
+	DevStateMessage           MessageType = "devStateMessage"        // server: dev tools on or off, and the game speed
 )
 
 type Message struct {
