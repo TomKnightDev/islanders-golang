@@ -17,6 +17,7 @@ const (
 	smeltTime       = 12 * time.Second // per bar
 	fletchTime      = 8 * time.Second  // per log (or other ingredient)
 	smithTime       = 10 * time.Second // per bar, making gear at the anvil
+	weaveTime       = 8 * time.Second  // per cotton, weaving cloth; also per leather or cloth making armour
 	improveTime     = 10 * time.Second // per improving attempt
 	rockRespawn     = 30 * time.Second
 	rockOreMin      = 5
@@ -58,6 +59,9 @@ const (
 	activityToFletch = "Walking to the fletcher"
 	activityFletch   = "Fletching"
 	activityNoLogs   = "Nothing to fletch with"
+	activityToTailor = "Walking to the tailor"
+	activityWeaving  = "Weaving"
+	activityNoCotton = "No cotton to weave"
 
 	activityBankFull = "Bank full"
 	activityNoPath   = "Can't get there"
@@ -110,6 +114,10 @@ var recipes = map[resources.ActionKind]*recipe{
 	resources.ActionFletch: {
 		step:    fletchTime,
 		station: resources.ObjectFletcher, working: activityFletch, walking: activityToFletch, noInput: activityNoLogs,
+	},
+	resources.ActionWeave: {
+		step:    weaveTime,
+		station: resources.ObjectTailor, working: activityWeaving, walking: activityToTailor, noInput: activityNoCotton,
 	},
 }
 
@@ -187,6 +195,8 @@ const (
 	stateWalkToInn // too tired: off to rest, then back to the action
 	stateRelaxing
 	stateWalkToVisit // visiting: walking to a village building
+	stateStalking    // hunting: walking up to a deer
+	stateHunting     // hunting: trying to bring it down
 )
 
 // job is the running state of the action at the top of the list.
@@ -241,7 +251,7 @@ func (w *World) initNodes() {
 			if pl := w.placeAt(t, resources.PlaceVillage); pl != nil {
 				w.stores[pl.Name] = &store{village: pl.Name, t: t, demand: map[resources.ItemKind]float64{}}
 			}
-		case resources.ObjectBlacksmith, resources.ObjectFletcher, resources.ObjectAnvil:
+		case resources.ObjectBlacksmith, resources.ObjectFletcher, resources.ObjectAnvil, resources.ObjectTailor:
 			if pl := w.placeAt(t, resources.PlaceVillage); pl != nil {
 				if w.stations[o.Kind] == nil {
 					w.stations[o.Kind] = map[string]tile{}
@@ -471,6 +481,11 @@ func (w *World) startNextAction(p *player) {
 		w.goBank(p) // a fighting trip starts at the bank, collecting food
 		return
 	}
+	if resources.IsHunting(a.spec.Kind) {
+		p.job = &job{action: a, material: m, skill: skill}
+		w.seekDeer(p)
+		return
+	}
 	if resources.IsVisit(a.spec.Kind) {
 		b := resources.Building(a.spec.Material)
 		t, _ := w.buildingTile(b, a.spec.Place)
@@ -637,6 +652,8 @@ func (w *World) atBank(p *player) {
 	switch {
 	case resources.IsCombat(j.action.spec.Kind):
 		w.atBankForFight(p)
+	case resources.IsHunting(j.action.spec.Kind):
+		w.seekDeer(p)
 	case j.gather != nil:
 		w.gatherNext(p) // back to the same node if it's still free
 	default:
@@ -751,6 +768,10 @@ func (w *World) tickJob(p *player) {
 			w.seekEnemy(p)
 			return
 		}
+		if resources.IsHunting(j.action.spec.Kind) {
+			w.seekDeer(p)
+			return
+		}
 		if n := w.nearestFreeNode(p, j.node, j.action.spec.Place, j.material.ID, j.gather); n != nil {
 			w.gatherNext(p)
 		} else {
@@ -782,6 +803,9 @@ func (w *World) tickJob(p *player) {
 
 	case stateRelaxing:
 		w.tickRelaxing(p)
+
+	case stateStalking, stateHunting:
+		w.tickHunt(p, arrived)
 
 	case stateWalkToVisit:
 		if !arrived {
@@ -951,6 +975,7 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 		Coins:         p.coins,
 		MaxStamina:    p.maxStamina(),
 		Equipment:     p.equippedItems(),
+		Class:         p.class,
 		Making:        making,
 		MakeLeft:      makeLeft,
 		Improving:     p.improving.piece(),

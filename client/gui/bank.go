@@ -76,7 +76,7 @@ func (b *Bank) Update() error {
 
 	imgui.Separator()
 	imgui.Text("Equip from the bank")
-	if !equipButtons(b.state.Bank, true, b.level, b.sendEquip) {
+	if !equipButtons(b.state.Bank, true, b.state.Class, b.level, b.sendEquip) {
 		dimmed("No gear in the bank.")
 	}
 	imgui.End()

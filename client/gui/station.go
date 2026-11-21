@@ -10,7 +10,8 @@ import (
 	"github.com/tomknightdev/islanders-golang/resources"
 )
 
-// Station is the window at an anvil or the fletcher's hut, with two tabs:
+// Station is the window at an anvil, the fletcher's hut or the tailor, with
+// two tabs:
 // Make gear from what's in the backpack, or Improve a piece in it.
 type Station struct {
 	mgr   *renderer.Manager
@@ -32,7 +33,7 @@ func NewStation(mgr *renderer.Manager, send func(resources.StationCommandContent
 func (m *Station) SetState(c resources.InventoryContents) {
 	m.state = c
 	at := resources.Building("")
-	if c.At == resources.BuildingAnvil || c.At == resources.BuildingFletcher {
+	if c.At == resources.BuildingAnvil || c.At == resources.BuildingFletcher || c.At == resources.BuildingTailor {
 		at = c.At
 	}
 	if at != m.shownAt {
@@ -64,10 +65,7 @@ func (m *Station) Update() error {
 		return nil
 	}
 	w, h := screenSize()
-	title := "Anvil"
-	if m.shownAt == resources.BuildingFletcher {
-		title = "Fletcher"
-	}
+	title := stationTitles[m.shownAt]
 	placeWindow(title, imgui.Vec2{X: w / 2, Y: h / 2}, imgui.Vec2{X: 0.5, Y: 0.5})
 	imgui.BeginV(title, &m.open, imgui.WindowFlagsAlwaysAutoResize)
 	imgui.Text(fmt.Sprintf("The %s %s", m.state.AtVillage, resources.BuildingNames[m.shownAt]))
@@ -219,11 +217,7 @@ func (m *Station) improveTab() {
 		}
 	}
 	if !any {
-		what := "metal gear or tools"
-		if m.shownAt == resources.BuildingFletcher {
-			what = "bows or staves"
-		}
-		dimmed("No " + what + " in your backpack.")
+		dimmed("No " + stationMakes[m.shownAt] + " in your backpack.")
 	}
 	imgui.EndGroup()
 
@@ -285,3 +279,16 @@ func (m *Station) improveDetails(piece resources.Stack) {
 }
 
 func (m *Station) Draw(screen *ebiten.Image) {}
+
+var stationTitles = map[resources.Building]string{
+	resources.BuildingAnvil:    "Anvil",
+	resources.BuildingFletcher: "Fletcher",
+	resources.BuildingTailor:   "Tailor",
+}
+
+// stationMakes is what each station makes and improves.
+var stationMakes = map[resources.Building]string{
+	resources.BuildingAnvil:    "metal gear or tools",
+	resources.BuildingFletcher: "bows or staves",
+	resources.BuildingTailor:   "leather or cloth armour",
+}

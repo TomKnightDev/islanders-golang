@@ -16,14 +16,16 @@ const (
 	SkillFarming     Skill = "farming"
 	SkillSmithing    Skill = "smithing"
 	SkillFletching   Skill = "fletching"
-	SkillStamina     Skill = "stamina" // how long a character can work before resting at an inn
-	SkillRepair      Skill = "repair"  // mending worn gear and tools anywhere, for less quality lost
+	SkillStamina     Skill = "stamina"   // how long a character can work before resting at an inn
+	SkillRepair      Skill = "repair"    // mending worn gear and tools anywhere, for less quality lost
+	SkillTailoring   Skill = "tailoring" // weaving cloth, and making and improving leather and cloth armour
+	SkillHunting     Skill = "hunting"   // stalking deer in the forests for leather and venison
 )
 
 // Skills lists every skill in the order the skills window shows them.
 var Skills = []Skill{
 	SkillMelee, SkillStrength, SkillDefence, SkillRanged, SkillMagic, SkillHitpoints,
-	SkillMining, SkillWoodcutting, SkillFarming, SkillSmithing, SkillFletching,
+	SkillMining, SkillWoodcutting, SkillFarming, SkillHunting, SkillSmithing, SkillFletching, SkillTailoring,
 	SkillStamina, SkillRepair,
 }
 
@@ -41,6 +43,8 @@ var SkillNames = map[Skill]string{
 	SkillFletching:   "Fletching",
 	SkillStamina:     "Stamina",
 	SkillRepair:      "Repair",
+	SkillTailoring:   "Tailoring",
+	SkillHunting:     "Hunting",
 }
 
 const MaxLevel = 99

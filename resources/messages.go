@@ -169,6 +169,7 @@ type InventoryContents struct {
 	Coins      int            `json:"coins"`
 	MaxStamina int            `json:"maxStamina"`
 	Equipment  []EquippedItem `json:"equipment"`
+	Class      ClassID        `json:"class"` // which armour the player can wear
 
 	// At an anvil or the fletcher's hut: Making is the item being made
 	// (with MakeLeft still to make), Improving the piece being improved (0

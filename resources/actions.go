@@ -10,10 +10,12 @@ const (
 	ActionFletch ActionKind = "fletch" // turn banked logs into arrows at a village fletcher
 	ActionFight  ActionKind = "fight"  // fight enemies at a camp for loot
 	ActionVisit  ActionKind = "visit"  // walk to a village building and open its window
+	ActionWeave  ActionKind = "weave"  // turn banked cotton into cloth at a village tailor
+	ActionHunt   ActionKind = "hunt"   // stalk deer in a forest for leather and venison
 )
 
 // ActionKinds lists the actions in the order the action window shows them.
-var ActionKinds = []ActionKind{ActionFight, ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionFletch, ActionVisit}
+var ActionKinds = []ActionKind{ActionFight, ActionMine, ActionChop, ActionFarm, ActionHunt, ActionSmelt, ActionFletch, ActionWeave, ActionVisit}
 
 // ActionNames is the verb for each action; with a material it reads
 // "Mine copper", "Fletch oak arrows".
@@ -25,6 +27,8 @@ var ActionNames = map[ActionKind]string{
 	ActionFletch: "Fletch",
 	ActionFight:  "Fight",
 	ActionVisit:  "Visit",
+	ActionWeave:  "Weave",
+	ActionHunt:   "Hunt",
 }
 
 // ActionPlaceKind is the kind of place each action happens at.
@@ -36,6 +40,8 @@ var ActionPlaceKind = map[ActionKind]PlaceKind{
 	ActionFletch: PlaceVillage,
 	ActionFight:  PlaceCamp,
 	ActionVisit:  PlaceVillage,
+	ActionWeave:  PlaceVillage,
+	ActionHunt:   PlaceForest,
 }
 
 // ActionSkill is the skill each action trains, and which sets its speed
@@ -46,12 +52,17 @@ var ActionSkill = map[ActionKind]Skill{
 	ActionFarm:   SkillFarming,
 	ActionSmelt:  SkillSmithing,
 	ActionFletch: SkillFletching,
+	ActionWeave:  SkillTailoring,
+	ActionHunt:   SkillHunting,
 	ActionFight:  SkillMelee, // enemies aren't level-gated; combat skills train from the fight itself
 }
 
 // Gathering actions take materials from nodes at a place; crafting actions
 // turn one item from the bank into another.
 func IsGathering(k ActionKind) bool { return k == ActionMine || k == ActionChop || k == ActionFarm }
+
+// IsHunting reports whether an action is hunting, whose goal counts deer.
+func IsHunting(k ActionKind) bool { return k == ActionHunt }
 
 // IsCombat reports whether an action is fighting, whose goal counts kills.
 func IsCombat(k ActionKind) bool { return k == ActionFight }
@@ -68,12 +79,13 @@ const (
 	BuildingBank     Building = "bank"
 	BuildingStore    Building = "store"
 	BuildingInn      Building = "inn"
-	BuildingAnvil    Building = "anvil"    // improving metal gear and tools
-	BuildingFletcher Building = "fletcher" // improving bows and staves
+	BuildingAnvil    Building = "anvil"    // making and improving metal gear and tools
+	BuildingFletcher Building = "fletcher" // making and improving bows and staves
+	BuildingTailor   Building = "tailor"   // making and improving leather and cloth armour
 )
 
 // Buildings lists them in the order the action window offers them.
-var Buildings = []Building{BuildingBank, BuildingStore, BuildingInn, BuildingAnvil, BuildingFletcher}
+var Buildings = []Building{BuildingBank, BuildingStore, BuildingInn, BuildingAnvil, BuildingFletcher, BuildingTailor}
 
 var BuildingNames = map[Building]string{
 	BuildingBank:     "bank",
@@ -81,6 +93,7 @@ var BuildingNames = map[Building]string{
 	BuildingInn:      "inn",
 	BuildingAnvil:    "anvil",
 	BuildingFletcher: "fletcher",
+	BuildingTailor:   "tailor",
 }
 
 // GoalAmounts are the amounts the action window offers: how many to gather,
@@ -139,6 +152,12 @@ var ActionMaterials = map[ActionKind][]Material{
 		{ID: "pine", Label: "pine arrows", Level: 15, XP: 28, Item: ItemPineArrows, Inputs: []Ingredient{{ItemPineLogs, 1}}, Makes: ArrowsPerLog},
 		{ID: "maple", Label: "maple arrows", Level: 30, XP: 50, Item: ItemMapleArrows, Inputs: []Ingredient{{ItemMapleLogs, 1}}, Makes: ArrowsPerLog},
 		{ID: "darkoak", Label: "dark oak arrows", Level: 45, XP: 90, Item: ItemDarkOakArrows, Inputs: []Ingredient{{ItemDarkOakLogs, 1}}, Makes: ArrowsPerLog},
+	},
+	ActionWeave: {
+		{ID: "cloth", Label: "cloth", Level: 1, XP: 15, Item: ItemCloth, Inputs: []Ingredient{{ItemCotton, 2}}},
+	},
+	ActionHunt: {
+		{ID: "deer", Label: "deer", Level: 1, XP: 30, Item: ItemLeather},
 	},
 }
 

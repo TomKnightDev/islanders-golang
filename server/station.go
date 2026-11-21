@@ -22,6 +22,7 @@ const (
 var stationStep = map[resources.Building]time.Duration{
 	resources.BuildingAnvil:    smithTime,
 	resources.BuildingFletcher: fletchTime,
+	resources.BuildingTailor:   weaveTime,
 }
 
 const (
@@ -299,7 +300,7 @@ func (w *World) tickImprove(p *player) {
 	w.spendStamina(p, staminaPerStep)
 	p.invDirty = true
 
-	if w.wearTool(p, s.recipe.Tool) {
+	if w.wearPiece(p, s.recipe.Tool, resources.ImproveToolWear) {
 		w.stopStation(p, p.stationNote+" Your tool broke.")
 		return
 	}
@@ -308,25 +309,6 @@ func (w *World) tickImprove(p *player) {
 		return
 	}
 	w.startAttempt(p)
-}
-
-// wearTool damages the tool in a belt slot and reports whether it broke
-// (and is gone).
-func (w *World) wearTool(p *player, slot resources.EquipSlot) bool {
-	tool, ok := p.equipment[slot]
-	if !ok {
-		return false
-	}
-	tool.Damage += resources.ImproveToolWear
-	if tool.Damage >= 100 {
-		delete(p.equipment, slot)
-		if p.sess != nil {
-			p.sess.push(resources.NewChatMessage(p.id, fmt.Sprintf("Your %s broke.", resources.ItemNames[tool.Kind])))
-		}
-		return true
-	}
-	p.equipment[slot] = tool
-	return false
 }
 
 // improveXP is the XP for one attempt before any bonus: the recipe's XP

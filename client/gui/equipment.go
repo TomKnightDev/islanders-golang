@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/gabstv/ebiten-imgui/renderer"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -61,7 +62,7 @@ func (e *Equipment) Update() error {
 
 	imgui.Separator()
 	imgui.Text("Equip from the backpack")
-	if !equipButtons(e.state.Backpack, false, e.level, e.send) {
+	if !equipButtons(e.state.Backpack, false, e.state.Class, e.level, e.send) {
 		dimmed("No gear in the backpack. Gear in the bank is equipped at a bank.")
 	}
 	imgui.End()
@@ -71,7 +72,8 @@ func (e *Equipment) Update() error {
 // equipButtons offers a button per piece of gear in an inventory (arrows
 // once per kind), greyed out where the player lacks the level. It reports
 // whether there was any gear.
-func equipButtons(inv resources.Inventory, fromBank bool, level func(resources.Skill) int, send func(resources.EquipCommandContents)) bool {
+func equipButtons(inv resources.Inventory, fromBank bool, classID resources.ClassID, level func(resources.Skill) int, send func(resources.EquipCommandContents)) bool {
+	class, _ := resources.FindClass(classID)
 	any := false
 	seenAmmo := map[resources.ItemKind]bool{}
 	for i, s := range inv.Stacks {
@@ -88,6 +90,13 @@ func equipButtons(inv resources.Inventory, fromBank bool, level func(resources.S
 			cmd.ID = 0
 		}
 		id := fmt.Sprintf("##equip%v%d", fromBank, i)
+		if !class.CanWear(s.Kind) {
+			button(fmt.Sprintf("%s (not for %ss)%s", label, strings.ToLower(class.Name), id), false)
+			if imgui.IsItemHovered() {
+				imgui.SetTooltip(fmt.Sprintf("%s armour. %ss wear %s armour.", resources.ArmourNames[def.Armour], class.Name, strings.ToLower(resources.ArmourNames[class.Armour])))
+			}
+			continue
+		}
 		if have := level(def.Skill); have < def.Level {
 			button(fmt.Sprintf("%s (%s %d)%s", label, resources.SkillNames[def.Skill], def.Level, id), false)
 		} else if button(label+id, true) {

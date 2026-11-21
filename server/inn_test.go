@@ -46,10 +46,9 @@ func TestVisitValidation(t *testing.T) {
 		t.Errorf("invalid visits accepted: %d", len(p.actions))
 	}
 	for _, b := range resources.Buildings {
-		addAction(w, p, visitAction(b))
-	}
-	if len(p.actions) != len(resources.Buildings) {
-		t.Errorf("visits to the village's buildings refused: %d", len(p.actions))
+		if !w.validAction(p, visitAction(b)) {
+			t.Errorf("a visit to the village's %s was refused", b)
+		}
 	}
 }
 

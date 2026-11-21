@@ -423,12 +423,12 @@ func (g *worldGen) reserve(c tile, radius int) {
 // north side and houses around it.
 //
 //	I . B . T . S A G      B bank, S blacksmith, A anvil, F fletcher, I inn, G store
-//	# # # # # # # # #      C cottage, T tower (first village only)
+//	# # # # # # # # #      C cottage, L tailor, T tower (first village only)
 //	# # # # # # # # #      # cobblestone square
 //	# # # # # # # # #
 //	# # # # # # # # #
 //	# # # # # # # # #
-//	. C . . F . . C .
+//	. C . . F . . L .
 func (g *worldGen) buildVillage(c tile, name string, capital bool) {
 	g.reserve(c, 7)
 	for y := c.y - 2; y <= c.y+2; y++ {
@@ -447,7 +447,7 @@ func (g *worldGen) buildVillage(c tile, name string, capital bool) {
 	}
 	g.objects[g.at(tile{c.x - 3, c.y + 3})] = resources.TileCottage
 	g.addObject(tile{c.x, c.y + 3}, resources.ObjectFletcher)
-	g.objects[g.at(tile{c.x + 3, c.y + 3})] = resources.TileCottage
+	g.addObject(tile{c.x + 3, c.y + 3}, resources.ObjectTailor) // was a cottage; same tile, so the island doesn't move
 	g.places = append(g.places, resources.Place{Name: name, Kind: resources.PlaceVillage, X: c.x, Y: c.y, Radius: 6})
 }
 

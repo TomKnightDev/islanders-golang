@@ -102,14 +102,18 @@ Both run in trips from the action's village:
 Every player has a coin balance in their bank account (50 to start; never lost on defeat), shown in the inventory window. Coins come from enemy drops and selling to village general stores; they go on inn stays (5 coins, or a free half-speed rest in the stable) and buying from stores. Each village has a general store (the gold-door building): visit it to buy into the backpack or sell from it. Full details and what comes next are in `docs/ECONOMY.md`.
 
 ### Classes
-A new name gets a **Create your character** screen before the character exists. Each class sets the character's look, starting gear and a head start; after that anyone can train anything.
+A new name gets a **Create your character** screen before the character exists. Each class sets the character's look, starting gear, a head start, and the **armour type** it can wear; otherwise anyone can train anything.
 
-| Class | Look (characters.png) | Starts with | Head start |
-|---|---|---|---|
-| Warrior | grey knight (8, 0) | copper sword and shield | Melee 5, Strength 5, Defence 3 |
-| Archer | elf (0, 24) | oak shortbow, 150 oak arrows | Ranged 5, Defence 3 |
-| Mage | lavender wizard (16, 0) | apprentice staff | Magic 5, Defence 3 |
-| Necromancer | necromancer (0, 16) | bone staff | Magic 5, Defence 3 |
+| Class | Look (characters.png) | Starts with | Head start | Armour |
+|---|---|---|---|---|
+| Warrior | grey knight (8, 0) | copper sword and shield | Melee 5, Strength 5, Defence 3 | metal |
+| Archer | elf (0, 24) | oak shortbow, 150 oak arrows, leather body | Ranged 5, Defence 3 | leather |
+| Mage | lavender wizard (16, 0) | apprentice staff, cloth robe | Magic 5, Defence 3 | cloth |
+| Necromancer | necromancer (0, 16) | bone staff, cloth robe | Magic 5, Defence 3 | cloth |
+
+- **Armour is locked to the class:** a warrior can't wear leather or cloth, and so on. Weapons and tools aren't. Leather (cap and body) and cloth (hood and robe) come in four tiers like metal (Defence 1/15/30/45), guarding a little less since archers and casters fight from range.
+- **Leather** comes from hunting deer and from enemies; **cloth** is woven from cotton at a tailor, or taken from enemies. Tailors make both into armour (see Making gear). Stores sell the first tier of each.
+- **Battle wear:** each attack may wear the weapon by 1% (15% chance at quality 50), and each hit taken may wear a random piece of armour (30%). Quality 0 wears half again as often, quality 100 half as often. Chat warns at 75%, and a piece breaks at 100%: repair it first (see Repairing).
 
 ### Magic
 - **Staves** are two-handed and cast from up to 5 tiles with no ammo, using Magic for accuracy and max hit; each point of damage gives 4 Magic XP.
@@ -156,9 +160,15 @@ Every village has a bank building, and every player has their own bank account, 
 ### Making gear
 - Gear is made by hand at the station, not from the action list: **Visit** the village's **anvil** or **fletcher** (or walk up to it) and use the **Make** tab of its window. It lists the recipes made there that the player has the level for, a row per metal or wood; picking one shows the ingredients needed against what's in the backpack, and the tool. **Make 1**, **Make 5** or **Make all** then works through them, the pieces going into the backpack. Making stops when done, out of materials, too tired, or on walking away.
 - **Anvil** (Smithing, hammer), from each metal's bars: the five tools (1 bar), helmets (2), swords (2), shields (3) and bodies (4). Copper needs level 1 plus 0–8 depending on the piece; iron, gold and mithril start at 15, 30 and 45.
+- **Tailor** (Tailoring, needle): leather caps and bodies from leather, cloth hoods and robes from cloth, four tiers each (Tailoring 1/15/30/45, plus 2 for caps and hoods, 6 for bodies and robes), using 2–5 or 4–10 units. **Weave** (an action at the tailor, like Smelt) turns 2 cotton into 1 cloth.
 - **Fletcher** (Fletching, knife): shortbows (3 logs) and staves (2 logs and a bar of the matching tier: oak with copper, pine with iron, maple with gold, dark oak with mithril), at the wood's level plus 4 (bows) or 8 (staves). Arrows are still a Fletch action.
 - A piece takes 10 s per bar at the anvil, or 8 s per log or bar at the fletcher, scaled by skill and tool; without the tool it's half speed.
 - **New gear comes out rough:** quality around half the maker's level (plus a tenth of their tool's quality; halved again with no tool), and never better than the ingredients.
+
+### Hunting
+- Four deer wander each named forest (at random reachable spots, chosen each time the server starts). **Hunt** is an action at a forest: the character stalks the nearest free deer, then makes an attempt every 6 s (scaled by Hunting). The chance is 50% at level 1, plus 0.8% a level, up to 90%.
+- A catch gives 1–2 leather (quality like gathering without a tool penalty: about 10 + 0.6 × level) and 1 venison (food, heals 25), and pays Hunting XP plus any Stamina XP from the stalk. A miss sends the deer running and pays nothing. Deer never fight back, and respawn 30 s after being caught.
+- Fighting trips take any food from the bank, best healing first.
 
 ### Repairing
 - Any worn piece (wear shows as "40% worn") can be repaired anywhere with its **Repair** button: in the Equipment window for what's worn, the Inventory window for the backpack, and the Bank window at a bank.
@@ -215,7 +225,7 @@ The island is generated by `server/worldgen.go` from a fixed seed, so it's the s
 
 - **Island.** Noise shaped by a falloff from the centre gives an irregular coastline: deep sea, shallow water, a sandy beach, then grassland. The map edge is always open sea.
 - **Rivers** start in the highlands and wander downhill to the sea. They're one tile wide up high and two wide lower down, and where they meander over flat ground they spread into small lakes. Rivers can't be walked through.
-- **Villages** (4): a cobbled square with the bank, blacksmith and anvil on its north side, a fletcher's hut on its south side, an inn, a general store, and cottages around it. The village nearest the middle, Oakhaven, has a tower and is where everyone spawns.
+- **Villages** (4): a cobbled square with the bank, blacksmith and anvil on its north side, a fletcher's hut and a tailor (which replaced a cottage, on the same tile so the island didn't move) on its south side, an inn, a general store, and a cottage. The village nearest the middle, Oakhaven, has a tower and is where everyone spawns.
 - **Mines** (3): a patch of rubble-strewn ground with six rocks, on higher ground away from villages.
 - **Roads** link the villages (a minimum spanning tree) and run from each mine to its nearest village. They prefer open ground, merge where they meet, clear trees in their way, and cross rivers on wooden bridges.
 - **Farms** (3): a tilled field a short walk from a village, with rows of cabbages and cotton, each row beside a walkable one. Roads lead to them and never cut through the crops.

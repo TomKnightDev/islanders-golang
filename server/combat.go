@@ -91,6 +91,8 @@ func (m *mob) update() resources.ServerEntityUpdateContents {
 }
 
 func (w *World) initMobs() {
+	w.mobs = nil
+	defer w.initDeer()
 	for _, o := range w.wm.Objects {
 		if o.Kind != resources.ObjectSpawn {
 			continue
@@ -265,11 +267,24 @@ func (w *World) atBankForFight(p *player) {
 	w.collectFood(p)
 }
 
+// collectFood takes up to foodPerTrip food from the bank, best healing
+// first.
 func (w *World) collectFood(p *player) {
-	n := min(foodPerTrip, p.backpack.FreeSlots(), p.bank.Count(resources.ItemCabbage))
-	if n > 0 {
-		moveItems(&p.bank, &p.backpack, resources.ItemCabbage, n)
-		p.invDirty = true
+	foods := []resources.ItemKind{}
+	for k, d := range resources.Items {
+		if d.Heal > 0 && p.bank.Count(k) > 0 {
+			foods = append(foods, k)
+		}
+	}
+	slices.SortFunc(foods, func(a, b resources.ItemKind) int { return resources.Items[b].Heal - resources.Items[a].Heal })
+	left := foodPerTrip
+	for _, k := range foods {
+		if left == 0 {
+			break
+		}
+		got := moveItems(&p.bank, &p.backpack, k, min(left, p.bank.Count(k)))
+		left -= got
+		p.invDirty = p.invDirty || got > 0
 	}
 	pl := w.place(p.job.action.spec.Place)
 	if pl == nil || !w.moveTo(p, tile{pl.X, pl.Y}) {
@@ -431,6 +446,7 @@ func (w *World) playerAttack(p *player, m *mob) bool {
 		}
 		p.invDirty = true
 	}
+	w.wearInBattle(p, resources.SlotWeapon, weaponWearChance)
 	roll := resources.AttackRoll(p.level(attackSkill), b.Accuracy)
 	if rand.Float64() >= resources.HitChance(roll, resources.DefenceRoll(m.kind.Defence, 0)) {
 		w.fightEvent(p, m, resources.AttackerPlayer, false, 0)
@@ -470,6 +486,7 @@ func (w *World) enemyAttack(m *mob, p *player) {
 		return
 	}
 	dmg := rand.Intn(m.kind.MaxHit + 1)
+	w.wearArmour(p)
 	p.health -= dmg
 	p.healthDirty = true
 	p.invDirty = true
@@ -571,6 +588,9 @@ func (w *World) equipCommand(p *player, c resources.EquipCommandContents) {
 		def, ok := resources.Equipment[kind]
 		if !ok || src.Count(kind) == 0 || p.level(def.Skill) < def.Level {
 			return
+		}
+		if class, _ := resources.FindClass(p.class); !class.CanWear(kind) {
+			return // armour of another class's type
 		}
 		// Two hands or a shield, not both.
 		if def.TwoHanded && !w.unequip(p, resources.SlotShield, src) {
