@@ -15,7 +15,7 @@ bank bars ──► craft equipment at the anvil ──► better equipment make
 
 ### The action window
 - **Finding places.** A village, mine, named forest or farm is *found* once the player walks into it (within its radius plus 2 tiles). Everyone starts having found their spawn village.
-- **Adding actions.** The window shows one row per action (Mine, Chop, Farm, Smelt, Fletch), at the **nearest found place** for it, with its distance and a button per material. Materials the player doesn't have the level for are greyed out with the level needed. Actions with no place found yet say what to look for.
+- **Adding actions.** The Actions window holds just the list and its buttons: **Add action**, **Start**/**Stop**. **Add action** opens a separate picker window, which stays open while you add several. It shows one row per action (Mine, Chop, Farm, Smelt, Fletch), at the **nearest found place** for it, with its distance and a button per material. Materials the player doesn't have the level for are greyed out with the level needed. Actions with no place found yet say what to look for.
 - **The action list** holds up to 5 actions. Clicking an action adds it to the end. Entries can be moved up or down or removed.
 - **Goals.** Each action has one goal, which the player can change at any time:
   - **Until the bank has N** of the action's product. New actions start at 100 (ore, logs, crops), 50 bars or 500 arrows.
@@ -43,7 +43,7 @@ The game is meant to be played for hundreds of hours, so skills level slowly, wi
 | Farming | cabbages (8) | cotton at level 10 (18) | | |
 
 - **Level-ups** post a congratulations message in the player's chat.
-- The **Skills window** shows each level with a progress bar to the next.
+- The **Skills window** shows each level with a progress bar to the next, with the XP figures centred on the bar.
 
 ### Gathering: mining, chopping and farming
 All three work the same way, from *nodes* of the chosen material at the action's place.

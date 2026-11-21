@@ -30,6 +30,7 @@ type Actions struct {
 
 	state    resources.InventoryContents
 	received time.Time
+	picking  bool // the "Add an action" window is open
 
 	// Goal inputs being typed into keep their own value until the player
 	// moves on, so server updates don't overwrite them mid-edit.
@@ -62,25 +63,36 @@ func (a *Actions) Update() error {
 	winW, _ := ebiten.WindowSize()
 	imgui.SetNextWindowPosV(imgui.Vec2{X: float32(winW) - 640, Y: 40}, imgui.ConditionFirstUseEver, imgui.Vec2{})
 	imgui.BeginV("Actions", nil, imgui.WindowFlagsAlwaysAutoResize)
-
 	a.controls()
 	imgui.Separator()
-	a.foundPlaces()
-	imgui.Separator()
 	a.list()
-
 	imgui.End()
+
+	if a.picking {
+		imgui.SetNextWindowPosV(imgui.Vec2{X: float32(max(20, winW-1300)), Y: 40}, imgui.ConditionFirstUseEver, imgui.Vec2{})
+		imgui.BeginV("Add an action", &a.picking, imgui.WindowFlagsAlwaysAutoResize)
+		a.foundPlaces()
+		imgui.End()
+	}
 	return nil
 }
 
 func (a *Actions) controls() {
 	n := len(a.state.Actions)
+	label := "Add action"
+	if a.picking {
+		label = "Close action picker"
+	}
+	if button(label, n < resources.MaxActions || a.picking) {
+		a.picking = !a.picking
+	}
+	imgui.SameLine()
 	if a.state.Running {
 		if imgui.Button("Stop") {
 			a.send(resources.ActionCommandContents{Op: resources.ActionOpStop})
 		}
 		imgui.SameLine()
-		imgui.Text("Working through the list")
+		dimmed("Working through the list")
 		return
 	}
 	if button("Start", n > 0) {
@@ -88,7 +100,7 @@ func (a *Actions) controls() {
 	}
 	imgui.SameLine()
 	if n == 0 {
-		dimmed("Add an action below to get started")
+		dimmed("Add an action to get started")
 	} else {
 		dimmed("Stopped. Click the map to walk around.")
 	}
@@ -135,8 +147,12 @@ var placeHints = map[resources.PlaceKind]string{
 // with a button per material. Tiers the player hasn't the level for are
 // shown greyed out with the level they need.
 func (a *Actions) foundPlaces() {
-	imgui.Text("Add an action")
 	full := len(a.state.Actions) >= resources.MaxActions
+	if full {
+		dimmed(fmt.Sprintf("The list is full (%d actions). Remove one to add more.", resources.MaxActions))
+	} else {
+		dimmed("Click to add to the end of the list.")
+	}
 	for _, kind := range resources.ActionKinds {
 		verb := resources.ActionNames[kind]
 		place, dist, ok := a.nearestFound(resources.ActionPlaceKind[kind])

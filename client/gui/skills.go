@@ -2,6 +2,7 @@ package gui
 
 import (
 	"fmt"
+	"image/color"
 
 	"github.com/gabstv/ebiten-imgui/renderer"
 	"github.com/hajimehoshi/ebiten/v2"
@@ -37,7 +38,13 @@ func (s *Skills) Update() error {
 			frac = float32(st.XP-start) / float32(st.NextXP-start)
 			overlay = fmt.Sprintf("%d / %d XP", st.XP, st.NextXP)
 		}
-		imgui.ProgressBarV(frac, imgui.Vec2{X: 360, Y: 0}, overlay)
+		// The bar's own overlay text follows the fill; draw it centred instead.
+		imgui.ProgressBarV(frac, imgui.Vec2{X: 360, Y: 0}, "")
+		lo, hi := imgui.ItemRectMin(), imgui.ItemRectMax()
+		size := imgui.CalcTextSize(overlay, false, 0)
+		imgui.WindowDrawList().AddText(
+			imgui.Vec2{X: (lo.X + hi.X - size.X) / 2, Y: (lo.Y + hi.Y - size.Y) / 2},
+			imgui.Packed(color.White), overlay)
 		if imgui.IsItemHovered() {
 			imgui.SetTooltip(fmt.Sprintf("%d XP to level %d", max(0, st.NextXP-st.XP), min(st.Level+1, resources.MaxLevel)))
 		}
