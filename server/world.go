@@ -96,6 +96,7 @@ type player struct {
 	sentDest *tile // the path destination last sent to the client; nil if stopped
 
 	health       int
+	stamina      int  // used up by work; recovered only at an inn
 	healthDirty  bool // changed since last broadcast, for everyone's health bars
 	regenCounter int
 	equipment    map[resources.EquipSlot]resources.Stack
@@ -144,6 +145,7 @@ type World struct {
 	nextID   uint16
 	nodes    map[tile]*node // rocks and trees to gather from
 	banks    []tile
+	inns     []tile
 	stations map[resources.ObjectKind]map[string]tile // crafting stations by kind, then village
 	mobs     []*mob
 	ticks    int

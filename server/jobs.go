@@ -161,6 +161,8 @@ const (
 	stateWalkToCamp
 	stateWalkToEnemy
 	stateFighting
+	stateWalkToInn // too tired: off to rest, then back to the action
+	stateRelaxing
 )
 
 // job is the running state of the action at the top of the list.
@@ -206,6 +208,8 @@ func (w *World) initNodes() {
 			addNode(t, name, resources.ActionMine)
 		case resources.ObjectBank:
 			w.banks = append(w.banks, t)
+		case resources.ObjectInn:
+			w.inns = append(w.inns, t)
 		case resources.ObjectBlacksmith, resources.ObjectFletcher:
 			if pl := w.placeAt(t, resources.PlaceVillage); pl != nil {
 				if w.stations[o.Kind] == nil {
@@ -640,7 +644,9 @@ func (w *World) tickJob(p *player) {
 		return
 	}
 
-	j.action.ran++
+	if !j.atInn() {
+		j.action.ran++ // time at the inn doesn't count towards a time goal
+	}
 	if !j.finishing && timeUp(j.action) {
 		w.wrapUp(p)
 		return
@@ -653,6 +659,9 @@ func (w *World) tickJob(p *player) {
 		}
 		if !j.node.freeFor(p) { // emptied while we walked
 			w.gatherNext(p)
+			return
+		}
+		if w.exhausted(p) {
 			return
 		}
 		j.state = stateGathering
@@ -668,6 +677,7 @@ func (w *World) tickJob(p *player) {
 		n.amount--
 		p.backpack.Add(item, 1)
 		w.addXP(p, j.skill, j.material.XP)
+		w.spendStamina(p, staminaPerStep)
 		p.invDirty = true
 		if n.amount == 0 {
 			w.empty(n)
@@ -679,6 +689,7 @@ func (w *World) tickJob(p *player) {
 			w.goBank(p)
 		case n.amount == 0:
 			w.gatherNext(p)
+		case w.exhausted(p):
 		default:
 			j.countdown = p.skillTicks(j.gather.swing, j.skill)
 			w.startAction(p, j.gather.working, j.countdown)
@@ -717,8 +728,16 @@ func (w *World) tickJob(p *player) {
 	case stateWalkToEnemy, stateFighting:
 		w.tickFight(p)
 
+	case stateWalkToInn:
+		if arrived {
+			w.startRelaxing(p)
+		}
+
+	case stateRelaxing:
+		w.tickRelaxing(p)
+
 	case stateWalkToStation:
-		if !arrived {
+		if !arrived || w.exhausted(p) {
 			return
 		}
 		j.state = stateCrafting
@@ -734,9 +753,13 @@ func (w *World) tickJob(p *player) {
 		p.backpack.Remove(j.material.Input, 1)
 		p.backpack.Add(j.material.Item, r.perInput) // the input's slot is free, so this fits
 		w.addXP(p, j.skill, j.material.XP)
+		w.spendStamina(p, staminaPerStep)
 		p.invDirty = true
 		if p.backpack.Count(j.material.Input) == 0 {
 			w.goBank(p)
+			return
+		}
+		if w.exhausted(p) {
 			return
 		}
 		j.countdown = p.skillTicks(r.step, j.skill)
@@ -832,6 +855,8 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 		Skills:        p.skillStates(),
 		Health:        p.health,
 		MaxHealth:     p.maxHealth(),
+		Stamina:       p.stamina,
+		MaxStamina:    p.maxStamina(),
 		Equipment:     p.equippedItems(),
 	})
 }

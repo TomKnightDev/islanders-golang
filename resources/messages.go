@@ -148,9 +148,11 @@ type InventoryContents struct {
 	Running bool           `json:"running"` // whether the list is being worked through
 	Skills  []SkillState   `json:"skills"`
 
-	Health    int            `json:"health"`
-	MaxHealth int            `json:"maxHealth"`
-	Equipment []EquippedItem `json:"equipment"`
+	Health     int            `json:"health"`
+	MaxHealth  int            `json:"maxHealth"`
+	Stamina    int            `json:"stamina"`
+	MaxStamina int            `json:"maxStamina"`
+	Equipment  []EquippedItem `json:"equipment"`
 }
 
 func NewInventoryMessage(contents InventoryContents) *Message {

@@ -17,6 +17,7 @@ var landmarkNames = map[ObjectKind]string{
 	ObjectBank:       "the bank",
 	ObjectBlacksmith: "the blacksmith",
 	ObjectAnvil:      "the anvil",
+	ObjectInn:        "the inn",
 	ObjectRock:       "the rocks",
 }
 

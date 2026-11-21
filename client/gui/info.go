@@ -37,6 +37,14 @@ func (info *Info) Update() error {
 		imgui.SameLine()
 		centredBar(float32(info.player.Health)/float32(mh), 260, fmt.Sprintf("%d / %d", info.player.Health, mh))
 	}
+	if ms := info.player.MaxStamina; ms > 0 {
+		imgui.Text("Stamina")
+		imgui.SameLine()
+		centredBar(float32(info.player.Stamina)/float32(ms), 260, fmt.Sprintf("%d / %d", info.player.Stamina, ms))
+		if imgui.IsItemHovered() {
+			imgui.SetTooltip("Used up by work and fighting. When it runs out, your character rests at the nearest inn, then carries on.")
+		}
+	}
 
 	// A grid square plus exact tile. It only changes when the player steps
 	// onto a new tile, and it's short enough to read out to someone.

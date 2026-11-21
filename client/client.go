@@ -386,6 +386,7 @@ func receiveInventoryMessage(message *resources.Message) {
 	EquipmentWindow.SetState(contents)
 	if client.Player != nil {
 		client.Player.Health, client.Player.MaxHealth = contents.Health, contents.MaxHealth
+		client.Player.Stamina, client.Player.MaxStamina = contents.Stamina, contents.MaxStamina
 	}
 }
 

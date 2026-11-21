@@ -16,16 +16,18 @@ import (
 )
 
 type Player struct {
-	imageTile *ebiten.Image
-	Id        uint16
-	Username  string
-	Position  f64.Vec2
-	SendChan  chan resources.MoveRequestContents
-	Health    int
-	MaxHealth int
-	Cam       *camera.Camera
-	WorldMap  *resources.WorldMap
-	flipX     bool
+	imageTile  *ebiten.Image
+	Id         uint16
+	Username   string
+	Position   f64.Vec2
+	SendChan   chan resources.MoveRequestContents
+	Health     int
+	MaxHealth  int
+	Stamina    int
+	MaxStamina int
+	Cam        *camera.Camera
+	WorldMap   *resources.WorldMap
+	flipX      bool
 
 	clickTile  image.Point
 	clickUntil time.Time

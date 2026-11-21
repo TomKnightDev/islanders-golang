@@ -176,6 +176,7 @@ func (w *World) giveStartingKit(p *player, class resources.Class) {
 		p.xp[s] = resources.XPForLevel(l)
 	}
 	p.health = p.maxHealth()
+	p.stamina = p.maxStamina()
 	p.equipment = map[resources.EquipSlot]resources.Stack{}
 	for _, g := range class.Gear {
 		if slices.Contains(class.Equipped, g.Kind) {
@@ -372,9 +373,13 @@ func (w *World) tickFight(p *player) {
 	j.countdown--
 	if j.countdown <= 0 {
 		j.countdown = ticks(playerAttackTime)
+		if w.exhausted(p) {
+			return // let go and rest; the fight picks up afterwards
+		}
 		if !w.playerAttack(p, m) {
 			return
 		}
+		w.spendStamina(p, staminaPerAttack)
 		if m.dead {
 			w.afterKill(p)
 			return

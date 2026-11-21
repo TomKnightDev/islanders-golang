@@ -15,7 +15,8 @@ const (
 )
 
 // jobWorld is an open 20x20 field. Testville (centre 4,4) has a bank at
-// (2,2), a blacksmith at (6,2) and a fletcher at (8,2); players spawn there.
+// (2,2), a blacksmith at (6,2), a fletcher at (8,2) and an inn at (7,7);
+// players spawn there.
 // Test Mine (centre 12,10) has rocks at (10,10) and (14,10). Test Wood
 // (centre 16,16) has trees at (15,15), (17,15) and (16,18).
 func jobWorld(t *testing.T) *World {
@@ -34,6 +35,7 @@ func jobWorld(t *testing.T) *World {
 	add(3, resources.ObjectRock, 10, 10)
 	add(4, resources.ObjectRock, 14, 10)
 	add(5, resources.ObjectFletcher, 8, 2)
+	add(6, resources.ObjectInn, 7, 7)
 	for _, tr := range []tile{{15, 15}, {17, 15}, {16, 18}} {
 		wm.Layers[resources.LayerObject].Data[tr.y*wm.Width+tr.x] = resources.TileTree1
 	}

@@ -422,7 +422,7 @@ func (g *worldGen) reserve(c tile, radius int) {
 // buildVillage lays out a cobbled square with the bank and blacksmith on its
 // north side and houses around it.
 //
-//	C . B . T . S A C      B bank, S blacksmith, A anvil, F fletcher
+//	I . B . T . S A C      B bank, S blacksmith, A anvil, F fletcher, I inn
 //	# # # # # # # # #      C cottage, T tower (first village only)
 //	# # # # # # # # #      # cobblestone square
 //	# # # # # # # # #
@@ -440,7 +440,7 @@ func (g *worldGen) buildVillage(c tile, name string, capital bool) {
 	g.addObject(tile{c.x - 2, north}, resources.ObjectBank)
 	g.addObject(tile{c.x + 2, north}, resources.ObjectBlacksmith)
 	g.addObject(tile{c.x + 3, north}, resources.ObjectAnvil)
-	g.objects[g.at(tile{c.x - 4, north})] = resources.TileCottage
+	g.addObject(tile{c.x - 4, north}, resources.ObjectInn)
 	g.objects[g.at(tile{c.x + 4, north})] = resources.TileCottage
 	if capital {
 		g.objects[g.at(tile{c.x, north})] = resources.TileTower
