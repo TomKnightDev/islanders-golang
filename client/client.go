@@ -47,6 +47,7 @@ var ActionsWindow = &gui.Actions{}
 var SkillsWindow = &gui.Skills{}
 var EquipmentWindow = &gui.Equipment{}
 var FightPanel = &gui.FightPanel{}
+var ShopWindow = &gui.Shop{}
 var world *entities.World
 var client = &Client{}
 
@@ -133,6 +134,11 @@ func handleMessages(g *Game) {
 		select {
 		case message := <-client.RecvChan:
 			switch message.MessageType {
+			case resources.StoreMessage:
+				var st resources.StoreContents
+				if err := resources.DecodeContents(message.Contents, &st); err == nil {
+					ShopWindow.SetStore(st)
+				}
 			case resources.FightMessage:
 				var fight resources.FightContents
 				if err := resources.DecodeContents(message.Contents, &fight); err == nil {
@@ -221,6 +227,12 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 
 	InventoryWindow = gui.NewInventory(g.renderMgr)
 	g.Gui = append(g.Gui, InventoryWindow)
+
+	ShopWindow = gui.NewShop(g.renderMgr, worldMap.Places, func(c resources.ShopCommandContents) {
+		go func() { client.SendChan <- resources.NewShopCommandMessage(c) }()
+	})
+	InventoryWindow.OpenShop = ShopWindow.Open
+	g.Gui = append(g.Gui, ShopWindow)
 
 	EquipmentWindow = gui.NewEquipment(g.renderMgr, func(c resources.EquipCommandContents) {
 		go func() { client.SendChan <- resources.NewEquipCommandMessage(c) }()
@@ -391,6 +403,7 @@ func receiveInventoryMessage(message *resources.Message) {
 	ActionBar.Set(contents.Activity, contents.ActionSeconds, contents.ActionElapsed)
 	ActionsWindow.SetState(contents)
 	SkillsWindow.SetState(contents.Skills)
+	ShopWindow.SetState(contents)
 	EquipmentWindow.SetState(contents)
 	if client.Player != nil {
 		client.Player.Health, client.Player.MaxHealth = contents.Health, contents.MaxHealth

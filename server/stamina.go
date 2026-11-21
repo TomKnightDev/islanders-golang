@@ -67,10 +67,22 @@ func (w *World) nearestOf(p *player, tiles []tile) (tile, bool) {
 	return best, found
 }
 
+// startRelaxing pays the inn fee and rests. A character who can't afford
+// it sleeps in the stable: free, but slower.
 func (w *World) startRelaxing(p *player) {
-	p.job.state = stateRelaxing
-	p.job.countdown = ticks(innRestTime)
-	w.startAction(p, activityRelaxing, (p.maxStamina()-p.stamina)*ticks(innRestTime))
+	j := p.job
+	j.state = stateRelaxing
+	j.restTicks = ticks(innRestTime)
+	activity := activityRelaxing
+	if p.coins >= resources.InnFee {
+		p.coins -= resources.InnFee
+		p.invDirty = true
+	} else {
+		j.restTicks *= stableSlowdown
+		activity = activityStable
+	}
+	j.countdown = j.restTicks
+	w.startAction(p, activity, (p.maxStamina()-p.stamina)*j.restTicks)
 }
 
 // tickRelaxing recovers stamina at the inn. Once rested, the job is
@@ -82,7 +94,7 @@ func (w *World) tickRelaxing(p *player) {
 	if j.countdown > 0 {
 		return
 	}
-	j.countdown = ticks(innRestTime)
+	j.countdown = j.restTicks
 	p.stamina = min(p.maxStamina(), p.stamina+1)
 	p.invDirty = true
 	if p.stamina >= p.maxStamina() {

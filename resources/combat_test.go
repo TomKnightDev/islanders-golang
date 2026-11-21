@@ -64,3 +64,21 @@ func TestEnemies(t *testing.T) {
 		}
 	}
 }
+
+func TestEveryItemHasAValue(t *testing.T) {
+	for k := range Items {
+		if Values[k] <= 0 {
+			t.Errorf("%s has no value", k)
+		}
+	}
+	for _, s := range StoreStock {
+		if StorePrice(s) <= int(float64(Values[s.Item])*StoreBuysAt) {
+			t.Errorf("a store would sell %s for no more than it pays", s.Item)
+		}
+	}
+	for _, e := range Enemies {
+		if e.Coins[0] <= 0 || e.Coins[1] < e.Coins[0] {
+			t.Errorf("%s drops a bad coin range %v", e.Name, e.Coins)
+		}
+	}
+}

@@ -140,7 +140,7 @@ func (n *node) refill() {
 type queuedAction struct {
 	spec  resources.ActionSpec
 	ran   int // ticks spent running it; stopping the list pauses this
-	kills int // fighting: enemies defeated so far
+	count int // fighting: enemies defeated; selling: items sold
 }
 
 // ticksLeft is how much of a time goal remains.
@@ -163,6 +163,8 @@ const (
 	stateFighting
 	stateWalkToInn // too tired: off to rest, then back to the action
 	stateRelaxing
+	stateWalkToStore // selling: carrying goods to the store
+	stateSelling
 )
 
 // job is the running state of the action at the top of the list.
@@ -177,6 +179,7 @@ type job struct {
 	station   tile        // where to craft
 	mob       *mob        // fighting: the enemy being fought
 	countdown int         // ticks left in a swing, a craft step or a wait
+	restTicks int         // at the inn: ticks per point of stamina (slower in the stable)
 	finishing bool        // goal met or time up: bank what's carried, then move on
 }
 
@@ -186,6 +189,7 @@ type job struct {
 func (w *World) initNodes() {
 	w.nodes = map[tile]*node{}
 	w.stations = map[resources.ObjectKind]map[string]tile{}
+	w.stores = map[string]*store{}
 	objects := w.wm.Layers[resources.LayerObject].Data
 	addNode := func(t tile, place string, want resources.ActionKind) {
 		gid := objects[t.y*w.wm.Width+t.x]
@@ -210,6 +214,10 @@ func (w *World) initNodes() {
 			w.banks = append(w.banks, t)
 		case resources.ObjectInn:
 			w.inns = append(w.inns, t)
+		case resources.ObjectStore:
+			if pl := w.placeAt(t, resources.PlaceVillage); pl != nil {
+				w.stores[pl.Name] = &store{village: pl.Name, t: t, demand: map[resources.ItemKind]float64{}}
+			}
 		case resources.ObjectBlacksmith, resources.ObjectFletcher:
 			if pl := w.placeAt(t, resources.PlaceVillage); pl != nil {
 				if w.stations[o.Kind] == nil {
@@ -308,6 +316,12 @@ func (w *World) validAction(p *player, a resources.ActionSpec) bool {
 	if pl == nil || pl.Kind != kind {
 		return false
 	}
+	if resources.IsSelling(a.Kind) {
+		if !resources.Sellable(resources.ItemKind(a.Material)) || w.storeIn(a.Place) == nil {
+			return false
+		}
+		return validGoal(a)
+	}
 	m, ok := resources.FindMaterial(a.Kind, a.Material)
 	if !ok || p.level(resources.ActionSkill[a.Kind]) < m.Level {
 		return false
@@ -320,6 +334,10 @@ func (w *World) validAction(p *player, a resources.ActionSpec) bool {
 			return false
 		}
 	}
+	return validGoal(a)
+}
+
+func validGoal(a resources.ActionSpec) bool {
 	switch a.Goal {
 	case resources.GoalAmount:
 		return a.Amount >= 1 && a.Amount <= resources.MaxGoalAmount
@@ -411,8 +429,8 @@ func amountMet(p *player, a *queuedAction) bool {
 	if a.spec.Goal != resources.GoalAmount {
 		return false
 	}
-	if resources.IsCombat(a.spec.Kind) {
-		return a.kills >= a.spec.Amount
+	if resources.CountsProgress(a.spec.Kind) {
+		return a.count >= a.spec.Amount
 	}
 	return p.bank.Count(a.spec.Product()) >= a.spec.Amount
 }
@@ -436,6 +454,11 @@ func (w *World) startNextAction(p *player) {
 	if resources.IsCombat(a.spec.Kind) {
 		p.job = &job{action: a, material: m, skill: skill}
 		w.goBank(p) // a fighting trip starts at the bank, collecting food
+		return
+	}
+	if resources.IsSelling(a.spec.Kind) {
+		p.job = &job{action: a, station: w.storeIn(a.spec.Place).t}
+		w.goBank(p) // a selling trip starts at the bank, collecting goods
 		return
 	}
 	if g := gatherKinds[a.spec.Kind]; g != nil {
@@ -592,6 +615,8 @@ func (w *World) atBank(p *player) {
 	switch {
 	case resources.IsCombat(j.action.spec.Kind):
 		w.atBankForFight(p)
+	case resources.IsSelling(j.action.spec.Kind):
+		w.collectForSale(p)
 	case j.gather != nil:
 		w.gatherNext(p) // back to the same node if it's still free
 	default:
@@ -736,6 +761,20 @@ func (w *World) tickJob(p *player) {
 	case stateRelaxing:
 		w.tickRelaxing(p)
 
+	case stateWalkToStore:
+		if !arrived {
+			return
+		}
+		j.state = stateSelling
+		j.countdown = ticks(sellTime)
+		w.startAction(p, activitySelling, j.countdown)
+
+	case stateSelling:
+		j.countdown--
+		if j.countdown <= 0 {
+			w.sellCarried(p)
+		}
+
 	case stateWalkToStation:
 		if !arrived || w.exhausted(p) {
 			return
@@ -843,8 +882,8 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 	actions := make([]resources.QueuedAction, len(p.actions))
 	for i, a := range p.actions {
 		actions[i] = resources.QueuedAction{ActionSpec: a.spec, Banked: p.bank.Count(a.spec.Product())}
-		if resources.IsCombat(a.spec.Kind) {
-			actions[i].Banked = a.kills
+		if resources.CountsProgress(a.spec.Kind) {
+			actions[i].Banked = a.count
 		}
 		if a.spec.Goal == resources.GoalTime {
 			actions[i].SecondsLeft = seconds(a.ticksLeft())
@@ -863,6 +902,7 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 		Health:        p.health,
 		MaxHealth:     p.maxHealth(),
 		Stamina:       p.stamina,
+		Coins:         p.coins,
 		MaxStamina:    p.maxStamina(),
 		Equipment:     p.equippedItems(),
 	})

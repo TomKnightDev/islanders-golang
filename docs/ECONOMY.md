@@ -158,7 +158,7 @@ Each village posts a few orders that refresh every few hours, such as "Wanted: 4
 
 ## Suggested order
 
-1. **Coins and merchants.** Coin balance, item values, coin drops, the inn fee and stable, general stores (buy window, sell action). A working economy early, before the bigger item rework.
+1. **Coins and merchants.** Coin balance, item values, coin drops, the inn fee and stable, general stores (buy window, sell action). A working economy early, before the bigger item rework. *(done: stores sell food, copper gear, starter materials and oak arrows; sell trips take 3 s at the counter; demand drops 2% per unit bought, never below 20%, and recovers 3% of the gap each minute)*
 2. **Item quality and tools.** Individual items, quality on stacks, tools and the tool slot, quality affecting gathering and gear.
 3. **Making and improving.** Anvil, loom and staff recipes, Tailoring, the make and improve actions.
 4. **Wear and repair.** Damage, repair costs, breakage.

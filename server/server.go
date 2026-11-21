@@ -117,6 +117,17 @@ func connect(w http.ResponseWriter, r *http.Request) {
 			}
 			world.Do(func(w *World) { w.actionCommand(p, cmd) })
 
+		case resources.ShopCommandMessage:
+			if p == nil {
+				continue
+			}
+			var cmd resources.ShopCommandContents
+			if err := resources.DecodeContents(message.Contents, &cmd); err != nil {
+				log.Println("Bad shop command:", err)
+				continue
+			}
+			world.Do(func(w *World) { w.shopCommand(p, cmd) })
+
 		case resources.EquipCommandMessage:
 			if p == nil {
 				continue

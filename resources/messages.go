@@ -22,6 +22,8 @@ const (
 	ChooseClassMessage        MessageType = "chooseClassMessage"     // server: a new name; pick a class
 	CreateCharacterMessage    MessageType = "createCharacterMessage" // client: the class picked
 	FightMessage              MessageType = "fightMessage"           // server: a fight the player is in
+	ShopCommandMessage        MessageType = "shopCommandMessage"     // client: view a store or buy from it
+	StoreMessage              MessageType = "storeMessage"           // server: a village store's prices
 )
 
 type Message struct {
@@ -152,6 +154,7 @@ type InventoryContents struct {
 	Health     int            `json:"health"`
 	MaxHealth  int            `json:"maxHealth"`
 	Stamina    int            `json:"stamina"`
+	Coins      int            `json:"coins"`
 	MaxStamina int            `json:"maxStamina"`
 	Equipment  []EquippedItem `json:"equipment"`
 }

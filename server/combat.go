@@ -177,6 +177,7 @@ func (w *World) giveStartingKit(p *player, class resources.Class) {
 	}
 	p.health = p.maxHealth()
 	p.stamina = p.maxStamina()
+	p.coins = resources.StartingCoins
 	p.equipment = map[resources.EquipSlot]resources.Stack{}
 	for _, g := range class.Gear {
 		if slices.Contains(class.Equipped, g.Kind) {
@@ -472,7 +473,8 @@ func (w *World) afterKill(p *player) {
 	j := p.job
 	kind := j.mob.kind
 	j.mob = nil
-	j.action.kills++
+	j.action.count++
+	w.dropCoins(p, kind)
 	for _, drop := range kind.Loot {
 		if rand.Float64() < drop.Chance {
 			p.backpack.Add(drop.Item, drop.Min+rand.Intn(drop.Max-drop.Min+1)) // whatever doesn't fit is left behind

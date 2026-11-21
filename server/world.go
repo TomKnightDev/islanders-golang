@@ -98,6 +98,7 @@ type player struct {
 
 	health       int
 	stamina      int  // used up by work; recovered only at an inn
+	coins        int  // in the bank account; never lost on defeat
 	fightShown   *mob // the enemy the client's fight panel shows, if any
 	healthDirty  bool // changed since last broadcast, for everyone's health bars
 	regenCounter int
@@ -148,6 +149,7 @@ type World struct {
 	nodes    map[tile]*node // rocks and trees to gather from
 	banks    []tile
 	inns     []tile
+	stores   map[string]*store                        // village name -> its general store
 	stations map[resources.ObjectKind]map[string]tile // crafting stations by kind, then village
 	mobs     []*mob
 	ticks    int
@@ -337,6 +339,7 @@ func (w *World) tick() {
 		}
 	}
 	w.tickNodes()
+	w.tickStores()
 	w.tickMobs()
 }
 

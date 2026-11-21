@@ -167,6 +167,11 @@ func (a *Actions) foundPlaces() {
 		imgui.SameLine()
 		dimmed(fmt.Sprintf("%d tiles away", dist))
 
+		if resources.IsSelling(kind) {
+			a.sellButtons(place, full)
+			continue
+		}
+
 		skill := resources.ActionSkill[kind]
 		lvl := a.level(skill)
 		first := true
@@ -195,6 +200,32 @@ func (a *Actions) foundPlaces() {
 		}
 	}
 	dimmed("Walk into a village, mine, forest, farm or camp to find it.")
+}
+
+// sellButtons offers each sellable item in the bank, defaulting the goal to
+// selling all of it.
+func (a *Actions) sellButtons(place resources.Place, full bool) {
+	first, seen := true, map[resources.ItemKind]bool{}
+	for _, s := range a.state.Bank.Stacks {
+		if seen[s.Kind] || !resources.Sellable(s.Kind) {
+			continue
+		}
+		seen[s.Kind] = true
+		if !first {
+			imgui.SameLine()
+		}
+		first = false
+		have := a.state.Bank.Count(s.Kind)
+		if button(fmt.Sprintf("%s x%d##sell%s", resources.ItemNames[s.Kind], have, s.Kind), !full) {
+			a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
+				Kind: resources.ActionSell, Material: string(s.Kind), Place: place.Name, Goal: resources.GoalAmount,
+				Amount: min(have, resources.MaxGoalAmount), Minutes: defaultMinutes,
+			}})
+		}
+	}
+	if first {
+		dimmed("Nothing in the bank to sell.")
+	}
 }
 
 func (a *Actions) list() {
@@ -233,8 +264,11 @@ func (a *Actions) row(i int, q resources.QueuedAction) {
 
 	unit := resources.ItemUnits[spec.Product()]
 	amountLabel := "Until the bank has"
-	if resources.IsCombat(spec.Kind) {
+	switch {
+	case resources.IsCombat(spec.Kind):
 		unit, amountLabel = "enemies", "Kill"
+	case resources.IsSelling(spec.Kind):
+		unit, amountLabel = resources.ItemUnits[resources.ItemKind(spec.Material)], "Sell"
 	}
 	edited := spec
 
@@ -267,8 +301,11 @@ func (a *Actions) row(i int, q resources.QueuedAction) {
 	var progress string
 	if spec.Goal == resources.GoalAmount {
 		progress = fmt.Sprintf("Bank: %d/%d %s", min(q.Banked, spec.Amount), spec.Amount, unit)
-		if resources.IsCombat(spec.Kind) {
+		switch {
+		case resources.IsCombat(spec.Kind):
 			progress = fmt.Sprintf("Kills: %d/%d", min(q.Banked, spec.Amount), spec.Amount)
+		case resources.IsSelling(spec.Kind):
+			progress = fmt.Sprintf("Sold: %d/%d", min(q.Banked, spec.Amount), spec.Amount)
 		}
 	} else {
 		left := q.SecondsLeft

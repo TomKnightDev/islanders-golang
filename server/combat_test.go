@@ -278,7 +278,7 @@ func TestRangedUsesArrows(t *testing.T) {
 	if _, ok := p.equipment[resources.SlotAmmo]; ok {
 		t.Error("ammo slot should be empty")
 	}
-	if p.xp[resources.SkillRanged] == resources.XPForLevel(40) && p.actions[0].kills == 0 {
+	if p.xp[resources.SkillRanged] == resources.XPForLevel(40) && p.actions[0].count == 0 {
 		t.Log("three arrows all missed; possible but rare")
 	}
 }

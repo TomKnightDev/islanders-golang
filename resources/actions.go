@@ -9,10 +9,11 @@ const (
 	ActionSmelt  ActionKind = "smelt"  // turn banked ore into bars at a village blacksmith
 	ActionFletch ActionKind = "fletch" // turn banked logs into arrows at a village fletcher
 	ActionFight  ActionKind = "fight"  // fight enemies at a camp for loot
+	ActionSell   ActionKind = "sell"   // carry an item from the bank to a village store and sell it
 )
 
 // ActionKinds lists the actions in the order the action window shows them.
-var ActionKinds = []ActionKind{ActionFight, ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionFletch}
+var ActionKinds = []ActionKind{ActionFight, ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionFletch, ActionSell}
 
 // ActionNames is the verb for each action; with a material it reads
 // "Mine copper", "Fletch oak arrows".
@@ -23,6 +24,7 @@ var ActionNames = map[ActionKind]string{
 	ActionSmelt:  "Smelt",
 	ActionFletch: "Fletch",
 	ActionFight:  "Fight",
+	ActionSell:   "Sell",
 }
 
 // ActionPlaceKind is the kind of place each action happens at.
@@ -33,6 +35,7 @@ var ActionPlaceKind = map[ActionKind]PlaceKind{
 	ActionSmelt:  PlaceVillage,
 	ActionFletch: PlaceVillage,
 	ActionFight:  PlaceCamp,
+	ActionSell:   PlaceVillage,
 }
 
 // ActionSkill is the skill each action trains, and which sets its speed
@@ -53,6 +56,14 @@ func IsGathering(k ActionKind) bool { return k == ActionMine || k == ActionChop 
 // IsCombat reports whether an action is fighting, whose goal counts kills.
 func IsCombat(k ActionKind) bool { return k == ActionFight }
 
+// IsSelling reports whether an action is selling to a store. Its material
+// is the item to sell, any sellable item, and its goal counts items sold.
+func IsSelling(k ActionKind) bool { return k == ActionSell }
+
+// CountsProgress reports whether an action's amount goal counts what the
+// action itself did (kills, sales) rather than what's in the bank.
+func CountsProgress(k ActionKind) bool { return IsCombat(k) || IsSelling(k) }
+
 // ActionDefaultAmounts is the bank total a new action aims for.
 var ActionDefaultAmounts = map[ActionKind]int{
 	ActionMine:   100,
@@ -61,6 +72,7 @@ var ActionDefaultAmounts = map[ActionKind]int{
 	ActionSmelt:  50,
 	ActionFletch: 500,
 	ActionFight:  20, // kills
+	ActionSell:   100,
 }
 
 // Material is one tier an action can work with.
@@ -167,8 +179,12 @@ func (a ActionSpec) Product() ItemKind {
 	return m.Item
 }
 
-// Label is how the action reads: "Mine copper", "Smelt iron bars".
+// Label is how the action reads: "Mine copper", "Smelt iron bars",
+// "Sell iron ore".
 func (a ActionSpec) Label() string {
+	if IsSelling(a.Kind) {
+		return ActionNames[a.Kind] + " " + Items[ItemKind(a.Material)].Unit
+	}
 	m, _ := FindMaterial(a.Kind, a.Material)
 	return ActionNames[a.Kind] + " " + m.Label
 }
