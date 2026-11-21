@@ -135,3 +135,28 @@ func TestFightersTakeAnyFood(t *testing.T) {
 		t.Errorf("should carry the venison: %+v", p.backpack.Stacks)
 	}
 }
+
+func TestTailoringCanStartAtLevelOne(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", atTailor)
+	// A new character can buy what they need...
+	for _, k := range []resources.ItemKind{resources.ItemCotton, resources.ItemLeather} {
+		stocked := false
+		for _, s := range resources.StoreStock {
+			stocked = stocked || s.Item == k
+		}
+		if !stocked {
+			t.Errorf("stores should sell %s", k)
+		}
+	}
+	// ...and make something with it at Tailoring 1.
+	p.backpack.AddStack(resources.Stack{Kind: resources.ItemLeather, Count: 2, Quality: 20})
+	makeGear(w, p, resources.ItemLeatherCap, 1)
+	if p.making == nil {
+		t.Fatalf("a level 1 tailor couldn't make a leather cap: %q", p.stationNote)
+	}
+	runStation(t, w, p, 2)
+	if p.backpack.Count(resources.ItemLeatherCap) != 1 || p.xp[resources.SkillTailoring] == 0 {
+		t.Errorf("caps %d, tailoring xp %d", p.backpack.Count(resources.ItemLeatherCap), p.xp[resources.SkillTailoring])
+	}
+}

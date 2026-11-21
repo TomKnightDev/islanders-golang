@@ -62,8 +62,10 @@ func init() {
 				uses       int
 				extra      int // level above the tier's
 			}{
-				{a.head, a.headName, SlotHead, a.headDef, a.headValue, a.headUses, 2},
-				{a.body, a.bodyName, SlotBody, a.bodyDef, a.bodyValue, a.bodyUses, 6},
+				// Caps and hoods open at the tier's level, so Tailoring 1 can
+				// make something; bodies and robes come a few levels later.
+				{a.head, a.headName, SlotHead, a.headDef, a.headValue, a.headUses, 0},
+				{a.body, a.bodyName, SlotBody, a.bodyDef, a.bodyValue, a.bodyUses, 4},
 			} {
 				Equipment[piece.item] = EquipDef{Slot: piece.slot, Skill: SkillDefence, Level: a.level, Defence: piece.def, Armour: armour}
 				desc := ArmourNames[armour] + " armour, for " + who + " only. Enemies hit you less often."

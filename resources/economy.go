@@ -40,7 +40,7 @@ type StoreItem struct {
 // other players should usually be the cheaper source.
 var StoreStock = []StoreItem{
 	{ItemCabbage, 1.5},
-	{ItemCopperOre, 2}, {ItemOakLogs, 2}, {ItemCopperBar, 2},
+	{ItemCopperOre, 2}, {ItemOakLogs, 2}, {ItemCopperBar, 2}, {ItemCotton, 2}, {ItemLeather, 2},
 	{ItemOakArrows, 1.5},
 	{ItemCopperSword, 1.5}, {ItemOakShortbow, 1.5}, {ItemApprenticeStaff, 1.5}, {ItemBoneStaff, 1.5},
 	{ItemCopperHelmet, 1.5}, {ItemCopperBody, 1.5}, {ItemCopperShield, 1.5},

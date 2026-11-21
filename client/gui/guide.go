@@ -165,6 +165,7 @@ func guideMaking() {
 	point("New gear comes out rough: around half your level, never better than its materials. Improve it to make it good.")
 	point("A piece takes 10 seconds per bar at the anvil, or 8 per log, bar, leather or cloth at the fletcher and tailor, before skill and tool.")
 	point("The tailor makes leather armour from leather (hunt deer, or take it from enemies) and cloth armour from cloth (weave cotton, or take it from enemies).")
+	point("Starting Tailoring: at level 1 you can make leather caps and cloth hoods, and Weave cotton into cloth. Stores sell cotton and leather if you haven't gathered any yet; Farming 10 grows cotton, and Hunting gives leather.")
 	point("Without the station's tool on your belt, making is half speed and rougher.")
 	recipeTables()
 }
