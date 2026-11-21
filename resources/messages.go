@@ -28,6 +28,7 @@ const (
 	DevStateMessage           MessageType = "devStateMessage"        // server: dev tools on or off, and the game speed
 	BankCommandMessage        MessageType = "bankCommandMessage"     // client: move items at the bank
 	InnMessage                MessageType = "innMessage"             // server: quests and rumours at an inn
+	ImproveCommandMessage     MessageType = "improveCommandMessage"  // client: start or stop improving a piece
 )
 
 type Message struct {
@@ -166,6 +167,12 @@ type InventoryContents struct {
 	Coins      int            `json:"coins"`
 	MaxStamina int            `json:"maxStamina"`
 	Equipment  []EquippedItem `json:"equipment"`
+
+	// Improving is the piece being improved at an anvil or the fletcher's
+	// hut (0 if none); ImproveNote says how the last attempt went or why
+	// improving stopped.
+	Improving   uint32 `json:"improving"`
+	ImproveNote string `json:"improveNote"`
 }
 
 func NewInventoryMessage(contents InventoryContents) *Message {

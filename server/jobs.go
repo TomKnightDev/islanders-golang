@@ -62,8 +62,7 @@ const (
 	activitySmithing = "Smithing"
 	activityNoBars   = "No bars to smith"
 	activityImprove  = "Improving"
-	activityNoPiece  = "Nothing to improve"
-	activityNoBetter = "No better material to improve with"
+
 	activityBankFull = "Bank full"
 	activityNoPath   = "Can't get there"
 )
@@ -132,14 +131,9 @@ func (r *recipe) craftTime(m resources.Material) time.Duration {
 	return r.step * time.Duration(max(units, 1))
 }
 
-// startStep starts the next craft or improving attempt at the station.
+// startStep starts the next craft at the station.
 func (w *World) startStep(p *player) {
 	j := p.job
-	if j.improving != "" {
-		j.countdown = p.stepTicks(j.toolKind, p.skillTicks(improveTime, j.skill))
-		w.startAction(p, activityImprove, j.countdown)
-		return
-	}
 	j.countdown = p.stepTicks(j.action.spec.Kind, p.skillTicks(j.recipe.craftTime(j.material), j.skill))
 	w.startAction(p, j.recipe.working, j.countdown)
 }
@@ -218,9 +212,6 @@ type job struct {
 	countdown int                     // ticks left in a swing, a craft step or a wait
 	restTicks int                     // at the inn: ticks per point of stamina (slower in the stable)
 	finishing bool                    // goal met or time up: bank what's carried, then move on
-	improving resources.ItemKind      // improving: the kind of piece being improved
-	piece     uint32                  // improving: the piece carried to the station
-	toolKind  resources.ActionKind    // improving: the making action, whose tool is used
 }
 
 // initNodes finds everything to gather from and every crafting station.
@@ -338,6 +329,7 @@ func (w *World) click(p *player, t tile) {
 	if p.running {
 		return
 	}
+	p.visitPrefer = t // if it's a building, open that one on arrival
 	if w.moveTo(p, t) {
 		w.startAction(p, activityWalking, walkTicks(p))
 	} else {
@@ -359,14 +351,6 @@ func (w *World) validAction(p *player, a resources.ActionSpec) bool {
 	if resources.IsVisit(a.Kind) {
 		_, ok := w.buildingTile(resources.Building(a.Material), a.Place)
 		return ok
-	}
-	if resources.IsImprove(a.Kind) {
-		kind, m, ok := resources.ImproveRecipe(resources.ItemKind(a.Material))
-		if !ok || p.level(resources.ActionSkill[kind]) < m.Level {
-			return false
-		}
-		_, ok = w.stations[recipes[kind].station][a.Place]
-		return ok && validGoal(a)
 	}
 	m, ok := resources.FindMaterial(a.Kind, a.Material)
 	if !ok || p.level(resources.ActionSkill[a.Kind]) < m.Level {
@@ -499,6 +483,7 @@ func (w *World) startNextAction(p *player) {
 		b := resources.Building(a.spec.Material)
 		t, _ := w.buildingTile(b, a.spec.Place)
 		p.job = &job{action: a, station: t, state: stateWalkToVisit}
+		p.visitPrefer = t
 		if !w.moveTo(p, t) {
 			w.failAction(p, activityNoPath)
 			return
@@ -509,15 +494,6 @@ func (w *World) startNextAction(p *player) {
 	if g := gatherKinds[a.spec.Kind]; g != nil {
 		p.job = &job{action: a, material: m, skill: skill, gather: g}
 		w.gatherNext(p)
-		return
-	}
-	if resources.IsImprove(a.spec.Kind) {
-		item := resources.ItemKind(a.spec.Material)
-		kind, m, _ := resources.ImproveRecipe(item)
-		r := recipes[kind]
-		p.job = &job{action: a, material: m, skill: resources.ActionSkill[kind], recipe: r,
-			station: w.stations[r.station][a.spec.Place], improving: item, toolKind: kind}
-		w.goBank(p) // an improving trip starts at the bank, collecting the piece and material
 		return
 	}
 	if r := recipes[a.spec.Kind]; r != nil {
@@ -671,8 +647,6 @@ func (w *World) atBank(p *player) {
 		w.atBankForFight(p)
 	case j.gather != nil:
 		w.gatherNext(p) // back to the same node if it's still free
-	case j.improving != "":
-		w.collectForImprove(p)
 	default:
 		w.collectInput(p)
 	}
@@ -704,7 +678,7 @@ func (w *World) collectInput(p *player) {
 	w.walkToStation(p)
 }
 
-// walkToStation sends a crafting or improving job to its station.
+// walkToStation sends a crafting job to its station.
 func (w *World) walkToStation(p *player) {
 	j := p.job
 	j.state = stateWalkToStation
@@ -837,10 +811,6 @@ func (w *World) tickJob(p *player) {
 	case stateCrafting:
 		j.countdown--
 		if j.countdown > 0 {
-			return
-		}
-		if j.improving != "" {
-			w.improveAttempt(p)
 			return
 		}
 		m := j.material
@@ -988,6 +958,8 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 		Coins:         p.coins,
 		MaxStamina:    p.maxStamina(),
 		Equipment:     p.equippedItems(),
+		Improving:     p.improving.piece(),
+		ImproveNote:   p.improveNote,
 	})
 }
 

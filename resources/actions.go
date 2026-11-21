@@ -3,45 +3,42 @@ package resources
 type ActionKind string
 
 const (
-	ActionMine    ActionKind = "mine"    // gather ore at a mine
-	ActionChop    ActionKind = "chop"    // gather logs in a forest
-	ActionFarm    ActionKind = "farm"    // gather crops at a farm
-	ActionSmelt   ActionKind = "smelt"   // turn banked ore into bars at a village blacksmith
-	ActionFletch  ActionKind = "fletch"  // turn banked logs (and bars) into arrows, bows and staves at a village fletcher
-	ActionSmith   ActionKind = "smith"   // turn banked bars into weapons, armour and tools at a village anvil
-	ActionImprove ActionKind = "improve" // raise the quality of a piece of gear in the bank, at its station
-	ActionFight   ActionKind = "fight"   // fight enemies at a camp for loot
-	ActionVisit   ActionKind = "visit"   // walk to a village building and open its window
+	ActionMine   ActionKind = "mine"   // gather ore at a mine
+	ActionChop   ActionKind = "chop"   // gather logs in a forest
+	ActionFarm   ActionKind = "farm"   // gather crops at a farm
+	ActionSmelt  ActionKind = "smelt"  // turn banked ore into bars at a village blacksmith
+	ActionFletch ActionKind = "fletch" // turn banked logs (and bars) into arrows, bows and staves at a village fletcher
+	ActionSmith  ActionKind = "smith"  // turn banked bars into weapons, armour and tools at a village anvil
+	ActionFight  ActionKind = "fight"  // fight enemies at a camp for loot
+	ActionVisit  ActionKind = "visit"  // walk to a village building and open its window
 )
 
 // ActionKinds lists the actions in the order the action window shows them.
-var ActionKinds = []ActionKind{ActionFight, ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionSmith, ActionFletch, ActionImprove, ActionVisit}
+var ActionKinds = []ActionKind{ActionFight, ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionSmith, ActionFletch, ActionVisit}
 
 // ActionNames is the verb for each action; with a material it reads
 // "Mine copper", "Fletch oak arrows".
 var ActionNames = map[ActionKind]string{
-	ActionMine:    "Mine",
-	ActionChop:    "Chop",
-	ActionFarm:    "Farm",
-	ActionSmelt:   "Smelt",
-	ActionFletch:  "Fletch",
-	ActionSmith:   "Smith",
-	ActionImprove: "Improve",
-	ActionFight:   "Fight",
-	ActionVisit:   "Visit",
+	ActionMine:   "Mine",
+	ActionChop:   "Chop",
+	ActionFarm:   "Farm",
+	ActionSmelt:  "Smelt",
+	ActionFletch: "Fletch",
+	ActionSmith:  "Smith",
+	ActionFight:  "Fight",
+	ActionVisit:  "Visit",
 }
 
 // ActionPlaceKind is the kind of place each action happens at.
 var ActionPlaceKind = map[ActionKind]PlaceKind{
-	ActionMine:    PlaceMine,
-	ActionChop:    PlaceForest,
-	ActionFarm:    PlaceFarm,
-	ActionSmelt:   PlaceVillage,
-	ActionFletch:  PlaceVillage,
-	ActionSmith:   PlaceVillage,
-	ActionImprove: PlaceVillage,
-	ActionFight:   PlaceCamp,
-	ActionVisit:   PlaceVillage,
+	ActionMine:   PlaceMine,
+	ActionChop:   PlaceForest,
+	ActionFarm:   PlaceFarm,
+	ActionSmelt:  PlaceVillage,
+	ActionFletch: PlaceVillage,
+	ActionSmith:  PlaceVillage,
+	ActionFight:  PlaceCamp,
+	ActionVisit:  PlaceVillage,
 }
 
 // ActionSkill is the skill each action trains, and which sets its speed
@@ -63,11 +60,6 @@ func IsGathering(k ActionKind) bool { return k == ActionMine || k == ActionChop 
 // IsCombat reports whether an action is fighting, whose goal counts kills.
 func IsCombat(k ActionKind) bool { return k == ActionFight }
 
-// IsImprove reports whether an action improves gear. Its material is the
-// item kind; its skill, station and material come from the recipe that
-// makes that item (see ImproveRecipe), and its goal counts attempts.
-func IsImprove(k ActionKind) bool { return k == ActionImprove }
-
 // IsVisit reports whether an action is a visit to a village building. Its
 // material is the Building, and it has no amount: it's done on arrival.
 func IsVisit(k ActionKind) bool { return k == ActionVisit }
@@ -77,18 +69,22 @@ func IsVisit(k ActionKind) bool { return k == ActionVisit }
 type Building string
 
 const (
-	BuildingBank  Building = "bank"
-	BuildingStore Building = "store"
-	BuildingInn   Building = "inn"
+	BuildingBank     Building = "bank"
+	BuildingStore    Building = "store"
+	BuildingInn      Building = "inn"
+	BuildingAnvil    Building = "anvil"    // improving metal gear and tools
+	BuildingFletcher Building = "fletcher" // improving bows and staves
 )
 
 // Buildings lists them in the order the action window offers them.
-var Buildings = []Building{BuildingBank, BuildingStore, BuildingInn}
+var Buildings = []Building{BuildingBank, BuildingStore, BuildingInn, BuildingAnvil, BuildingFletcher}
 
 var BuildingNames = map[Building]string{
-	BuildingBank:  "bank",
-	BuildingStore: "store",
-	BuildingInn:   "inn",
+	BuildingBank:     "bank",
+	BuildingStore:    "store",
+	BuildingInn:      "inn",
+	BuildingAnvil:    "anvil",
+	BuildingFletcher: "fletcher",
 }
 
 // GoalAmounts are the amounts the action window offers: how many to gather,
@@ -196,11 +192,8 @@ type ActionSpec struct {
 	Amount   int        `json:"amount"`
 }
 
-// Product is the item an action gathers, makes or improves.
+// Product is the item an action gathers or makes.
 func (a ActionSpec) Product() ItemKind {
-	if IsImprove(a.Kind) {
-		return ItemKind(a.Material)
-	}
 	m, _ := FindMaterial(a.Kind, a.Material)
 	return m.Item
 }
@@ -210,9 +203,6 @@ func (a ActionSpec) Product() ItemKind {
 func (a ActionSpec) Label() string {
 	if IsVisit(a.Kind) {
 		return ActionNames[a.Kind] + " the " + BuildingNames[Building(a.Material)]
-	}
-	if IsImprove(a.Kind) {
-		return ActionNames[a.Kind] + " " + lowerFirst(Items[ItemKind(a.Material)].Name)
 	}
 	m, _ := FindMaterial(a.Kind, a.Material)
 	return ActionNames[a.Kind] + " " + m.Label

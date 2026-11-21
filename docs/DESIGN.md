@@ -56,7 +56,7 @@ All three work the same way, from *nodes* of the chosen material at the action's
 Mines are ranked by distance from the spawn: the nearest has copper and iron, the next iron and gold, the farthest gold and mithril. Forests have whichever trees grew there. Every farm has rows of cabbages and cotton. Only trees inside a named forest can be chopped; scattered trees are scenery. A node with no walkable tile beside it is skipped.
 
 ### Visiting buildings
-- **Visit** is an action for a village's **bank**, **store** or **inn**. The character walks there, the action finishes, and the list stops so the building's window opens; **Start** carries on with the rest of the list. Walking up to a building by clicking does the same.
+- **Visit** is an action for a village's **bank**, **store**, **inn**, **anvil** or **fletcher**. The character walks there, the action finishes, and the list stops so the building's window opens; **Start** carries on with the rest of the list. Walking up to a building by clicking does the same.
 - **Store:** buy into the backpack and sell from it. Prices are in `docs/ECONOMY.md`.
 - **Inn:** a Quests and Rumours window. There are no quests yet. Rumours give directions from the inn to the three nearest places the player hasn't found ("Travellers speak of a mine called Greyrock, about 40 tiles north-east of here, where copper ore is mined.").
 
@@ -159,10 +159,11 @@ Every village has a bank building, and every player has their own bank account, 
 - **New gear comes out rough:** quality around half the maker's level (plus a tenth of their tool's quality; halved again with no tool), and never better than the ingredients.
 
 ### Improving
-- **Improve** is an action for a kind of gear at the village with its station (anvil for metal gear and tools, fletcher's hut for bows and staves). It takes the best piece of that kind from the bank, plus that recipe's main material (bars for metal, logs for bows and staves), and its goal is a number of attempts.
-- Each attempt uses one unit of material, which must be better quality than the piece; when it isn't, the action ends with "No better material to improve with".
-- Success raises the piece's quality by 1 or more, never past the material's quality. The chance is 85% up to the player's level and falls 2% for each quality point above it (never below 10%). A failure costs 1 quality.
+- Improving happens at the station, not from the action list: **Visit** the village's **anvil** (metal gear and tools) or **fletcher** (bows and staves), or walk up to it. The **Improve** window lists the pieces in the backpack that can be improved there.
+- Picking a piece shows what it needs: the recipe's level, units of its main material (bars for metal, logs for bows and staves) **better than the piece's quality**, carried in the backpack, and the matching tool on the belt (hammer or knife). **Start improving** then works on it, an attempt every 10 s (scaled by skill and tool).
+- **Each attempt** uses a quarter of a unit (the cheapest one still better than the piece) and wears the tool by 1%; at 100% the tool breaks and is gone. Success raises the piece's quality by 1 or more, never past the material's quality. The chance is 85% up to the player's level and falls 2% for each quality point above it (never below 10%). A failure costs 1 quality.
 - Each attempt gives the recipe's XP per unit of ingredient, plus 5% for each quality point the piece is above the player's level.
+- Improving stops on **Stop**, on walking away, when no carried material is better than the piece, when the tool breaks, or when the player is too tired.
 
 ### Screen layout
 Each time the game loads, the windows snap to their places: **Info** top left with **Skills** below it, **Actions** top right (the action picker opens beside it), **Inventory** bottom right, and **Chat** bottom left with its message box along the bottom (Enter sends). The progress bar sits bottom middle. Windows can be moved during a session.

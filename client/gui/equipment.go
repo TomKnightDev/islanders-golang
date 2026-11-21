@@ -104,6 +104,9 @@ func (e *Equipment) slots(worn map[resources.EquipSlot]resources.Stack, slots []
 		imgui.SameLine()
 		if s, ok := worn[slot]; ok {
 			name := fmt.Sprintf("%s q%d", resources.ItemNames[s.Kind], s.Quality)
+			if s.Damage > 0 {
+				name += fmt.Sprintf(" (%d%% worn)", s.Damage)
+			}
 			if slot == resources.SlotAmmo {
 				name = fmt.Sprintf("%s x%d q%d", resources.ItemNames[s.Kind], s.Count, s.Quality)
 			}

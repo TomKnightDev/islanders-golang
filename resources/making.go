@@ -79,8 +79,8 @@ func init() {
 }
 
 // ImproveRecipe is the recipe that makes an item, which sets how it's
-// improved: at that recipe's station, with its skill, using its first
-// ingredient.
+// improved: at that recipe's building (ImproveAt), with its skill and tool,
+// using its first ingredient.
 func ImproveRecipe(k ItemKind) (ActionKind, Material, bool) {
 	if !IsPiece(k) {
 		return "", Material{}, false
@@ -95,15 +95,38 @@ func ImproveRecipe(k ItemKind) (ActionKind, Material, bool) {
 	return "", Material{}, false
 }
 
-// Improvable lists every item that can be improved, in recipe order.
-func Improvable() []ItemKind {
-	var out []ItemKind
-	for _, kind := range []ActionKind{ActionSmith, ActionFletch} {
-		for _, m := range ActionMaterials[kind] {
-			if IsPiece(m.Item) {
-				out = append(out, m.Item)
-			}
-		}
+// ImproveAt is the building where an item is improved, if it can be.
+func ImproveAt(k ItemKind) (Building, bool) {
+	switch kind, _, ok := ImproveRecipe(k); {
+	case !ok:
+		return "", false
+	case kind == ActionSmith:
+		return BuildingAnvil, true
+	default:
+		return BuildingFletcher, true
 	}
-	return out
+}
+
+// ImproveUnitAttempts is how many improving attempts one unit of material
+// (a bar or a log) lasts.
+const ImproveUnitAttempts = 4
+
+// ImproveToolWear is the damage a tool takes from each improving attempt;
+// at 100 it breaks.
+const ImproveToolWear = 1
+
+// Improve window commands, sent by the client while at an anvil or the
+// fletcher's hut.
+const (
+	ImproveOpStart = "start"
+	ImproveOpStop  = "stop"
+)
+
+type ImproveCommandContents struct {
+	Op string `json:"op"`
+	ID uint32 `json:"id"` // start: the piece in the backpack
+}
+
+func NewImproveCommandMessage(c ImproveCommandContents) *Message {
+	return &Message{MessageType: ImproveCommandMessage, Contents: c}
 }

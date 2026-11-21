@@ -111,8 +111,11 @@ type player struct {
 	// character's clock. actionTicks is 0 for actions with no set length.
 	actionStart int
 	actionTicks int
-	invDirty    bool  // backpack, bank or action changed since last sent
-	visit       visit // the building the client was last told p is at
+	invDirty    bool            // backpack, bank or action changed since last sent
+	visit       visit           // the building the client was last told p is at
+	visitPrefer tile            // the building clicked or visited, preferred when several are in reach
+	improving   *improveSession // improving a piece at an anvil or the fletcher's hut
+	improveNote string          // how the last attempt went, or why improving stopped
 }
 
 // currentTile is the tile the player stands on, or is walking onto.
@@ -355,6 +358,7 @@ func (w *World) tick() {
 		w.tickDiscovery(p)
 		w.tickJob(p)
 		w.tickVisit(p)
+		w.tickImprove(p)
 		w.tickHealth(p)
 		w.sendFightState(p)
 		if moved || p.healthDirty {

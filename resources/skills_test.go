@@ -33,8 +33,8 @@ func TestSpeedFactor(t *testing.T) {
 
 func TestMaterialsAreConsistent(t *testing.T) {
 	for _, k := range ActionKinds {
-		if IsCombat(k) || IsVisit(k) || IsImprove(k) {
-			continue // fighting's materials are enemy kinds, visiting's buildings, improving's any gear
+		if IsCombat(k) || IsVisit(k) {
+			continue // fighting's materials are enemy kinds, visiting's buildings
 		}
 		mats := ActionMaterials[k]
 		if len(mats) == 0 {

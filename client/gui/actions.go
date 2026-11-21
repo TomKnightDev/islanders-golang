@@ -23,9 +23,8 @@ type Actions struct {
 	// Send queues a command for the server.
 	Send func(resources.ActionCommandContents)
 
-	state     resources.InventoryContents
-	picking   bool               // the "Add an action" window is open
-	improving resources.ItemKind // the item picked in the improve list
+	state   resources.InventoryContents
+	picking bool // the "Add an action" window is open
 }
 
 func NewActions(mgr *renderer.Manager, player *entities.Player, places []resources.Place) *Actions {
@@ -158,10 +157,6 @@ func (a *Actions) foundPlaces() {
 			continue
 		}
 
-		if resources.IsImprove(kind) {
-			a.improveButtons(place, full)
-			continue
-		}
 		a.materialButtons(kind, place, full)
 	}
 	dimmed("Walk into a village, mine, forest, farm or camp to find it.")
@@ -237,42 +232,6 @@ func recipeTooltip(m resources.Material) string {
 	return fmt.Sprintf("%s: uses %s, makes %d", m.Label, strings.Join(uses, " and "), m.Output())
 }
 
-// improveButtons picks a kind of gear to improve. The best piece of that
-// kind in the bank is taken to its station; each attempt uses one unit of
-// its main material, which must be of better quality than the piece.
-func (a *Actions) improveButtons(place resources.Place, full bool) {
-	items := resources.Improvable()
-	if a.improving == "" {
-		a.improving = items[0]
-	}
-	label := func(k resources.ItemKind) string {
-		kind, m, _ := resources.ImproveRecipe(k)
-		return fmt.Sprintf("%s (%s %d)", resources.ItemNames[k], resources.SkillNames[resources.ActionSkill[kind]], m.Level)
-	}
-	imgui.PushItemWidth(320)
-	if imgui.BeginComboV("##improveitem", label(a.improving), 0) {
-		for _, k := range items {
-			if imgui.SelectableV(label(k), k == a.improving, 0, imgui.Vec2{}) {
-				a.improving = k
-			}
-		}
-		imgui.EndCombo()
-	}
-	imgui.PopItemWidth()
-	imgui.SameLine()
-	kind, m, _ := resources.ImproveRecipe(a.improving)
-	if button("Add##improve", !full && a.level(resources.ActionSkill[kind]) >= m.Level) {
-		a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
-			Kind: resources.ActionImprove, Material: string(a.improving), Place: place.Name, Amount: resources.GoalAmounts[0],
-		}})
-	}
-	if imgui.IsItemHovered() {
-		imgui.SetTooltip(fmt.Sprintf("Takes your best %s from the bank to the %s and works on it with better-quality %s.",
-			strings.ToLower(resources.ItemNames[a.improving]), map[resources.ActionKind]string{resources.ActionSmith: "anvil", resources.ActionFletch: "fletcher"}[kind],
-			resources.ItemUnits[m.Inputs[0].Item]))
-	}
-}
-
 // visitButtons offers each building in the village to walk to; its window
 // opens on arrival.
 func (a *Actions) visitButtons(place resources.Place, full bool) {
@@ -331,8 +290,6 @@ func (a *Actions) row(i int, q resources.QueuedAction) {
 	switch {
 	case resources.IsCombat(spec.Kind):
 		verb, unit = "Defeat", "enemies"
-	case resources.IsImprove(spec.Kind):
-		verb, unit = "Try", "times"
 	case resources.ActionSkill[spec.Kind] == resources.SkillSmithing || resources.ActionSkill[spec.Kind] == resources.SkillFletching:
 		verb = "Make"
 	}

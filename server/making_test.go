@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -58,48 +59,127 @@ func TestMakingNeedsTheLevel(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
 	addAction(w, p, makeAction(resources.ActionSmith, resources.ItemMithrilSword, 10))
-	addAction(w, p, makeAction(resources.ActionImprove, resources.ItemMithrilSword, 10))
-	addAction(w, p, makeAction(resources.ActionImprove, resources.ItemIronOre, 10))
 	if len(p.actions) != 0 {
-		t.Errorf("accepted %d actions above the player's level or for materials", len(p.actions))
+		t.Errorf("accepted %d actions above the player's level", len(p.actions))
 	}
 }
 
-func TestImproveRaisesQuality(t *testing.T) {
-	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{4, 5})
-	p.xp[resources.SkillSmithing] = resources.XPForLevel(60)
-	sword := w.newPiece(resources.ItemCopperSword, 20)
-	p.bank.AddStack(sword)
-	p.bank.AddStack(resources.Stack{Kind: resources.ItemCopperBar, Count: 20, Quality: 70})
-	before := p.xp[resources.SkillSmithing]
-	addAction(w, p, makeAction(resources.ActionImprove, resources.ItemCopperSword, 20))
-	runUntil(t, w, 30*ticks(time.Minute), "improved", func() bool { return len(p.actions) == 0 })
+// atAnvil is next to the test village's anvil, at (3,8).
+var atAnvil = tile{4, 9}
 
-	got, ok := p.bank.TakeID(sword.ID)
-	if !ok {
-		t.Fatalf("the sword should be back in the bank: %+v", p.bank.Stacks)
+// improver is a smith at the anvil with a copper sword of quality q and
+// some copper bars of quality barQ in their backpack.
+func improver(t *testing.T, w *World, q, bars, barQ int) (*player, resources.Stack) {
+	t.Helper()
+	p := joinAt(t, w, "tom", atAnvil)
+	p.xp[resources.SkillSmithing] = resources.XPForLevel(60)
+	sword := w.newPiece(resources.ItemCopperSword, q)
+	p.backpack.AddStack(sword)
+	p.backpack.AddStack(resources.Stack{Kind: resources.ItemCopperBar, Count: bars, Quality: barQ})
+	if v := w.visiting(p); v.at != resources.BuildingAnvil {
+		t.Fatalf("should be at the anvil, at %+v", v)
 	}
+	return p, sword
+}
+
+func improve(w *World, p *player, id uint32) {
+	w.improveCommand(p, resources.ImproveCommandContents{Op: resources.ImproveOpStart, ID: id})
+}
+
+func TestImproveAtTheAnvil(t *testing.T) {
+	w := jobWorld(t)
+	p, sword := improver(t, w, 20, 5, 70)
+	before := p.xp[resources.SkillSmithing]
+	improve(w, p, sword.ID)
+	if p.improving == nil {
+		t.Fatalf("improving refused: %q", p.improveNote)
+	}
+	// 5 bars last 4 attempts each.
+	runUntil(t, w, 30*resources.ImproveUnitAttempts*5*ticks(improveTime), "stopped", func() bool { return p.improving == nil })
+
+	got, _ := p.backpack.TakeID(sword.ID)
 	if got.Quality <= 40 || got.Quality > 70 {
-		t.Errorf("20 attempts with quality-70 bars at level 60 took the sword from 20 to %d", got.Quality)
+		t.Errorf("quality-70 bars at level 60 took the sword from 20 to %d", got.Quality)
 	}
-	if p.bank.Count(resources.ItemCopperBar) != 0 || p.xp[resources.SkillSmithing] <= before {
-		t.Errorf("bars left %d, xp %d -> %d", p.bank.Count(resources.ItemCopperBar), before, p.xp[resources.SkillSmithing])
+	if p.backpack.Count(resources.ItemCopperBar) == 5 || p.xp[resources.SkillSmithing] <= before {
+		t.Errorf("bars left %d, xp %d -> %d", p.backpack.Count(resources.ItemCopperBar), before, p.xp[resources.SkillSmithing])
+	}
+	if p.equipment[resources.SlotHammer].Damage == 0 {
+		t.Error("improving should wear the hammer")
+	}
+	if !strings.Contains(p.improveNote, "better than quality") && !strings.Contains(p.improveNote, "can't get any better") {
+		t.Errorf("stop reason %q", p.improveNote)
 	}
 }
 
 func TestImproveNeedsBetterMaterial(t *testing.T) {
 	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{4, 5})
-	p.xp[resources.SkillSmithing] = resources.XPForLevel(10)
-	p.bank.AddStack(w.newPiece(resources.ItemCopperSword, 50))
-	p.bank.AddStack(resources.Stack{Kind: resources.ItemCopperBar, Count: 5, Quality: 40})
-	addAction(w, p, makeAction(resources.ActionImprove, resources.ItemCopperSword, 10))
-	if len(p.actions) != 1 {
-		t.Fatal("improve refused")
+	p, sword := improver(t, w, 50, 5, 40)
+	improve(w, p, sword.ID)
+	if p.improving != nil || !strings.Contains(p.improveNote, "better than quality 50") {
+		t.Errorf("improving %v, note %q", p.improving, p.improveNote)
 	}
-	runUntil(t, w, 5*ticks(time.Minute), "finished", func() bool { return len(p.actions) == 0 })
-	if p.activity != activityNoBetter || p.bank.Count(resources.ItemCopperBar) != 5 {
-		t.Errorf("activity %q, bars %d", p.activity, p.bank.Count(resources.ItemCopperBar))
+	if p.backpack.Count(resources.ItemCopperBar) != 5 {
+		t.Error("no bars should be used")
+	}
+}
+
+func TestImproveStopsWhenWalkingAway(t *testing.T) {
+	w := jobWorld(t)
+	p, sword := improver(t, w, 20, 5, 70)
+	improve(w, p, sword.ID)
+	w.click(p, tile{12, 12})
+	w.tick()
+	if p.improving != nil || !strings.Contains(p.improveNote, "walked away") {
+		t.Errorf("improving %v, note %q", p.improving, p.improveNote)
+	}
+}
+
+func TestImprovingCanBreakTheTool(t *testing.T) {
+	w := jobWorld(t)
+	p, sword := improver(t, w, 20, 5, 70)
+	hammer := p.equipment[resources.SlotHammer]
+	hammer.Damage = 100 - resources.ImproveToolWear
+	p.equipment[resources.SlotHammer] = hammer
+	improve(w, p, sword.ID)
+	runUntil(t, w, 2*ticks(improveTime), "stopped", func() bool { return p.improving == nil })
+	if _, ok := p.equipment[resources.SlotHammer]; ok || !strings.Contains(p.improveNote, "broke") {
+		t.Errorf("hammer %v, note %q", p.equipment[resources.SlotHammer], p.improveNote)
+	}
+	improve(w, p, sword.ID)
+	if p.improving != nil {
+		t.Error("can't improve without a hammer")
+	}
+}
+
+func TestImproveOnlyAtTheRightBuilding(t *testing.T) {
+	w := jobWorld(t)
+	p, sword := improver(t, w, 20, 5, 70)
+	p.pos[0], p.pos[1] = atStore.pixel()
+	improve(w, p, sword.ID)
+	if p.improving != nil {
+		t.Error("improved a sword at the store")
+	}
+	bow := w.newPiece(resources.ItemOakShortbow, 20)
+	p.backpack.AddStack(bow)
+	p.pos[0], p.pos[1] = atAnvil.pixel()
+	improve(w, p, bow.ID)
+	if p.improving != nil {
+		t.Error("bows are improved at the fletcher, not the anvil")
+	}
+}
+
+func TestVisitTheAnvilAndFletcher(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", tile{12, 12})
+	addAction(w, p, visitAction(resources.BuildingAnvil))
+	addAction(w, p, visitAction(resources.BuildingFletcher))
+	if len(p.actions) != 2 {
+		t.Fatalf("visits refused: %d", len(p.actions))
+	}
+	runUntil(t, w, 30*ticks(time.Second), "arrived", func() bool { return len(p.actions) == 1 })
+	w.tick()
+	if v := w.visiting(p); v.at != resources.BuildingAnvil {
+		t.Errorf("at %+v, want the anvil", v)
 	}
 }
