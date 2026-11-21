@@ -89,3 +89,36 @@ func TestPurchasesGoToTheBackpack(t *testing.T) {
 		t.Errorf("backpack %+v", p.backpack.Stacks)
 	}
 }
+
+func TestCombineChosenStacks(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", tile{12, 12})
+	p.backpack.AddStack(resources.Stack{Kind: resources.ItemCopperOre, Count: 2, Quality: 9})
+	p.backpack.AddStack(resources.Stack{Kind: resources.ItemCopperOre, Count: 2, Quality: 5})
+	p.backpack.AddStack(resources.Stack{Kind: resources.ItemCopperOre, Count: 2, Quality: 40})
+	w.combineCommand(p, resources.CombineCommandContents{Item: resources.ItemCopperOre, Qualities: []int{9, 5}})
+	if len(p.backpack.Stacks) != 2 || p.backpack.Stacks[0].Quality != 40 && p.backpack.Stacks[1].Quality != 40 {
+		t.Errorf("backpack %+v, want the q40 stack kept and the rest at q7", p.backpack.Stacks)
+	}
+
+	p.bank.AddStack(resources.Stack{Kind: resources.ItemCopperOre, Count: 2, Quality: 9})
+	p.bank.AddStack(resources.Stack{Kind: resources.ItemCopperOre, Count: 2, Quality: 5})
+	bankCombine := resources.CombineCommandContents{Item: resources.ItemCopperOre, Qualities: []int{9, 5}, Bank: true}
+	oreStacks := func() (n, q int) {
+		for _, s := range p.bank.Stacks {
+			if s.Kind == resources.ItemCopperOre {
+				n, q = n+1, s.Quality
+			}
+		}
+		return n, q
+	}
+	w.combineCommand(p, bankCombine)
+	if n, _ := oreStacks(); n != 2 {
+		t.Error("combined bank stacks from afar")
+	}
+	p.pos[0], p.pos[1] = tile{3, 3}.pixel()
+	w.combineCommand(p, bankCombine)
+	if n, q := oreStacks(); n != 1 || q != 7 {
+		t.Errorf("bank %+v, want one ore stack at q7", p.bank.Stacks)
+	}
+}

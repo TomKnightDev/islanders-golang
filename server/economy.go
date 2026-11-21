@@ -117,6 +117,8 @@ func (w *World) shopSell(p *player, st *store, c resources.ShopCommandContents) 
 		if piece, ok := p.backpack.TakeID(c.ID); ok {
 			sold = append(sold, piece)
 		}
+	} else if c.Count > 0 && c.Quality > 0 {
+		sold = p.backpack.TakeQuality(c.Item, c.Quality, c.Count)
 	} else if c.Count > 0 {
 		sold = p.backpack.Take(c.Item, c.Count)
 	}

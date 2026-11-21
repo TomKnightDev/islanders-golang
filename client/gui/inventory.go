@@ -14,6 +14,7 @@ import (
 // character is doing is shown by the action bar instead.
 type Inventory struct {
 	Open     bool // shown; the menu bar toggles it
+	picker   stackPicker
 	mgr      *renderer.Manager
 	Contents resources.InventoryContents
 }
@@ -37,43 +38,28 @@ func (inv *Inventory) Update() error {
 	imgui.BeginV("Inventory", &inv.Open, imgui.WindowFlagsAlwaysAutoResize)
 	imgui.Text(fmt.Sprintf("Coins: %d", inv.Contents.Coins))
 	imgui.Separator()
-	section("Backpack", inv.Contents.Backpack, inv.Contents.Skills)
+	section("Backpack", inv.Contents.Backpack, inv.Contents.Skills, &inv.picker)
 	inventoryTop = imgui.WindowPos().Y
 	imgui.End()
 
 	return nil
 }
 
-func section(title string, c resources.Inventory, skills []resources.SkillState) {
+func section(title string, c resources.Inventory, skills []resources.SkillState, picker *stackPicker) {
 	imgui.Text(fmt.Sprintf("%s  %d/%d slots", title, len(c.Stacks), c.Slots))
 	if len(c.Stacks) == 0 {
 		imgui.Text("  Empty")
 		return
 	}
-	// One line per item kind, in the order first seen.
-	var kinds []resources.ItemKind
-	seen := map[resources.ItemKind]bool{}
-	for _, s := range c.Stacks {
-		if !seen[s.Kind] {
-			seen[s.Kind] = true
-			kinds = append(kinds, s.Kind)
-		}
+	// A line per slot: each material stack has one quality.
+	for _, i := range slotOrder(c) {
+		s := c.Stacks[i]
+		picker.checkbox(s, fmt.Sprint(i))
+		imgui.Text(stackLabel(s))
+		itemTooltip(s.Kind)
+		repairButton(s, skills, resources.RepairCommandContents{ID: s.ID})
 	}
-	for _, k := range kinds {
-		if resources.IsPiece(k) {
-			// Gear and tools are listed piece by piece, each with its quality.
-			for _, s := range c.Stacks {
-				if s.Kind == k {
-					imgui.Text(fmt.Sprintf("  %s  q%d%s", resources.ItemNames[k], s.Quality, wornText(s)))
-					itemTooltip(k)
-					repairButton(s, skills, resources.RepairCommandContents{ID: s.ID})
-				}
-			}
-			continue
-		}
-		imgui.Text(fmt.Sprintf("  %s  %d  q%d", resources.ItemNames[k], c.Count(k), c.AverageQuality(k)))
-		itemTooltip(k)
-	}
+	picker.combineButton(c, false)
 }
 
 // itemTooltip describes an item when the line just drawn is hovered.

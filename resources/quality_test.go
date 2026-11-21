@@ -5,20 +5,20 @@ import (
 	"testing"
 )
 
-func TestStacksAverageQuality(t *testing.T) {
-	bank := NewInventory(10, true)
+func TestStacksKeepTheirQuality(t *testing.T) {
+	bank := NewInventory(10)
 	bank.AddStack(Stack{Kind: ItemIronOre, Count: 4, Quality: 20})
 	bank.AddStack(Stack{Kind: ItemIronOre, Count: 4, Quality: 40})
-	if len(bank.Stacks) != 1 || bank.Stacks[0].Quality != 30 {
-		t.Errorf("merged stack %+v, want quality 30", bank.Stacks)
+	if len(bank.Stacks) != 2 || bank.AverageQuality(ItemIronOre) != 30 {
+		t.Errorf("stacks %+v, want q20 and q40 kept apart", bank.Stacks)
 	}
 }
 
 func TestQualityMovesWithItems(t *testing.T) {
-	bank := NewInventory(10, true)
+	bank := NewInventory(10)
 	bank.AddStack(Stack{Kind: ItemIronOre, Count: 5, Quality: 60})
 	bank.AddStack(Stack{Kind: ItemIronSword, Count: 1, Quality: 33, ID: 7})
-	pack := NewInventory(20, false)
+	pack := NewInventory(20)
 	pack.AddAll(bank.Take(ItemIronOre, 3))
 	if pack.Count(ItemIronOre) != 3 || pack.AverageQuality(ItemIronOre) != 60 {
 		t.Errorf("taken ore %+v", pack.Stacks)

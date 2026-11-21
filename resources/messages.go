@@ -30,6 +30,7 @@ const (
 	InnMessage                MessageType = "innMessage"             // server: quests and rumours at an inn
 	StationCommandMessage     MessageType = "stationCommandMessage"  // client: make or improve gear at an anvil or the fletcher's hut
 	RepairCommandMessage      MessageType = "repairCommandMessage"   // client: repair a worn piece
+	CombineCommandMessage     MessageType = "combineCommandMessage"  // client: combine a material's stacks
 )
 
 type Message struct {

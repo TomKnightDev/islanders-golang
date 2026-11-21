@@ -146,7 +146,8 @@ func guideBanks() {
 }
 
 func guideQuality() {
-	para("Gear, tools and materials have a quality from 1 to 100. Materials stack and keep the average quality; each piece of gear or tool has its own.")
+	para("Gear, tools and materials have a quality from 1 to 100. Each piece of gear or tool has its own quality. Materials stack only with the same quality, so each line in your backpack or bank is one slot: \"Copper ore x3 q23\".")
+	point("To combine stacks, tick the ones you want (they must be the same material), then press Combine selected. They merge into as few slots as possible at their average quality, so you can combine just your poor ore and keep the good ore apart.")
 	point("Better gear is stronger: its bonuses range from 70% at quality 0 to 130% at quality 100.")
 	point("Wear lowers a piece's working quality. A tool at 100% wear breaks and is gone.")
 	heading("The tool belt")

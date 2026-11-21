@@ -73,7 +73,8 @@ type ShopCommandContents struct {
 	Op      string   `json:"op"`
 	Village string   `json:"village"`
 	Item    ItemKind `json:"item"`
-	ID      uint32   `json:"id"` // sell: a piece of gear or a tool
+	ID      uint32   `json:"id"`      // sell: a piece of gear or a tool
+	Quality int      `json:"quality"` // sell: only stacks of this quality, if set
 	Count   int      `json:"count"`
 }
 

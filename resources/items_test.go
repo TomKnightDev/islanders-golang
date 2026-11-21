@@ -3,7 +3,7 @@ package resources
 import "testing"
 
 func TestAddStacksUpToLimit(t *testing.T) {
-	inv := NewInventory(3, true)
+	inv := NewInventory(3)
 	if got := inv.Add(ItemIronOre, 25); got != 25 {
 		t.Fatalf("added %d, want 25", got)
 	}
@@ -15,36 +15,62 @@ func TestAddStacksUpToLimit(t *testing.T) {
 	if got := inv.Add(ItemIronOre, 10); got != 5 {
 		t.Fatalf("added %d, want 5", got)
 	}
-	if !inv.Full(ItemIronOre) {
-		t.Error("should be full of ore")
+	if !inv.Full() {
+		t.Error("should be full")
 	}
 }
 
 func TestDifferentLimitsPerItem(t *testing.T) {
-	inv := NewInventory(1, true)
+	inv := NewInventory(1)
 	if got := inv.Add(ItemIronIngot, 25); got != 20 {
 		t.Errorf("ingots: added %d, want 20", got)
 	}
-	inv = NewInventory(1, true)
+	inv = NewInventory(1)
 	if got := inv.Add(ItemIronOre, 25); got != 10 {
 		t.Errorf("ore: added %d, want 10", got)
 	}
 }
 
-func TestFullIsPerItem(t *testing.T) {
-	inv := NewInventory(2, true)
-	inv.Add(ItemIronOre, 10)
-	inv.Add(ItemIronIngot, 5)
-	if !inv.Full(ItemIronOre) {
-		t.Error("no room for ore: both slots used and the ore stack is at its limit")
+func TestOnlyEqualQualityStacks(t *testing.T) {
+	inv := NewInventory(5)
+	inv.AddStack(Stack{Kind: ItemIronOre, Count: 3, Quality: 20})
+	inv.AddStack(Stack{Kind: ItemIronOre, Count: 2, Quality: 20})
+	inv.AddStack(Stack{Kind: ItemIronOre, Count: 4, Quality: 35})
+	if len(inv.Stacks) != 2 || inv.Stacks[0].Count != 5 || inv.Stacks[1].Quality != 35 {
+		t.Errorf("stacks %+v, want 5 at q20 and 4 at q35", inv.Stacks)
 	}
-	if inv.Full(ItemIronIngot) {
-		t.Error("the ingot stack still has room")
+}
+
+func TestCombineOnlyThePickedStacks(t *testing.T) {
+	inv := NewInventory(10)
+	inv.AddStack(Stack{Kind: ItemIronOre, Count: 6, Quality: 8})
+	inv.AddStack(Stack{Kind: ItemIronOre, Count: 6, Quality: 4})
+	inv.AddStack(Stack{Kind: ItemIronOre, Count: 3, Quality: 50})
+	inv.AddStack(Stack{Kind: ItemCopperOre, Count: 1, Quality: 6})
+	// Combine the ore under 10: the q8 and q4 stacks.
+	if !inv.Combine(ItemIronOre, []int{8, 4}) {
+		t.Fatal("combine did nothing")
+	}
+	// 12 ore at q6 (a full 10 and a 2); the q50 iron and the copper untouched.
+	n6 := 0
+	for _, s := range inv.Stacks {
+		switch {
+		case s.Kind == ItemIronOre && s.Quality == 6:
+			n6 += s.Count
+		case s.Kind == ItemIronOre && s.Quality != 50:
+			t.Errorf("unexpected stack %+v", s)
+		}
+	}
+	if n6 != 12 || inv.Count(ItemIronOre) != 15 || inv.Count(ItemCopperOre) != 1 || len(inv.Stacks) != 4 {
+		t.Errorf("after combining: %+v", inv.Stacks)
+	}
+	if inv.Combine(ItemIronOre, []int{50}) || inv.Combine(ItemIronOre, []int{99, 98}) {
+		t.Error("one stack, or none, has nothing to combine")
 	}
 }
 
 func TestRemoveDropsEmptyStacks(t *testing.T) {
-	inv := NewInventory(5, true)
+	inv := NewInventory(5)
 	inv.Add(ItemIronOre, 23)
 	if got := inv.Remove(ItemIronOre, 13); got != 13 {
 		t.Fatalf("removed %d", got)
@@ -58,9 +84,9 @@ func TestRemoveDropsEmptyStacks(t *testing.T) {
 }
 
 func TestTransferAllIntoNearlyFullBank(t *testing.T) {
-	pack := NewInventory(30, false)
+	pack := NewInventory(30)
 	pack.Add(ItemIronOre, 30)
-	bank := NewInventory(2, true)
+	bank := NewInventory(2)
 	bank.Add(ItemIronOre, 5)
 
 	if pack.TransferAll(&bank) {
@@ -75,28 +101,24 @@ func TestTransferAllIntoNearlyFullBank(t *testing.T) {
 	}
 }
 
-func TestBackpackDoesNotStack(t *testing.T) {
-	pack := NewInventory(20, false)
-	if got := pack.Add(ItemIronOre, 25); got != 20 {
-		t.Fatalf("backpack took %d ore, want 20", got)
+func TestTakeQualityAndSlot(t *testing.T) {
+	inv := NewInventory(5)
+	inv.AddStack(Stack{Kind: ItemIronOre, Count: 5, Quality: 20})
+	inv.AddStack(Stack{Kind: ItemIronOre, Count: 5, Quality: 40})
+	got := inv.TakeQuality(ItemIronOre, 20, 3)
+	if len(got) != 1 || got[0].Count != 3 || got[0].Quality != 20 || inv.Count(ItemIronOre) != 7 {
+		t.Errorf("took %+v, left %+v", got, inv.Stacks)
 	}
-	if len(pack.Stacks) != 20 || !pack.Full(ItemIronOre) {
-		t.Errorf("each ore should take a slot: %d stacks", len(pack.Stacks))
-	}
-	if pack.Add(ItemIronIngot, 1) != 0 {
-		t.Error("a full backpack should not take an ingot either")
-	}
-	// Banked, the same 20 ore fit in 2 slots.
-	bank := NewInventory(100, true)
-	if !pack.TransferAll(&bank) || len(bank.Stacks) != 2 {
-		t.Errorf("bank should stack 20 ore into 2 slots, got %d", len(bank.Stacks))
+	part, ok := inv.TakeSlot(1, 99)
+	if !ok || part.Count != 5 || part.Quality != 40 || len(inv.Stacks) != 1 {
+		t.Errorf("took slot %+v, left %+v", part, inv.Stacks)
 	}
 }
 
-func TestArrowsStackInTheBackpack(t *testing.T) {
-	pack := NewInventory(20, false)
+func TestArrowsStack(t *testing.T) {
+	pack := NewInventory(20)
 	pack.Add(ItemOakLogs, 3)
-	if got := pack.Add(ItemOakArrows, 120); got != 120 || len(pack.Stacks) != 6 {
-		t.Errorf("3 logs + 120 arrows should take 6 slots (50+50+20), got %d stacks", len(pack.Stacks))
+	if got := pack.Add(ItemOakArrows, 120); got != 120 || len(pack.Stacks) != 4 {
+		t.Errorf("3 logs + 120 arrows should take 4 slots (logs, then 50+50+20 arrows), got %d stacks", len(pack.Stacks))
 	}
 }

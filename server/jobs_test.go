@@ -375,7 +375,7 @@ func TestBankFullStopsTheList(t *testing.T) {
 	w := jobWorld(t)
 	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
-	p.bank = resources.NewInventory(1, true)
+	p.bank = resources.NewInventory(1)
 	p.bank.Add(resources.ItemCopperOre, 5) // room for 5 more only
 	addAction(w, p, mineFor(50))
 	run(w, p)
@@ -384,7 +384,8 @@ func TestBankFullStopsTheList(t *testing.T) {
 	if p.activity != activityBankFull {
 		t.Errorf("activity %q", p.activity)
 	}
-	if ore(p.bank) != 10 || ore(p.backpack) != 15 {
+	// One bank slot: it only takes ore of the quality already there.
+	if ore(p.bank) > 10 || ore(p.backpack) == 0 {
 		t.Errorf("bank %d, backpack %d", ore(p.bank), ore(p.backpack))
 	}
 	if len(p.actions) != 1 {
@@ -392,15 +393,36 @@ func TestBankFullStopsTheList(t *testing.T) {
 	}
 }
 
-func TestFullBackpackIsTwentyOre(t *testing.T) {
+func TestFullBackpackIsTwentySlots(t *testing.T) {
 	w := jobWorld(t)
-	w.nodes[tile{10, 10}].amount = 100
+	w.nodes[tile{10, 10}].amount = 10000
 	p := joinAt(t, w, "tom", tile{9, 10})
-	addAction(w, p, mineFor(100))
+	addAction(w, p, mineFor(1000))
 	run(w, p)
-	runUntil(t, w, ticks(swingTime)*backpackSlots*2, "head to the bank", func() bool { return p.job != nil && p.job.state == stateWalkToBank })
-	if got := ore(p.backpack); got != backpackSlots {
-		t.Errorf("went to the bank carrying %d ore, want %d", got, backpackSlots)
+	runUntil(t, w, ticks(swingTime)*backpackSlots*20, "head to the bank", func() bool { return p.job != nil && p.job.state == stateWalkToBank })
+	if len(p.backpack.Stacks) != backpackSlots {
+		t.Errorf("went to the bank with %d slots used, want %d", len(p.backpack.Stacks), backpackSlots)
+	}
+	checkStacks(t, p.backpack)
+	t.Logf("a full backpack held %d ore", ore(p.backpack))
+}
+
+// checkStacks fails if two stacks of the same kind and quality could have
+// been one: only a full stack may sit beside another of its kind and quality.
+func checkStacks(t *testing.T, inv resources.Inventory) {
+	t.Helper()
+	partial := map[resources.Stack]bool{}
+	for _, s := range inv.Stacks {
+		key := resources.Stack{Kind: s.Kind, Quality: s.Quality}
+		if s.Count > resources.StackLimits[s.Kind] {
+			t.Errorf("stack over its limit: %+v", s)
+		}
+		if s.Count < resources.StackLimits[s.Kind] && !resources.IsPiece(s.Kind) {
+			if partial[key] {
+				t.Errorf("two partial stacks of %s at q%d", s.Kind, s.Quality)
+			}
+			partial[key] = true
+		}
 	}
 }
 
@@ -544,16 +566,8 @@ func TestFletchArrows(t *testing.T) {
 	if arrows(p.bank) != 200 || logs(p.bank) != 5 {
 		t.Errorf("bank %d arrows %d logs", arrows(p.bank), logs(p.bank))
 	}
-	// 200 arrows at 50 a slot.
-	slots := 0
-	for _, s := range p.bank.Stacks {
-		if s.Kind == resources.ItemOakArrows {
-			slots++
-		}
-	}
-	if slots != 4 {
-		t.Errorf("200 arrows took %d bank slots, want 4", slots)
-	}
+	// Arrows stack 50 to a slot, a stack per quality.
+	checkStacks(t, p.bank)
 }
 
 func TestFletchingFillsBackpackWithStackedArrows(t *testing.T) {
@@ -565,9 +579,10 @@ func TestFletchingFillsBackpackWithStackedArrows(t *testing.T) {
 	runUntil(t, w, 20000, "heading back with arrows", func() bool {
 		return p.job != nil && p.job.state == stateWalkToBank && arrows(p.backpack) > 0
 	})
-	if arrows(p.backpack) != 200 || len(p.backpack.Stacks) != 4 {
-		t.Errorf("carrying %d arrows in %d slots, want 200 in 4", arrows(p.backpack), len(p.backpack.Stacks))
+	if arrows(p.backpack) != 200 {
+		t.Errorf("carrying %d arrows, want 200", arrows(p.backpack))
 	}
+	checkStacks(t, p.backpack)
 }
 
 func TestHigherTiersNeedLevels(t *testing.T) {

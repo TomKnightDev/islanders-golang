@@ -278,8 +278,8 @@ func (w *World) tickImprove(p *player) {
 	}
 	if s.unitLeft == 0 {
 		u := bestUnit(&p.backpack, s.recipe.Inputs[0].Item, p.backpack.Stacks[i].Quality)
-		s.unitQ, s.unitLeft = p.backpack.Stacks[u].Quality, resources.ImproveUnitAttempts
-		p.backpack.Stacks = append(p.backpack.Stacks[:u], p.backpack.Stacks[u+1:]...)
+		unit, _ := p.backpack.TakeSlot(u, 1)
+		s.unitQ, s.unitLeft = unit.Quality, resources.ImproveUnitAttempts
 		i = pieceAt()
 	}
 	s.unitLeft--
