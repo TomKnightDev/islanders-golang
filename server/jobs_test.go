@@ -702,3 +702,18 @@ func TestPathIsSentOnlyToItsPlayer(t *testing.T) {
 		t.Error("arriving should send an empty path")
 	}
 }
+
+func TestFirstActionStartsTheList(t *testing.T) {
+	w := jobWorld(t)
+	w.nodes[tile{10, 10}].amount = 100
+	p := joinAt(t, w, "tom", tile{9, 10})
+	addAction(w, p, mineFor(10))
+	if !p.running {
+		t.Fatal("adding to an empty list should start it")
+	}
+	w.actionCommand(p, resources.ActionCommandContents{Op: resources.ActionOpStop})
+	addAction(w, p, mineFor(20))
+	if p.running {
+		t.Error("adding to a stopped list that already has actions shouldn't start it")
+	}
+}

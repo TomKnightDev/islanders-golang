@@ -344,6 +344,9 @@ func (w *World) actionCommand(p *player, c resources.ActionCommandContents) {
 	case resources.ActionOpAdd:
 		if len(p.actions) < resources.MaxActions && w.validAction(p, c.Action) {
 			p.actions = append(p.actions, &queuedAction{spec: c.Action})
+			if len(p.actions) == 1 {
+				w.startList(p) // the first action starts straight away
+			}
 		}
 	case resources.ActionOpEdit:
 		if inRange && w.validAction(p, c.Action) {
@@ -367,8 +370,7 @@ func (w *World) actionCommand(p *player, c resources.ActionCommandContents) {
 		}
 	case resources.ActionOpStart:
 		if len(p.actions) > 0 {
-			p.running = true
-			p.path = p.path[:min(1, len(p.path))] // stop any manual walk after this step
+			w.startList(p)
 		}
 	case resources.ActionOpStop:
 		p.running = false
@@ -383,6 +385,12 @@ func (w *World) actionCommand(p *player, c resources.ActionCommandContents) {
 		p.running = false
 	}
 	p.invDirty = true
+}
+
+// startList sets p working through the action list.
+func (w *World) startList(p *player) {
+	p.running = true
+	p.path = p.path[:min(1, len(p.path))] // stop any manual walk after this step
 }
 
 // cancelJob stops the running job where it is. Anything carried stays in
