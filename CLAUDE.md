@@ -59,6 +59,8 @@ Every push to `master` triggers `.github/workflows/server.yml`. It builds the se
 
 **Window layout.** `client/gui/layout.go`: `placeWindow` pins a window to a screen position and corner for its first few frames each session (overriding `imgui.ini`), then leaves it movable. Skills sits under Info via `infoBottom`; the picker opens beside Actions via `actionsLeft`.
 
+**Player guide.** `client/gui/guide.go` is the in-game guide (F1, or the Info window's button): a page per topic. Its numbers come from `resources` where they live there (the recipe tables are generated from `GearRecipes`), but server tuning values are written into the text, so update the guide when gameplay changes.
+
 **Hover tooltips.** `gui.Hover` looks up the object-layer tile under the mouse in `resources.ObjectInfo` and adds context from `WorldMap.Places`; the inventory window shows `resources.ItemDescriptions` on hover. New objects and items need an entry there.
 
 **Action bar.** Every activity change or new timed step (each mining swing, smelt or walk) calls `startAction`, which sends the owner the action's length and elapsed time in the `InventoryMessage`. The client's `gui.ActionBar` animates the green fill locally from that, so the server doesn't send progress every tick. Open-ended activities (idle, waiting, bank full) have length 0 and show an empty bar; idle hides it.

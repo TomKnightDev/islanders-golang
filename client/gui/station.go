@@ -110,7 +110,10 @@ func (m *Station) makeTab() {
 		} else {
 			imgui.SameLine()
 		}
-		if imgui.SelectableV(r.Short+"##make"+r.ID, r.Item == m.recipe, 0, imgui.Vec2{X: 0}) && !m.busy() {
+		// Sized to its text: a selectable fills the row by default, so the
+		// ones after it on the same line would sit on top of it.
+		size := imgui.CalcTextSize(r.Short, false, 0)
+		if imgui.SelectableV(r.Short+"##make"+r.ID, r.Item == m.recipe, 0, imgui.Vec2{X: size.X}) && !m.busy() {
 			m.recipe = r.Item
 		}
 		if imgui.IsItemHovered() {
@@ -119,6 +122,9 @@ func (m *Station) makeTab() {
 	}
 	if !any {
 		dimmed("Nothing you can make here yet.")
+	}
+	if next, ok := m.nextUnlock(); ok {
+		dimmed(fmt.Sprintf("Next: %s at %s level %d. The Guide lists every recipe.", next.Label, resources.SkillNames[next.Skill], next.Level))
 	}
 	imgui.EndGroup()
 
@@ -161,6 +167,18 @@ func (m *Station) makeTab() {
 	if button(fmt.Sprintf("Make all (%d)", crafts), crafts > 0 && !m.busy()) {
 		m.send(resources.StationCommandContents{Op: resources.StationOpMake, Item: r.Item, Count: crafts})
 	}
+}
+
+// nextUnlock is the lowest-level recipe here the player can't make yet.
+func (m *Station) nextUnlock() (resources.GearRecipe, bool) {
+	var next resources.GearRecipe
+	found := false
+	for _, r := range resources.GearRecipes {
+		if r.At == m.shownAt && m.level(r.Skill) < r.Level && (!found || r.Level < next.Level) {
+			next, found = r, true
+		}
+	}
+	return next, found
 }
 
 // toolLine shows the recipe's tool on the belt, or that it's missing.

@@ -51,6 +51,7 @@ var ShopWindow = &gui.Shop{}
 var BankWindow = &gui.Bank{}
 var InnWindow = &gui.Inn{}
 var StationWindow = &gui.Station{}
+var GuideWindow *gui.Guide
 var DevWindow *gui.Dev
 var world *entities.World
 var client = &Client{}
@@ -252,6 +253,9 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 		go func() { client.SendChan <- resources.NewStationCommandMessage(c) }()
 	})
 	g.Gui = append(g.Gui, StationWindow)
+	GuideWindow = gui.NewGuide(g.renderMgr)
+	InfoWindow.OpenGuide = func() { GuideWindow.Open = true }
+	g.Gui = append(g.Gui, GuideWindow)
 
 	DevWindow = gui.NewDev(func(c resources.DevCommandContents) {
 		go func() { client.SendChan <- resources.NewDevCommandMessage(c) }()

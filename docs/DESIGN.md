@@ -167,7 +167,7 @@ Every village has a bank building, and every player has their own bank account, 
 - Improving stops on **Stop**, on walking away, when no carried material is better than the piece, when the tool breaks, or when the player is too tired.
 
 ### Screen layout
-Each time the game loads, the windows snap to their places: **Info** top left with **Skills** below it, **Actions** top right (the action picker opens beside it), **Inventory** bottom right, and **Chat** bottom left with its message box along the bottom (Enter sends). The progress bar sits bottom middle. Windows can be moved during a session.
+The **Guide** (the Info window's Guide button, or F1) explains the game page by page: getting started, the action list, skills, stamina, banks and stores, quality and tools, making gear (with every recipe and its level), improving and fighting. Each time the game loads, the windows snap to their places: **Info** top left with **Skills** below it, **Actions** top right (the action picker opens beside it), **Inventory** bottom right, and **Chat** bottom left with its message box along the bottom (Enter sends). The progress bar sits bottom middle. Windows can be moved during a session.
 
 ### Camera and route
 The camera follows the character. Click and drag the map to look around; a plain click still walks there. While the camera is free, a **Follow my character** button at the top of the screen brings it back. Your own route is drawn as a line from your character to where they're heading; nobody else sees it.

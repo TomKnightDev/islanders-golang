@@ -16,6 +16,8 @@ type Info struct {
 	player *entities.Player
 	// SendChat posts a chat message; used by "Share location".
 	SendChat func(string)
+	// OpenGuide shows the player guide.
+	OpenGuide func()
 }
 
 func NewInfo(screenWidth, screenHeight int, player *entities.Player, mgr *renderer.Manager) *Info {
@@ -64,6 +66,12 @@ func (info *Info) Update() error {
 			msg += ", " + where
 		}
 		info.SendChat(msg)
+	}
+	if info.OpenGuide != nil {
+		imgui.SameLine()
+		if imgui.Button("Guide (F1)") {
+			info.OpenGuide()
+		}
 	}
 	infoBottom = imgui.WindowPos().Y + imgui.WindowSize().Y
 	imgui.End()

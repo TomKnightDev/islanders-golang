@@ -45,6 +45,10 @@ func (g *Game) Update() error {
 	if inpututil.IsKeyJustPressed(ebiten.KeyF12) && DevWindow != nil {
 		DevWindow.Open = !DevWindow.Open
 	}
+	// F1 opens the player guide.
+	if inpututil.IsKeyJustPressed(ebiten.KeyF1) && GuideWindow != nil {
+		GuideWindow.Open = !GuideWindow.Open
+	}
 
 	if g.Player != nil {
 		if err := g.Player.Update(); err != nil {
