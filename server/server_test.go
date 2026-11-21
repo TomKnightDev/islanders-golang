@@ -1,9 +1,11 @@
 package main
 
 import (
+	"fmt"
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -11,7 +13,16 @@ import (
 	"github.com/tomknightdev/islanders-golang/resources"
 )
 
-var worldOnce sync.Once
+var (
+	worldOnce sync.Once
+	nameCount atomic.Int64
+)
+
+// uniqueName gives each end-to-end run a fresh name, since the tests share
+// one world and a name that exists skips character creation.
+func uniqueName(base string) string {
+	return fmt.Sprintf("%s%d", base, nameCount.Add(1))
+}
 
 // startWorld runs the package's world once for all end-to-end tests; only
 // one goroutine may ever own it.
@@ -48,7 +59,8 @@ func TestEndToEndLoginAndWalk(t *testing.T) {
 
 	conn := dial(t, ts.URL)
 	defer conn.Close()
-	conn.WriteJSON(resources.NewConnectRequestMessage(resources.ConnectRequestContents{Username: "e2e", Password: "pw"}))
+	e2eName := uniqueName("e2e")
+	createCharacter(t, conn, e2eName, resources.ClassWarrior)
 
 	resp := readUntil(t, conn, 2*time.Second, func(m *resources.Message) bool {
 		return m.MessageType == resources.ConnectResponseMessage
@@ -78,7 +90,7 @@ func TestEndToEndLoginAndWalk(t *testing.T) {
 	// Wrong password on a second connection is refused.
 	bad := dial(t, ts.URL)
 	defer bad.Close()
-	bad.WriteJSON(resources.NewConnectRequestMessage(resources.ConnectRequestContents{Username: "e2e", Password: "nope"}))
+	bad.WriteJSON(resources.NewConnectRequestMessage(resources.ConnectRequestContents{Username: e2eName, Password: "nope"}))
 	readUntil(t, bad, 2*time.Second, func(m *resources.Message) bool {
 		return m.MessageType == resources.FailedToConnectMessage
 	})
@@ -91,7 +103,7 @@ func TestEndToEndActionList(t *testing.T) {
 
 	conn := dial(t, ts.URL)
 	defer conn.Close()
-	conn.WriteJSON(resources.NewConnectRequestMessage(resources.ConnectRequestContents{Username: "planner", Password: "pw"}))
+	createCharacter(t, conn, uniqueName("planner"), resources.ClassArcher)
 
 	// The first inventory lists the spawn village as found.
 	var village string
@@ -121,4 +133,53 @@ func TestEndToEndActionList(t *testing.T) {
 		resources.DecodeContents(m.Contents, &inv)
 		return inv.Activity == activityNoOre && !inv.Running && len(inv.Actions) == 0
 	})
+}
+
+// createCharacter connects with a new name and picks a class when asked.
+func createCharacter(t *testing.T, conn *websocket.Conn, name string, class resources.ClassID) {
+	t.Helper()
+	conn.WriteJSON(resources.NewConnectRequestMessage(resources.ConnectRequestContents{Username: name, Password: "pw"}))
+	readUntil(t, conn, 2*time.Second, func(m *resources.Message) bool {
+		return m.MessageType == resources.ChooseClassMessage
+	})
+	conn.WriteJSON(resources.NewCreateCharacterMessage(resources.CreateCharacterContents{Class: class}))
+}
+
+func TestEndToEndCharacterCreation(t *testing.T) {
+	startWorld()
+	ts := httptest.NewServer(httpHandler())
+	defer ts.Close()
+
+	conn := dial(t, ts.URL)
+	name := uniqueName("merlin")
+	createCharacter(t, conn, name, resources.ClassMage)
+	resp := readUntil(t, conn, 2*time.Second, func(m *resources.Message) bool {
+		return m.MessageType == resources.ConnectResponseMessage
+	})
+	var contents resources.ConnectResponseContents
+	resources.DecodeContents(resp.Contents, &contents)
+	mage, _ := resources.FindClass(resources.ClassMage)
+	if contents.Tile[0] != float64(mage.Sprite[0]) || contents.Tile[1] != float64(mage.Sprite[1]) {
+		t.Errorf("mage sprite %v", contents.Tile)
+	}
+	readUntil(t, conn, 2*time.Second, func(m *resources.Message) bool {
+		if m.MessageType != resources.InventoryMessage {
+			return false
+		}
+		var inv resources.InventoryContents
+		resources.DecodeContents(m.Contents, &inv)
+		return len(inv.Equipment) == 1 && inv.Equipment[0].Item == resources.ItemApprenticeStaff
+	})
+	conn.Close()
+
+	// Coming back with the same name logs straight in: no class question.
+	again := dial(t, ts.URL)
+	defer again.Close()
+	again.WriteJSON(resources.NewConnectRequestMessage(resources.ConnectRequestContents{Username: name, Password: "pw"}))
+	first := readUntil(t, again, 2*time.Second, func(m *resources.Message) bool {
+		return m.MessageType == resources.ConnectResponseMessage || m.MessageType == resources.ChooseClassMessage
+	})
+	if first.MessageType != resources.ConnectResponseMessage {
+		t.Error("a returning player was asked to choose a class")
+	}
 }

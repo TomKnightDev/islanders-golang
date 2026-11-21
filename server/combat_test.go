@@ -36,17 +36,88 @@ func fightGoblins(kills int) resources.ActionSpec {
 	return resources.ActionSpec{Kind: resources.ActionFight, Material: "goblin", Place: testCamp, Goal: resources.GoalAmount, Amount: kills}
 }
 
-func TestStartingKit(t *testing.T) {
+func TestClassStartingKits(t *testing.T) {
 	w := jobWorld(t)
-	p, _ := w.login("new", "pw", testSession())
-	if p.equipment[resources.SlotWeapon].Kind != resources.ItemTrainingSword {
-		t.Errorf("weapon %v", p.equipment)
+	want := map[resources.ClassID]struct {
+		weapon resources.ItemKind
+		skill  resources.Skill
+		style  string
+	}{
+		resources.ClassWarrior:     {resources.ItemCopperSword, resources.SkillAttack, "Melee"},
+		resources.ClassArcher:      {resources.ItemOakShortbow, resources.SkillRanged, "Ranged"},
+		resources.ClassMage:        {resources.ItemApprenticeStaff, resources.SkillMagic, "Magic"},
+		resources.ClassNecromancer: {resources.ItemBoneStaff, resources.SkillMagic, "Necromancy"},
 	}
-	if p.bank.Count(resources.ItemCabbage) != startingFood {
-		t.Errorf("%d cabbages", p.bank.Count(resources.ItemCabbage))
+	for _, c := range resources.Classes {
+		p := w.createCharacter(string(c.ID), "pw", c)
+		w2 := want[c.ID]
+		if got := p.equipment[resources.SlotWeapon].Kind; got != w2.weapon {
+			t.Errorf("%s starts with %s, want %s", c.Name, got, w2.weapon)
+		}
+		if p.level(w2.skill) != 5 || p.bonuses().Style() != w2.style {
+			t.Errorf("%s: %s level %d, style %s", c.Name, w2.skill, p.level(w2.skill), p.bonuses().Style())
+		}
+		if p.sprite[0] != float64(c.Sprite[0]) || p.sprite[1] != float64(c.Sprite[1]) || p.class != c.ID {
+			t.Errorf("%s has the wrong look", c.Name)
+		}
+		if p.bank.Count(resources.ItemCabbage) != startingFood || p.health != 100 || p.maxHealth() != 100 {
+			t.Errorf("%s: %d cabbages, health %d/%d", c.Name, p.bank.Count(resources.ItemCabbage), p.health, p.maxHealth())
+		}
 	}
-	if p.level(resources.SkillHitpoints) != resources.StartingHitpoints || p.health != 100 || p.maxHealth() != 100 {
-		t.Errorf("hitpoints %d, health %d/%d", p.level(resources.SkillHitpoints), p.health, p.maxHealth())
+	archer := w.byName[string(resources.ClassArcher)]
+	if archer.equipment[resources.SlotAmmo].Count != 150 {
+		t.Errorf("archer arrows %+v", archer.equipment[resources.SlotAmmo])
+	}
+	warrior := w.byName[string(resources.ClassWarrior)]
+	if warrior.equipment[resources.SlotShield].Kind != resources.ItemCopperShield {
+		t.Error("warriors start with a shield")
+	}
+}
+
+func TestMagicFighting(t *testing.T) {
+	for _, class := range []resources.ClassID{resources.ClassMage, resources.ClassNecromancer} {
+		w := campWorld(t)
+		c, _ := resources.FindClass(class)
+		p := w.createCharacter("caster", "pw", c)
+		p.pos[0], p.pos[1] = tile{12, 4}.pixel()
+		p.found[testCamp] = true
+		p.xp[resources.SkillMagic] = resources.XPForLevel(40)
+		addAction(w, p, fightGoblins(2))
+		run(w, p)
+		runUntil(t, w, 60000, string(class)+" kills 2", func() bool { return len(p.actions) == 0 })
+		if p.xp[resources.SkillMagic] <= resources.XPForLevel(40) || p.xp[resources.SkillAttack] != 0 {
+			t.Errorf("%s should train Magic, not melee: magic %d, attack %d", class, p.xp[resources.SkillMagic], p.xp[resources.SkillAttack])
+		}
+	}
+}
+
+func TestNecromancerDrainHeals(t *testing.T) {
+	w := campWorld(t)
+	c, _ := resources.FindClass(resources.ClassNecromancer)
+	p := w.createCharacter("necro", "pw", c)
+	p.xp[resources.SkillMagic] = resources.XPForLevel(99)
+	p.health = 10
+	m := w.mobs[0]
+	for i := 0; i < 200 && p.health == 10 && !m.dead; i++ {
+		w.playerAttack(p, m)
+	}
+	if p.health <= 10 {
+		t.Error("a necromancer's hits should heal them")
+	}
+}
+
+func TestStaffsReachLikeBows(t *testing.T) {
+	w := campWorld(t)
+	c, _ := resources.FindClass(resources.ClassMage)
+	p := w.createCharacter("mage", "pw", c)
+	m := w.mobs[0] // at (14,3)
+	p.pos[0], p.pos[1] = tile{14 - castRange, 3}.pixel()
+	if !p.inRange(m) {
+		t.Error("a staff should reach 5 tiles")
+	}
+	p.equipment[resources.SlotWeapon] = resources.Stack{Kind: resources.ItemCopperSword, Count: 1}
+	if p.inRange(m) {
+		t.Error("a sword shouldn't")
 	}
 }
 
@@ -145,7 +216,7 @@ func TestDefeatLosesBackpackKeepsEquipment(t *testing.T) {
 	if sx, sy := (tile{w.wm.SpawnX, w.wm.SpawnY}).pixel(); p.pos[0] != sx || p.pos[1] != sy {
 		t.Errorf("woke up at %v, want the spawn", p.pos)
 	}
-	if p.equipment[resources.SlotWeapon].Kind != resources.ItemTrainingSword {
+	if p.equipment[resources.SlotWeapon].Kind != resources.ItemCopperSword {
 		t.Error("equipment should be kept")
 	}
 	if m.fighting != nil || m.health != m.kind.Health {
@@ -156,6 +227,8 @@ func TestDefeatLosesBackpackKeepsEquipment(t *testing.T) {
 func TestEquipping(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
+	// Start from just a training sword, not a class kit.
+	p.equipment = map[resources.EquipSlot]resources.Stack{resources.SlotWeapon: {Kind: resources.ItemTrainingSword, Count: 1}}
 	equip := func(k resources.ItemKind) {
 		w.equipCommand(p, resources.EquipCommandContents{Op: resources.EquipOpEquip, Item: k})
 	}

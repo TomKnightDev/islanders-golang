@@ -22,9 +22,6 @@ const (
 	sessionBuffer = 256
 )
 
-// playerSprite is the sprite's pixel position in characters.png.
-var playerSprite = f64.Vec2{0, 0}
-
 // session is one websocket connection. Only its writer goroutine writes to
 // the connection; everything else queues messages with push.
 type session struct {
@@ -84,6 +81,8 @@ type player struct {
 	pos      f64.Vec2 // top-left pixel of the sprite
 	path     []tile   // tiles still to walk through; path[0] is the next one
 	sess     *session // nil while offline; the character stays in the world
+	class    resources.ClassID
+	sprite   f64.Vec2 // pixel position in characters.png, from the class
 
 	backpack resources.Inventory
 	bank     resources.Inventory // this player's own bank account
@@ -127,7 +126,7 @@ func walkerTile(pos f64.Vec2, path []tile) tile {
 func (p *player) updateMessage() *resources.Message {
 	return resources.NewUpdateMessage(p.id, resources.UpdateContents{
 		Pos:       p.pos,
-		Tile:      playerSprite,
+		Tile:      p.sprite,
 		Username:  p.username,
 		Health:    p.health,
 		MaxHealth: p.maxHealth(),
@@ -187,6 +186,40 @@ func (w *World) broadcast(m *resources.Message) {
 	}
 }
 
+// exists reports whether a character with this name has been created.
+func (w *World) exists(username string) bool {
+	_, ok := w.byName[username]
+	return ok
+}
+
+// createCharacter makes a new character of a class. The name must be free.
+func (w *World) createCharacter(username, password string, class resources.Class) *player {
+	x, y := tile{w.wm.SpawnX, w.wm.SpawnY}.pixel()
+	p := &player{
+		id:       w.nextID,
+		username: username,
+		password: password,
+		pos:      f64.Vec2{x, y},
+		backpack: resources.NewInventory(backpackSlots, false),
+		bank:     resources.NewInventory(bankSlots, true),
+		activity: activityIdle,
+		found:    map[string]bool{},
+		xp:       map[resources.Skill]int{},
+	}
+	w.giveStartingKit(p, class)
+	// Everyone knows the village they start in.
+	if pl := w.placeAt(tile{w.wm.SpawnX, w.wm.SpawnY}, resources.PlaceVillage); pl != nil {
+		p.found[pl.Name] = true
+	}
+	w.nextID++
+	w.players[p.id] = p
+	w.byName[username] = p
+	return p
+}
+
+// login connects a session to a character. A name nobody has used yet gets
+// a new character of defaultClass; players choose their class first through
+// the connection handler, which calls createCharacter.
 func (w *World) login(username, password string, sess *session) (*player, error) {
 	p, found := w.byName[username]
 	if found {
@@ -197,33 +230,15 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 			p.sess.close() // logged in somewhere else; that connection loses
 		}
 	} else {
-		x, y := tile{w.wm.SpawnX, w.wm.SpawnY}.pixel()
-		p = &player{
-			id:       w.nextID,
-			username: username,
-			password: password,
-			pos:      f64.Vec2{x, y},
-			backpack: resources.NewInventory(backpackSlots, false),
-			bank:     resources.NewInventory(bankSlots, true),
-			activity: activityIdle,
-			found:    map[string]bool{},
-			xp:       map[resources.Skill]int{},
-		}
-		w.giveStartingKit(p)
-		// Everyone knows the village they start in.
-		if pl := w.placeAt(tile{w.wm.SpawnX, w.wm.SpawnY}, resources.PlaceVillage); pl != nil {
-			p.found[pl.Name] = true
-		}
-		w.nextID++
-		w.players[p.id] = p
-		w.byName[username] = p
+		class, _ := resources.FindClass(defaultClass)
+		p = w.createCharacter(username, password, class)
 	}
 	p.sess = sess
 	p.sentDest = &tile{-1, -1} // force the current path to be sent
 	sess.push(resources.NewConnectResponseMessage(resources.ConnectResponseContents{
 		ClientId: p.id,
 		Pos:      p.pos,
-		Tile:     playerSprite,
+		Tile:     p.sprite,
 		WorldMap: w.wm.Clone(),
 	}))
 	sess.push(w.inventoryMessage(p))

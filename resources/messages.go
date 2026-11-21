@@ -19,6 +19,8 @@ const (
 	ActionCommandMessage      MessageType = "actionCommandMessage"
 	EquipCommandMessage       MessageType = "equipCommandMessage"
 	PathMessage               MessageType = "pathMessage"
+	ChooseClassMessage        MessageType = "chooseClassMessage"     // server: a new name; pick a class
+	CreateCharacterMessage    MessageType = "createCharacterMessage" // client: the class picked
 )
 
 type Message struct {

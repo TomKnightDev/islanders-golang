@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"time"
 
 	"github.com/tomknightdev/islanders-golang/resources"
@@ -21,7 +22,7 @@ const (
 	enemyRepath      = 500 * time.Millisecond  // how often a chasing enemy re-aims at its target
 	regenTime        = 1200 * time.Millisecond // per health point, out of combat
 	restRegenTime    = 250 * time.Millisecond  // per health point, resting at the bank
-	bowRange         = 5                       // tiles; swords need to be next to the enemy
+	castRange        = 5                       // tiles, for bows and staves; swords need to be next to the enemy
 	foodPerTrip      = 10
 	eatBelow         = 0.5 // eat when health drops below this share of max
 	retreatBelow     = 0.3 // with no food left, leave below this share
@@ -42,11 +43,13 @@ const (
 	activityNoEnemies = "Waiting for enemies to return"
 )
 
-// Starting kit for every new character.
-var (
-	startingWeapon = resources.ItemTrainingSword
-	startingFood   = 5
-)
+// Every new character starts with this much food in the bank, on top of
+// their class's gear.
+const startingFood = 5
+
+// defaultClass is what a character gets if they're created without a
+// choice (tests use World.login directly).
+const defaultClass = resources.ClassWarrior
 
 // mob is one enemy at a camp.
 type mob struct {
@@ -163,11 +166,23 @@ func (p *player) maxHealth() int {
 	return resources.MaxHealth(p.level(resources.SkillHitpoints))
 }
 
-func (w *World) giveStartingKit(p *player) {
+// giveStartingKit sets a new character up as their class: look, head-start
+// levels, gear (equipped or banked) and some food.
+func (w *World) giveStartingKit(p *player, class resources.Class) {
+	p.class = class.ID
+	p.sprite = f64.Vec2{float64(class.Sprite[0]), float64(class.Sprite[1])}
 	p.xp[resources.SkillHitpoints] = resources.XPForLevel(resources.StartingHitpoints)
+	for s, l := range class.Levels {
+		p.xp[s] = resources.XPForLevel(l)
+	}
 	p.health = p.maxHealth()
-	p.equipment = map[resources.EquipSlot]resources.Stack{
-		resources.SlotWeapon: {Kind: startingWeapon, Count: 1},
+	p.equipment = map[resources.EquipSlot]resources.Stack{}
+	for _, g := range class.Gear {
+		if slices.Contains(class.Equipped, g.Kind) {
+			p.equipment[resources.Equipment[g.Kind].Slot] = g
+		} else {
+			p.bank.Add(g.Kind, g.Count)
+		}
 	}
 	p.bank.Add(resources.ItemCabbage, startingFood)
 }
@@ -284,11 +299,12 @@ func (w *World) seekEnemy(p *player) {
 
 func (p *player) bonuses() resources.Bonuses { return resources.EquipmentBonuses(p.equipment) }
 
-// inRange reports whether p can hit m from where they are.
+// inRange reports whether p can hit m from where they are. Bows and staves
+// reach further than swords.
 func (p *player) inRange(m *mob) bool {
 	reach := 1
-	if p.bonuses().Ranged {
-		reach = bowRange
+	if b := p.bonuses(); b.Ranged || b.Magic {
+		reach = castRange
 	}
 	a, b := p.currentTile(), m.tile()
 	return max(abs(a.x-b.x), abs(a.y-b.y)) <= reach
@@ -382,7 +398,7 @@ func adjacent(a, b tile) bool { return max(abs(a.x-b.x), abs(a.y-b.y)) <= 1 }
 // attack at all (out of arrows), which ends the list.
 func (w *World) playerAttack(p *player, m *mob) bool {
 	b := p.bonuses()
-	attackSkill, strengthSkill := resources.SkillAttack, resources.SkillStrength
+	attackSkill, strengthSkill := b.Skills()
 	if b.Ranged {
 		ammo, ok := p.equipment[resources.SlotAmmo]
 		if !ok || ammo.Count == 0 {
@@ -397,7 +413,6 @@ func (w *World) playerAttack(p *player, m *mob) bool {
 			p.equipment[resources.SlotAmmo] = ammo
 		}
 		p.invDirty = true
-		attackSkill, strengthSkill = resources.SkillRanged, resources.SkillRanged
 	}
 	roll := resources.AttackRoll(p.level(attackSkill), b.Accuracy)
 	if rand.Float64() >= resources.HitChance(roll, resources.DefenceRoll(m.kind.Defence, 0)) {
@@ -406,13 +421,19 @@ func (w *World) playerAttack(p *player, m *mob) bool {
 	dmg := min(m.health, rand.Intn(resources.MaxHit(p.level(strengthSkill), b.Strength)+1))
 	m.health -= dmg
 	m.dirty = true
-	if b.Ranged {
+	switch {
+	case b.Magic:
+		w.addXP(p, resources.SkillMagic, 4*dmg)
+	case b.Ranged:
 		w.addXP(p, resources.SkillRanged, 4*dmg)
-	} else {
+	default:
 		w.addXP(p, resources.SkillAttack, 2*dmg)
 		w.addXP(p, resources.SkillStrength, 2*dmg)
 	}
 	w.addXP(p, resources.SkillHitpoints, dmg*4/3)
+	if b.Drain > 0 {
+		w.heal(p, dmg*b.Drain/100)
+	}
 	if m.health <= 0 {
 		m.dead = true
 		m.fighting = nil

@@ -30,6 +30,8 @@ type EquipDef struct {
 	Strength  int  // melee strength, or ranged strength for arrows
 	Defence   int  // armour bonus
 	Ranged    bool // a bow: attacks from range and uses arrows
+	Magic     bool // a staff: casts from range using Magic, no ammo
+	Drain     int  // percent of damage dealt that heals the wielder
 	TwoHanded bool // can't be used with a shield
 }
 
@@ -56,7 +58,22 @@ const (
 	ItemIronShield      ItemKind = "ironShield"
 	ItemGoldShield      ItemKind = "goldShield"
 	ItemMithrilShield   ItemKind = "mithrilShield"
+
+	// Mage staves hit hardest; necromancer staves heal you for part of
+	// the damage they deal.
+	ItemApprenticeStaff ItemKind = "apprenticeStaff"
+	ItemAdeptStaff      ItemKind = "adeptStaff"
+	ItemBattleStaff     ItemKind = "battleStaff"
+	ItemArchmageStaff   ItemKind = "archmageStaff"
+	ItemBoneStaff       ItemKind = "boneStaff"
+	ItemGraveStaff      ItemKind = "graveStaff"
+	ItemWraithStaff     ItemKind = "wraithStaff"
+	ItemLichStaff       ItemKind = "lichStaff"
 )
+
+// necromancerDrain is how much of the damage a necromancer staff deals comes
+// back as health.
+const necromancerDrain = 25
 
 var Equipment = map[ItemKind]EquipDef{
 	ItemTrainingSword: {Slot: SlotWeapon, Skill: SkillAttack, Level: 1, Accuracy: 0, Strength: 2},
@@ -74,6 +91,15 @@ var Equipment = map[ItemKind]EquipDef{
 	ItemPineArrows:    {Slot: SlotAmmo, Skill: SkillRanged, Level: 15, Strength: 14},
 	ItemMapleArrows:   {Slot: SlotAmmo, Skill: SkillRanged, Level: 30, Strength: 23},
 	ItemDarkOakArrows: {Slot: SlotAmmo, Skill: SkillRanged, Level: 45, Strength: 34},
+
+	ItemApprenticeStaff: {Slot: SlotWeapon, Skill: SkillMagic, Level: 1, Accuracy: 6, Strength: 6, Magic: true, TwoHanded: true},
+	ItemAdeptStaff:      {Slot: SlotWeapon, Skill: SkillMagic, Level: 15, Accuracy: 14, Strength: 13, Magic: true, TwoHanded: true},
+	ItemBattleStaff:     {Slot: SlotWeapon, Skill: SkillMagic, Level: 30, Accuracy: 24, Strength: 22, Magic: true, TwoHanded: true},
+	ItemArchmageStaff:   {Slot: SlotWeapon, Skill: SkillMagic, Level: 45, Accuracy: 36, Strength: 33, Magic: true, TwoHanded: true},
+	ItemBoneStaff:       {Slot: SlotWeapon, Skill: SkillMagic, Level: 1, Accuracy: 6, Strength: 4, Magic: true, Drain: necromancerDrain, TwoHanded: true},
+	ItemGraveStaff:      {Slot: SlotWeapon, Skill: SkillMagic, Level: 15, Accuracy: 14, Strength: 10, Magic: true, Drain: necromancerDrain, TwoHanded: true},
+	ItemWraithStaff:     {Slot: SlotWeapon, Skill: SkillMagic, Level: 30, Accuracy: 24, Strength: 18, Magic: true, Drain: necromancerDrain, TwoHanded: true},
+	ItemLichStaff:       {Slot: SlotWeapon, Skill: SkillMagic, Level: 45, Accuracy: 36, Strength: 28, Magic: true, Drain: necromancerDrain, TwoHanded: true},
 
 	ItemCopperHelmet:  {Slot: SlotHead, Skill: SkillDefence, Level: 1, Defence: 4},
 	ItemIronHelmet:    {Slot: SlotHead, Skill: SkillDefence, Level: 15, Defence: 9},
@@ -98,11 +124,17 @@ func init() {
 		ItemCopperHelmet:    "Copper helmet", ItemIronHelmet: "Iron helmet", ItemGoldHelmet: "Gold helmet", ItemMithrilHelmet: "Mithril helmet",
 		ItemCopperBody: "Copper platebody", ItemIronBody: "Iron platebody", ItemGoldBody: "Gold platebody", ItemMithrilBody: "Mithril platebody",
 		ItemCopperShield: "Copper shield", ItemIronShield: "Iron shield", ItemGoldShield: "Gold shield", ItemMithrilShield: "Mithril shield",
+		ItemApprenticeStaff: "Apprentice staff", ItemAdeptStaff: "Adept staff", ItemBattleStaff: "Battle staff", ItemArchmageStaff: "Archmage staff",
+		ItemBoneStaff: "Bone staff", ItemGraveStaff: "Grave staff", ItemWraithStaff: "Wraith staff", ItemLichStaff: "Lich staff",
 	}
 	for k, name := range gear {
 		d := Equipment[k]
 		desc := "Equip it from the bank in the Equipment window."
 		switch {
+		case d.Drain > 0:
+			desc = "A necromancer's staff, two-handed. Casts from range with Magic and heals you for part of the damage. " + desc
+		case d.Magic:
+			desc = "A mage's staff, two-handed. Casts from range with Magic; no ammo needed. " + desc
 		case d.Ranged:
 			desc = "A two-handed bow. Fires arrows from your ammo slot. " + desc
 		case d.Slot == SlotWeapon:
@@ -121,7 +153,33 @@ func init() {
 // Bonuses are the summed bonuses of what a character has equipped.
 type Bonuses struct {
 	Accuracy, Strength, Defence int
-	Ranged                      bool
+	Ranged                      bool // fighting with a bow
+	Magic                       bool // fighting with a staff
+	Drain                       int  // percent of damage healed
+}
+
+// Style names how a character fights with their weapon.
+func (b Bonuses) Style() string {
+	switch {
+	case b.Drain > 0:
+		return "Necromancy"
+	case b.Magic:
+		return "Magic"
+	case b.Ranged:
+		return "Ranged"
+	}
+	return "Melee"
+}
+
+// Skills are the skills a fighting style uses for accuracy and max hit.
+func (b Bonuses) Skills() (accuracy, strength Skill) {
+	switch {
+	case b.Magic:
+		return SkillMagic, SkillMagic
+	case b.Ranged:
+		return SkillRanged, SkillRanged
+	}
+	return SkillAttack, SkillStrength
 }
 
 // EquipmentBonuses adds up the bonuses of equipped items.
@@ -136,7 +194,7 @@ func EquipmentBonuses(equipped map[EquipSlot]Stack) Bonuses {
 		switch slot {
 		case SlotWeapon:
 			b.Accuracy += d.Accuracy
-			b.Ranged = d.Ranged
+			b.Ranged, b.Magic, b.Drain = d.Ranged, d.Magic, d.Drain
 			if !d.Ranged {
 				b.Strength += d.Strength
 			}

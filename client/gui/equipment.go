@@ -63,10 +63,8 @@ func (e *Equipment) Update() error {
 
 	// Combat stats from levels and gear.
 	b := resources.EquipmentBonuses(worn)
-	style, strengthSkill := "Melee", resources.SkillStrength
-	if b.Ranged {
-		style, strengthSkill = "Ranged", resources.SkillRanged
-	}
+	style := b.Style()
+	_, strengthSkill := b.Skills()
 	imgui.Separator()
 	imgui.Text(fmt.Sprintf("%s  ·  accuracy +%d  ·  max hit %d  ·  armour +%d",
 		style, b.Accuracy, resources.MaxHit(e.level(strengthSkill), b.Strength), b.Defence))
@@ -107,6 +105,10 @@ func gearTooltip(d resources.EquipDef) string {
 	switch {
 	case d.Slot == resources.SlotAmmo:
 		return fmt.Sprintf("Ranged strength +%d", d.Strength)
+	case d.Drain > 0:
+		return fmt.Sprintf("Necromancer staff, two-handed. Accuracy +%d, strength +%d, heals %d%% of damage", d.Accuracy, d.Strength, d.Drain)
+	case d.Magic:
+		return fmt.Sprintf("Mage staff, two-handed. Accuracy +%d, strength +%d", d.Accuracy, d.Strength)
 	case d.Ranged:
 		return fmt.Sprintf("Bow, two-handed. Accuracy +%d", d.Accuracy)
 	case d.Slot == resources.SlotWeapon:

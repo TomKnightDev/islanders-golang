@@ -132,9 +132,12 @@ func handleMessages(g *Game) {
 		select {
 		case message := <-client.RecvChan:
 			switch message.MessageType {
+			case resources.ChooseClassMessage:
+				showCharacterCreation(g)
 			case resources.ConnectResponseMessage:
 				handleConnectResponse(message, g)
 				removeGui(&gui.MainMenu{}, g)
+				removeGui(&gui.CharacterCreation{}, g)
 			case resources.ChatMessage:
 				receiveChatMessage(message)
 			case resources.UpdateMessage:
@@ -341,18 +344,33 @@ func removeNetworkPlayer(clientId uint16, g *Game) {
 	delete(client.NetworkPlayers, clientId)
 }
 
+// removeGui removes the window of guiType's type, if it's open.
 func removeGui(guiType Entity, g *Game) {
 	gt := reflect.TypeOf(guiType)
-
-	index := 0
-
-	for i, g := range g.Gui {
-		if gt == reflect.TypeOf(g) {
-			index = i
+	for i, e := range g.Gui {
+		if gt == reflect.TypeOf(e) {
+			g.Gui = append(g.Gui[:i], g.Gui[i+1:]...)
+			return
 		}
 	}
+}
 
-	g.Gui = append(g.Gui[:index], g.Gui[index+1:]...)
+// showCharacterCreation swaps the login menu for the class picker, for a
+// name the server hasn't seen before.
+func showCharacterCreation(g *Game) {
+	for _, e := range g.Gui {
+		switch w := e.(type) {
+		case *gui.CharacterCreation:
+			return // already open
+		case *gui.MainMenu:
+			w.Connected = true // hides the login window
+		}
+	}
+	g.Gui = append(g.Gui, gui.NewCharacterCreation(g.renderMgr, CharactersImage, func(c resources.ClassID) {
+		go func() {
+			client.SendChan <- resources.NewCreateCharacterMessage(resources.CreateCharacterContents{Class: c})
+		}()
+	}))
 }
 
 func receiveInventoryMessage(message *resources.Message) {

@@ -9,6 +9,7 @@ const (
 	SkillStrength    Skill = "strength"  // melee max hit
 	SkillDefence     Skill = "defence"   // how often enemies hit you
 	SkillRanged      Skill = "ranged"    // bow accuracy and max hit
+	SkillMagic       Skill = "magic"     // staff accuracy and max hit
 	SkillHitpoints   Skill = "hitpoints" // max health
 	SkillMining      Skill = "mining"
 	SkillWoodcutting Skill = "woodcutting"
@@ -19,7 +20,7 @@ const (
 
 // Skills lists every skill in the order the skills window shows them.
 var Skills = []Skill{
-	SkillAttack, SkillStrength, SkillDefence, SkillRanged, SkillHitpoints,
+	SkillAttack, SkillStrength, SkillDefence, SkillRanged, SkillMagic, SkillHitpoints,
 	SkillMining, SkillWoodcutting, SkillFarming, SkillSmithing, SkillFletching,
 }
 
@@ -28,6 +29,7 @@ var SkillNames = map[Skill]string{
 	SkillStrength:    "Strength",
 	SkillDefence:     "Defence",
 	SkillRanged:      "Ranged",
+	SkillMagic:       "Magic",
 	SkillHitpoints:   "Hitpoints",
 	SkillMining:      "Mining",
 	SkillWoodcutting: "Woodcutting",

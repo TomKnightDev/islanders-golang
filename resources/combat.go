@@ -56,24 +56,28 @@ var Enemies = []EnemyKind{
 			{ItemCopperOre, 0.4, 1, 3}, {ItemCabbage, 0.25, 1, 2}, {ItemOakArrows, 0.15, 5, 15},
 			{ItemCopperSword, 0.04, 1, 1}, {ItemCopperHelmet, 0.04, 1, 1}, {ItemCopperShield, 0.03, 1, 1},
 			{ItemCopperBody, 0.02, 1, 1}, {ItemOakShortbow, 0.03, 1, 1},
+			{ItemApprenticeStaff, 0.02, 1, 1}, {ItemBoneStaff, 0.02, 1, 1},
 		}},
 	{ID: "bandit", Name: "Bandit", Plural: "bandits", Level: 12, Health: 120, Attack: 14, Defence: 12, MaxHit: 15, Sprite: [2]int{16, 192},
 		Loot: []LootDrop{
 			{ItemIronOre, 0.35, 1, 3}, {ItemCopperBar, 0.2, 1, 2}, {ItemCabbage, 0.2, 1, 3}, {ItemPineArrows, 0.15, 5, 15},
 			{ItemIronSword, 0.03, 1, 1}, {ItemIronHelmet, 0.03, 1, 1}, {ItemIronShield, 0.025, 1, 1},
 			{ItemIronBody, 0.015, 1, 1}, {ItemPineShortbow, 0.025, 1, 1}, {ItemCopperBody, 0.03, 1, 1},
+			{ItemAdeptStaff, 0.02, 1, 1}, {ItemGraveStaff, 0.02, 1, 1},
 		}},
 	{ID: "orc", Name: "Orc warrior", Plural: "orc warriors", Level: 28, Health: 250, Attack: 30, Defence: 28, MaxHit: 25, Sprite: [2]int{80, 64},
 		Loot: []LootDrop{
 			{ItemGoldOre, 0.3, 1, 3}, {ItemIronIngot, 0.2, 1, 2}, {ItemCabbage, 0.2, 2, 3}, {ItemMapleArrows, 0.15, 5, 15},
 			{ItemGoldSword, 0.025, 1, 1}, {ItemGoldHelmet, 0.025, 1, 1}, {ItemGoldShield, 0.02, 1, 1},
 			{ItemGoldBody, 0.012, 1, 1}, {ItemMapleShortbow, 0.02, 1, 1},
+			{ItemBattleStaff, 0.015, 1, 1}, {ItemWraithStaff, 0.015, 1, 1},
 		}},
 	{ID: "skeleton", Name: "Skeleton", Plural: "skeletons", Level: 45, Health: 400, Attack: 48, Defence: 45, MaxHit: 35, Sprite: [2]int{0, 48},
 		Loot: []LootDrop{
 			{ItemMithrilOre, 0.25, 1, 2}, {ItemGoldBar, 0.2, 1, 2}, {ItemCabbage, 0.2, 2, 4}, {ItemDarkOakArrows, 0.15, 5, 15},
 			{ItemMithrilSword, 0.02, 1, 1}, {ItemMithrilHelmet, 0.02, 1, 1}, {ItemMithrilShield, 0.015, 1, 1},
 			{ItemMithrilBody, 0.01, 1, 1}, {ItemDarkOakShortbow, 0.015, 1, 1},
+			{ItemArchmageStaff, 0.01, 1, 1}, {ItemLichStaff, 0.01, 1, 1},
 		}},
 }
 
