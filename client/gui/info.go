@@ -32,6 +32,11 @@ func (info *Info) Update() error {
 	placeWindow("Info", imgui.Vec2{X: windowMargin, Y: windowMargin}, imgui.Vec2{})
 	imgui.BeginV("Info", nil, imgui.WindowFlagsAlwaysAutoResize)
 	imgui.Text(fmt.Sprintf("Name: %s", info.player.Username))
+	if mh := info.player.MaxHealth; mh > 0 {
+		imgui.Text("Health")
+		imgui.SameLine()
+		centredBar(float32(info.player.Health)/float32(mh), 260, fmt.Sprintf("%d / %d", info.player.Health, mh))
+	}
 
 	// A grid square plus exact tile. It only changes when the player steps
 	// onto a new tile, and it's short enough to read out to someone.

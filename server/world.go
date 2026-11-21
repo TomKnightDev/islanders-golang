@@ -14,7 +14,7 @@ import (
 
 const (
 	tickInterval = 25 * time.Millisecond
-	walkSpeed    = 4.0 // tiles per second
+	walkSpeed    = 2.0 // tiles per second
 
 	// Pixels moved per tick.
 	walkStep = walkSpeed * resources.TileSize * float64(tickInterval) / float64(time.Second)
@@ -93,6 +93,13 @@ type player struct {
 	running  bool            // working through the action list
 	found    map[string]bool // places this player has found
 	xp       map[resources.Skill]int
+
+	sentDest *tile // the path destination last sent to the client; nil if stopped
+
+	health       int
+	healthDirty  bool // changed since last broadcast, for everyone's health bars
+	regenCounter int
+	equipment    map[resources.EquipSlot]resources.Stack
 	// ticks is this character's own clock. It advances every world tick
 	// while the player is online and every offlineSlowdown ticks while
 	// they're offline, so idle progress runs slower without them.
@@ -105,21 +112,26 @@ type player struct {
 }
 
 // currentTile is the tile the player stands on, or is walking onto.
-func (p *player) currentTile() tile {
-	if len(p.path) > 0 {
-		return p.path[0]
+func (p *player) currentTile() tile { return walkerTile(p.pos, p.path) }
+
+// walkerTile is the tile a walker stands on, or is stepping onto.
+func walkerTile(pos f64.Vec2, path []tile) tile {
+	if len(path) > 0 {
+		return path[0]
 	}
 	return tile{
-		int(math.Round(p.pos[0] / resources.TileSize)),
-		int(math.Round(p.pos[1] / resources.TileSize)),
+		int(math.Round(pos[0] / resources.TileSize)),
+		int(math.Round(pos[1] / resources.TileSize)),
 	}
 }
 
 func (p *player) updateMessage() *resources.Message {
 	return resources.NewUpdateMessage(p.id, resources.UpdateContents{
-		Pos:      p.pos,
-		Tile:     playerSprite,
-		Username: p.username,
+		Pos:       p.pos,
+		Tile:      playerSprite,
+		Username:  p.username,
+		Health:    p.health,
+		MaxHealth: p.maxHealth(),
 	})
 }
 
@@ -135,6 +147,7 @@ type World struct {
 	nodes    map[tile]*node // rocks and trees to gather from
 	banks    []tile
 	stations map[resources.ObjectKind]map[string]tile // crafting stations by kind, then village
+	mobs     []*mob
 	ticks    int
 	cmds     chan command
 }
@@ -147,6 +160,7 @@ func NewWorld(wm resources.WorldMap) *World {
 		cmds:    make(chan command, 256),
 	}
 	w.initNodes()
+	w.initMobs()
 	return w
 }
 
@@ -196,6 +210,7 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 			found:    map[string]bool{},
 			xp:       map[resources.Skill]int{},
 		}
+		w.giveStartingKit(p)
 		// Everyone knows the village they start in.
 		if pl := w.placeAt(tile{w.wm.SpawnX, w.wm.SpawnY}, resources.PlaceVillage); pl != nil {
 			p.found[pl.Name] = true
@@ -205,7 +220,7 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 		w.byName[username] = p
 	}
 	p.sess = sess
-
+	p.sentDest = &tile{-1, -1} // force the current path to be sent
 	sess.push(resources.NewConnectResponseMessage(resources.ConnectResponseContents{
 		ClientId: p.id,
 		Pos:      p.pos,
@@ -213,6 +228,7 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 		WorldMap: w.wm.Clone(),
 	}))
 	sess.push(w.inventoryMessage(p))
+	sess.push(w.mobSnapshot())
 	for _, other := range w.players {
 		if other != p {
 			sess.push(other.updateMessage())
@@ -260,19 +276,23 @@ func (w *World) moveTo(p *player, goal tile) bool {
 }
 
 // step moves p one tick along its path and reports whether it moved.
-func (p *player) step() bool {
-	if len(p.path) == 0 {
+func (p *player) step() bool { return stepAlong(&p.pos, &p.path, walkStep) }
+
+// stepAlong moves a walker by speed pixels along its path and reports
+// whether it moved.
+func stepAlong(pos *f64.Vec2, path *[]tile, speed float64) bool {
+	if len(*path) == 0 {
 		return false
 	}
-	tx, ty := p.path[0].pixel()
-	dx, dy := tx-p.pos[0], ty-p.pos[1]
+	tx, ty := (*path)[0].pixel()
+	dx, dy := tx-pos[0], ty-pos[1]
 	dist := math.Hypot(dx, dy)
-	if dist <= walkStep+1e-9 { // tolerance so float drift can't add a tick per tile
-		p.pos = f64.Vec2{tx, ty}
-		p.path = p.path[1:]
+	if dist <= speed+1e-9 { // tolerance so float drift can't add a tick per tile
+		*pos = f64.Vec2{tx, ty}
+		*path = (*path)[1:]
 	} else {
-		p.pos[0] += dx / dist * walkStep
-		p.pos[1] += dy / dist * walkStep
+		pos[0] += dx / dist * speed
+		pos[1] += dy / dist * speed
 	}
 	return true
 }
@@ -284,15 +304,46 @@ func (w *World) tick() {
 			continue
 		}
 		p.ticks++
-		if p.step() {
-			w.broadcast(p.updateMessage())
-		}
+		moved := p.step()
 		w.tickDiscovery(p)
 		w.tickJob(p)
+		w.tickHealth(p)
+		if moved || p.healthDirty {
+			w.broadcast(p.updateMessage())
+			p.healthDirty = false
+		}
+		w.sendPath(p)
 		if p.invDirty && p.sess != nil {
 			p.sess.push(w.inventoryMessage(p))
 			p.invDirty = false
 		}
 	}
 	w.tickNodes()
+	w.tickMobs()
+}
+
+// sendPath tells the player their route whenever its destination changes,
+// so their client can draw it. Nobody else is sent it.
+func (w *World) sendPath(p *player) {
+	if p.sess == nil {
+		return
+	}
+	var dest *tile
+	if len(p.path) > 0 {
+		dest = &p.path[len(p.path)-1]
+	}
+	if (dest == nil) == (p.sentDest == nil) && (dest == nil || *dest == *p.sentDest) {
+		return
+	}
+	tiles := make([][2]int, len(p.path))
+	for i, t := range p.path {
+		tiles[i] = [2]int{t.x, t.y}
+	}
+	p.sess.push(resources.NewPathMessage(resources.PathContents{Tiles: tiles}))
+	if dest == nil {
+		p.sentDest = nil
+	} else {
+		d := *dest
+		p.sentDest = &d
+	}
 }

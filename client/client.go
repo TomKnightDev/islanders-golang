@@ -45,6 +45,7 @@ var InventoryWindow = &gui.Inventory{}
 var ActionBar = gui.NewActionBar()
 var ActionsWindow = &gui.Actions{}
 var SkillsWindow = &gui.Skills{}
+var EquipmentWindow = &gui.Equipment{}
 var world *entities.World
 var client = &Client{}
 
@@ -144,6 +145,11 @@ func handleMessages(g *Game) {
 				receiveInventoryMessage(message)
 			case resources.ObjectUpdateMessage:
 				receiveObjectUpdateMessage(message)
+			case resources.PathMessage:
+				var path resources.PathContents
+				if err := resources.DecodeContents(message.Contents, &path); err == nil && client.Player != nil {
+					client.Player.SetPath(path.Tiles)
+				}
 			}
 		default:
 			return
@@ -205,6 +211,12 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	InventoryWindow = gui.NewInventory(g.renderMgr)
 	g.Gui = append(g.Gui, InventoryWindow)
 
+	EquipmentWindow = gui.NewEquipment(g.renderMgr, func(c resources.EquipCommandContents) {
+		go func() { client.SendChan <- resources.NewEquipCommandMessage(c) }()
+	})
+	g.Gui = append(g.Gui, EquipmentWindow)
+	g.Gui = append(g.Gui, gui.NewCameraControls(client.Player))
+
 	// Action commands go through one queue so they reach the server in the
 	// order the player made them.
 	actionOut := make(chan resources.ActionCommandContents, 32)
@@ -254,9 +266,13 @@ func receiveUpdateMessage(message *resources.Message, g *Game) {
 	tile := messageContents["tile"].([]interface{})
 	username := messageContents["username"].(string)
 
+	health, _ := messageContents["health"].(float64)
+	maxHealth, _ := messageContents["maxHealth"].(float64)
+
 	// The server owns movement, so our own position arrives like everyone else's.
 	if client.Player != nil && message.ClientId == client.Player.Id {
 		client.Player.SetPosition(f64.Vec2{pos[0].(float64), pos[1].(float64)})
+		client.Player.Health, client.Player.MaxHealth = int(health), int(maxHealth)
 		return
 	}
 
@@ -265,6 +281,7 @@ func receiveUpdateMessage(message *resources.Message, g *Game) {
 	if found {
 		networkClient.SetPosition(f64.Vec2{pos[0].(float64), pos[1].(float64)})
 		networkClient.Tile = f64.Vec2{tile[0].(float64), tile[1].(float64)}
+		networkClient.Health, networkClient.MaxHealth = int(health), int(maxHealth)
 		return
 	}
 
@@ -272,6 +289,7 @@ func receiveUpdateMessage(message *resources.Message, g *Game) {
 	networkClient.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
 	networkClient.Username = username
 	networkClient.Cam = cam
+	networkClient.Health, networkClient.MaxHealth = int(health), int(maxHealth)
 	client.NetworkPlayers[message.ClientId] = networkClient
 	g.Entities[message.ClientId] = networkClient
 }
@@ -286,12 +304,19 @@ func receiveEntityUpdateMessage(message *resources.Message, g *Game) {
 		pos := c["pos"].([]interface{})
 		tile := c["tile"].([]interface{})
 		username, _ := c["username"].(string)
+		health, _ := c["health"].(float64)
+		maxHealth, _ := c["maxHealth"].(float64)
+		if gone, _ := c["gone"].(bool); gone {
+			removeNetworkPlayer(uint16(entityId), g) // e.g. a defeated enemy; it comes back when it respawns
+			continue
+		}
 
 		np, found := client.NetworkPlayers[uint16(entityId)]
 
 		if found {
 			np.SetPosition(f64.Vec2{pos[0].(float64), pos[1].(float64)})
 			np.Tile = f64.Vec2{tile[0].(float64), tile[1].(float64)}
+			np.Health, np.MaxHealth = int(health), int(maxHealth)
 			continue
 		}
 
@@ -299,6 +324,7 @@ func receiveEntityUpdateMessage(message *resources.Message, g *Game) {
 		np.Position = f64.Vec2{pos[0].(float64), pos[1].(float64)}
 		np.Username = username
 		np.Cam = cam
+		np.Health, np.MaxHealth = int(health), int(maxHealth)
 		g.Entities[uint16(entityId)] = np
 		client.NetworkPlayers[uint16(entityId)] = np
 	}
@@ -339,6 +365,10 @@ func receiveInventoryMessage(message *resources.Message) {
 	ActionBar.Set(contents.Activity, contents.ActionSeconds, contents.ActionElapsed)
 	ActionsWindow.SetState(contents)
 	SkillsWindow.SetState(contents.Skills)
+	EquipmentWindow.SetState(contents)
+	if client.Player != nil {
+		client.Player.Health, client.Player.MaxHealth = contents.Health, contents.MaxHealth
+	}
 }
 
 func receiveObjectUpdateMessage(message *resources.Message) {

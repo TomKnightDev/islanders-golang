@@ -47,7 +47,7 @@ func (wm *WorldMap) Describe(tx, ty int) string {
 		p := &wm.Places[i]
 		d := max(abs(p.X-tx), abs(p.Y-ty))
 		if d <= p.Radius {
-			if p.Kind == PlaceVillage || p.Kind == PlaceForest {
+			if p.Kind == PlaceVillage || p.Kind == PlaceForest || p.Kind == PlaceCamp {
 				return "in " + p.Name
 			}
 			return "at " + p.Name
@@ -70,9 +70,9 @@ func (wm *WorldMap) Describe(tx, ty int) string {
 func (wm *WorldMap) landmark(tx, ty int) string {
 	best, bestDist := "", landmarkRadius+1
 	for _, o := range wm.Objects {
-		d := max(abs(o.X-tx), abs(o.Y-ty))
-		if d < bestDist {
-			best, bestDist = landmarkNames[o.Kind], d
+		name, named := landmarkNames[o.Kind]
+		if d := max(abs(o.X-tx), abs(o.Y-ty)); named && d < bestDist {
+			best, bestDist = name, d
 		}
 	}
 	return best

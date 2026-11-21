@@ -34,31 +34,32 @@ type ItemDef struct {
 	Desc      string // shown when hovering over the item
 	Stack     int    // per bank slot
 	PackStack int    // per backpack slot; 0 means one item per slot
+	Heal      int    // health restored when eaten; 0 for things you can't eat
 }
 
 var Items = map[ItemKind]ItemDef{
-	ItemCopperOre:  {"Copper ore", "copper ore", "Mined from copper rocks. Smelt it into copper bars at a blacksmith.", 10, 0},
-	ItemIronOre:    {"Iron ore", "iron ore", "Mined from iron rocks. Smelt it into iron bars at a blacksmith.", 10, 0},
-	ItemGoldOre:    {"Gold ore", "gold ore", "Mined from gold rocks. Smelt it into gold bars at a blacksmith.", 10, 0},
-	ItemMithrilOre: {"Mithril ore", "mithril ore", "Mined from rare blue mithril rocks. Smelt it into mithril bars.", 10, 0},
+	ItemCopperOre:  {"Copper ore", "copper ore", "Mined from copper rocks. Smelt it into copper bars at a blacksmith.", 10, 0, 0},
+	ItemIronOre:    {"Iron ore", "iron ore", "Mined from iron rocks. Smelt it into iron bars at a blacksmith.", 10, 0, 0},
+	ItemGoldOre:    {"Gold ore", "gold ore", "Mined from gold rocks. Smelt it into gold bars at a blacksmith.", 10, 0, 0},
+	ItemMithrilOre: {"Mithril ore", "mithril ore", "Mined from rare blue mithril rocks. Smelt it into mithril bars.", 10, 0, 0},
 
-	ItemCopperBar:  {"Copper bar", "copper bars", "Smelted from copper ore. For crafting equipment (coming soon).", 20, 0},
-	ItemIronIngot:  {"Iron bar", "iron bars", "Smelted from iron ore. For crafting equipment (coming soon).", 20, 0},
-	ItemGoldBar:    {"Gold bar", "gold bars", "Smelted from gold ore. For crafting equipment (coming soon).", 20, 0},
-	ItemMithrilBar: {"Mithril bar", "mithril bars", "Smelted from mithril ore. For crafting equipment (coming soon).", 20, 0},
+	ItemCopperBar:  {"Copper bar", "copper bars", "Smelted from copper ore. For crafting equipment (coming soon).", 20, 0, 0},
+	ItemIronIngot:  {"Iron bar", "iron bars", "Smelted from iron ore. For crafting equipment (coming soon).", 20, 0, 0},
+	ItemGoldBar:    {"Gold bar", "gold bars", "Smelted from gold ore. For crafting equipment (coming soon).", 20, 0, 0},
+	ItemMithrilBar: {"Mithril bar", "mithril bars", "Smelted from mithril ore. For crafting equipment (coming soon).", 20, 0, 0},
 
-	ItemOakLogs:     {"Oak logs", "oak logs", "Chopped from oaks. A fletcher turns each log into 10 oak arrows.", 20, 0},
-	ItemPineLogs:    {"Pine logs", "pine logs", "Chopped from pines. A fletcher turns each log into 10 pine arrows.", 20, 0},
-	ItemMapleLogs:   {"Maple logs", "maple logs", "Chopped from autumn maples. A fletcher turns each log into 10 maple arrows.", 20, 0},
-	ItemDarkOakLogs: {"Dark oak logs", "dark oak logs", "Chopped from dark oaks. A fletcher turns each log into 10 dark oak arrows.", 20, 0},
+	ItemOakLogs:     {"Oak logs", "oak logs", "Chopped from oaks. A fletcher turns each log into 10 oak arrows.", 20, 0, 0},
+	ItemPineLogs:    {"Pine logs", "pine logs", "Chopped from pines. A fletcher turns each log into 10 pine arrows.", 20, 0, 0},
+	ItemMapleLogs:   {"Maple logs", "maple logs", "Chopped from autumn maples. A fletcher turns each log into 10 maple arrows.", 20, 0, 0},
+	ItemDarkOakLogs: {"Dark oak logs", "dark oak logs", "Chopped from dark oaks. A fletcher turns each log into 10 dark oak arrows.", 20, 0, 0},
 
-	ItemOakArrows:     {"Oak arrows", "oak arrows", "Made from oak logs. Stacks 50 to a slot, even in the backpack.", 50, 50},
-	ItemPineArrows:    {"Pine arrows", "pine arrows", "Made from pine logs. Stacks 50 to a slot, even in the backpack.", 50, 50},
-	ItemMapleArrows:   {"Maple arrows", "maple arrows", "Made from maple logs. Stacks 50 to a slot, even in the backpack.", 50, 50},
-	ItemDarkOakArrows: {"Dark oak arrows", "dark oak arrows", "Made from dark oak logs. Stacks 50 to a slot, even in the backpack.", 50, 50},
+	ItemOakArrows:     {"Oak arrows", "oak arrows", "Made from oak logs. Stacks 50 to a slot, even in the backpack.", 50, 50, 0},
+	ItemPineArrows:    {"Pine arrows", "pine arrows", "Made from pine logs. Stacks 50 to a slot, even in the backpack.", 50, 50, 0},
+	ItemMapleArrows:   {"Maple arrows", "maple arrows", "Made from maple logs. Stacks 50 to a slot, even in the backpack.", 50, 50, 0},
+	ItemDarkOakArrows: {"Dark oak arrows", "dark oak arrows", "Made from dark oak logs. Stacks 50 to a slot, even in the backpack.", 50, 50, 0},
 
-	ItemCabbage: {"Cabbage", "cabbages", "Grown on farms. Food; it will heal you once health arrives.", 20, 0},
-	ItemCotton:  {"Cotton", "cotton", "Grown on farms. The raw material for cloth.", 20, 0},
+	ItemCabbage: {"Cabbage", "cabbages", "Grown on farms. Eaten in fights to heal 30 health.", 20, 0, 30},
+	ItemCotton:  {"Cotton", "cotton", "Grown on farms. The raw material for cloth.", 20, 0, 0},
 }
 
 // Lookups built from Items, kept for brevity at call sites.

@@ -43,7 +43,16 @@ var (
 	mineNames    = []string{"Ironridge Mine", "Old Quarry", "Deepdelve Mine", "Greystone Pit"}
 	forestNames  = []string{"Whisperwood", "Elderglade", "Mossy Hollow", "Thornwood", "Amberwood"}
 	farmNames    = []string{"Meadowbrook Farm", "Willowbank Farm", "Hillcrest Farm", "Sunfield Farm"}
+	campNames    = []string{"Goblin Camp", "Bandit Hideout", "Orc Warband", "Skeleton Ruins"}
 )
+
+const (
+	tileHut   = 209 // wooden hut, at camps
+	tileRuins = 122 // broken stone arch, at the hardest camp
+)
+
+// campSpawns are where a camp's enemies live, relative to its centre.
+var campSpawns = []tile{{-2, -1}, {2, -2}, {-1, 2}, {3, 1}}
 
 // mineOres gives each mine's rocks, matched to mineRockOffsets. Mines are
 // ranked by distance from the spawn, so the nearest has the easiest ore and
@@ -59,8 +68,9 @@ const (
 	mineCount      = 3
 	riverCount     = 3
 	farmCount      = 3
+	campCount      = 4  // one per enemy kind, easiest nearest the spawn
 	forestCount    = 4  // the largest woods get a name and can be chopped
-	minForestSize  = 60 // tiles of forest floor before a wood can be named
+	minForestSize  = 40 // tiles of forest floor before a wood can be named
 	villageSpacing = 34 // tiles between village centres
 	mineSpacing    = 26
 )
@@ -107,7 +117,8 @@ func generateWorld(seed int64) resources.WorldMap {
 	villages := g.placeVillages(mainland)
 	mines := g.placeMines(mainland, villages)
 	farms := g.placeFarms(mainland, villages, mines)
-	g.buildRoads(villages, append(mines, farms...))
+	camps := g.placeCamps(mainland, villages, append(append([]tile(nil), mines...), farms...))
+	g.buildRoads(villages, append(append(mines, farms...), camps...))
 	g.growPlants()
 	g.nameForests()
 	g.ensureReachable()
@@ -470,6 +481,54 @@ func (g *worldGen) buildMine(c tile, name string, ores []int) {
 	g.places = append(g.places, resources.Place{
 		Name: name, Kind: resources.PlaceMine, X: c.x, Y: c.y, Radius: 5,
 		Materials: materialsOf(resources.ActionMine, present),
+	})
+}
+
+// placeCamps puts enemy camps out in the wilds, away from villages. The
+// nearest to the spawn gets the easiest enemies.
+func (g *worldGen) placeCamps(mainland []bool, villages, outposts []tile) []tile {
+	water := g.waterDistance()
+	var candidates []tile
+	for y := 8; y < g.h-8; y += 2 {
+		for x := 8; x < g.w-8; x += 2 {
+			t := tile{x, y}
+			if mainland[g.at(t)] && water[g.at(t)] >= 6 && !g.keepOut[g.at(t)] && !nearAny(villages, t, 20) {
+				candidates = append(candidates, t)
+			}
+		}
+	}
+	sites := g.pickSites(candidates, campCount, 20, outposts, 12)
+	sort.SliceStable(sites, func(i, j int) bool { return octile(sites[i], villages[0]) < octile(sites[j], villages[0]) })
+	for i, s := range sites {
+		g.buildCamp(s, campNames[i%len(campNames)], resources.Enemies[min(i, len(resources.Enemies)-1)])
+	}
+	return sites
+}
+
+// buildCamp clears a dirt patch with huts (or ruins) around it and four
+// spots where enemies live.
+func (g *worldGen) buildCamp(c tile, name string, enemy resources.EnemyKind) {
+	g.reserve(c, 6)
+	for y := c.y - 4; y <= c.y+4; y++ {
+		for x := c.x - 4; x <= c.x+4; x++ {
+			if dx, dy := x-c.x, y-c.y; dx*dx+dy*dy <= 13 {
+				g.ground[g.at(tile{x, y})] = resources.TileRoad
+			}
+		}
+	}
+	hut := tileHut
+	if enemy.ID == "skeleton" {
+		hut = tileRuins
+	}
+	for _, off := range []tile{{-4, -2}, {3, -3}, {-3, 3}} {
+		g.objects[g.at(c.add(off))] = hut
+	}
+	for _, off := range campSpawns {
+		t := c.add(off)
+		g.objs = append(g.objs, resources.WorldObject{ID: uint16(len(g.objs) + 1), Kind: resources.ObjectSpawn, X: t.x, Y: t.y, Variant: enemy.ID})
+	}
+	g.places = append(g.places, resources.Place{
+		Name: name, Kind: resources.PlaceCamp, X: c.x, Y: c.y, Radius: 6, Materials: []string{enemy.ID},
 	})
 }
 

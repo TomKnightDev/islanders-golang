@@ -67,6 +67,7 @@ const (
 	ObjectBlacksmith ObjectKind = "blacksmith"
 	ObjectAnvil      ObjectKind = "anvil"
 	ObjectFletcher   ObjectKind = "fletcher"
+	ObjectSpawn      ObjectKind = "spawn" // where an enemy lives; not drawn
 )
 
 // ObjectTiles maps each interactive object kind to its sprite. Rocks vary by
@@ -80,10 +81,11 @@ var ObjectTiles = map[ObjectKind]int{
 
 // WorldObject is something on the object layer a player can interact with.
 type WorldObject struct {
-	ID   uint16     `json:"id"`
-	Kind ObjectKind `json:"kind"`
-	X    int        `json:"x"`
-	Y    int        `json:"y"`
+	ID      uint16     `json:"id"`
+	Kind    ObjectKind `json:"kind"`
+	X       int        `json:"x"`
+	Y       int        `json:"y"`
+	Variant string     `json:"variant,omitempty"` // spawns: the enemy kind
 }
 
 // IsPassable reports whether a ground tile can be walked on. All water
@@ -146,6 +148,7 @@ const (
 	PlaceMine    PlaceKind = "mine"
 	PlaceForest  PlaceKind = "forest"
 	PlaceFarm    PlaceKind = "farm"
+	PlaceCamp    PlaceKind = "camp"
 )
 
 // Place is a named area of the island, such as a village or a mine.

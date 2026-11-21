@@ -79,6 +79,9 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	// zoomed, then draw names on top at screen resolution.
 	if cam != nil {
 		cam.Blit(screen)
+		if pl, ok := g.Player.(*entities.Player); ok {
+			pl.DrawPath(screen)
+		}
 		for _, e := range g.Environment {
 			if l, ok := e.(entities.Labeled); ok {
 				l.DrawLabel(screen)

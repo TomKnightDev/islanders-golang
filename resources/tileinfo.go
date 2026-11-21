@@ -21,6 +21,8 @@ var ObjectInfo = map[int]TileInfo{
 	TileBush:             {"Bush", "Too small to chop."},
 	TileCottage:          {"Cottage", "Someone's home."},
 	TileTower:            {"Tower", "Oakhaven's old watchtower."},
+	209:                  {"Hut", "Rough shelter. Whoever lives here won't welcome you."},
+	122:                  {"Ruins", "Crumbling stone. Something still walks here."},
 }
 
 // NodeInfo describes a gatherable sprite: what it is, what it gives, and

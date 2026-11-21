@@ -12,10 +12,10 @@ import (
 
 // Tuning values. See docs/DESIGN.md.
 const (
-	swingTime       = 2 * time.Second // per ore
-	chopTime        = 3 * time.Second // per log
-	smeltTime       = 3 * time.Second // per bar
-	fletchTime      = 2 * time.Second // per log
+	swingTime       = 4 * time.Second // per ore
+	chopTime        = 6 * time.Second // per log
+	smeltTime       = 6 * time.Second // per bar
+	fletchTime      = 4 * time.Second // per log
 	arrowsPerLog    = 10
 	rockRespawn     = 30 * time.Second
 	rockOreMin      = 5
@@ -23,7 +23,7 @@ const (
 	treeRegrow      = 60 * time.Second
 	treeLogsMin     = 1
 	treeLogsMax     = 4
-	farmTime        = 2500 * time.Millisecond // per crop
+	farmTime        = 5 * time.Second // per crop
 	cropRegrow      = 45 * time.Second
 	cropYieldMin    = 2
 	cropYieldMax    = 5
@@ -139,8 +139,9 @@ func (n *node) refill() {
 
 // queuedAction is one entry in a player's action list.
 type queuedAction struct {
-	spec resources.ActionSpec
-	ran  int // ticks spent running it; stopping the list pauses this
+	spec  resources.ActionSpec
+	ran   int // ticks spent running it; stopping the list pauses this
+	kills int // fighting: enemies defeated so far
 }
 
 // ticksLeft is how much of a time goal remains.
@@ -157,6 +158,10 @@ const (
 	stateWalkToBank
 	stateWalkToStation
 	stateCrafting
+	stateResting // fighting: at the bank, healing before a trip
+	stateWalkToCamp
+	stateWalkToEnemy
+	stateFighting
 )
 
 // job is the running state of the action at the top of the list.
@@ -169,6 +174,7 @@ type job struct {
 	node      *node       // the node being walked to or gathered, and returned to after banking
 	recipe    *recipe     // crafting actions
 	station   tile        // where to craft
+	mob       *mob        // fighting: the enemy being fought
 	countdown int         // ticks left in a swing, a craft step or a wait
 	finishing bool        // goal met or time up: bank what's carried, then move on
 }
@@ -303,7 +309,7 @@ func (w *World) validAction(p *player, a resources.ActionSpec) bool {
 	if !ok || p.level(resources.ActionSkill[a.Kind]) < m.Level {
 		return false
 	}
-	if resources.IsGathering(a.Kind) && !slices.Contains(pl.Materials, a.Material) {
+	if (resources.IsGathering(a.Kind) || resources.IsCombat(a.Kind)) && !slices.Contains(pl.Materials, a.Material) {
 		return false
 	}
 	if r := recipes[a.Kind]; r != nil {
@@ -384,14 +390,28 @@ func (w *World) cancelJob(p *player) {
 	w.setActivity(p, activityIdle)
 }
 
+// releaseNode lets go of whatever the job holds: a node, or an enemy.
 func (w *World) releaseNode(p *player) {
-	if p.job != nil && p.job.node != nil && p.job.node.claimedBy == p {
+	if p.job == nil {
+		return
+	}
+	if p.job.node != nil && p.job.node.claimedBy == p {
 		p.job.node.claimedBy = nil
+	}
+	if p.job.mob != nil && p.job.mob.fighting == p {
+		p.job.mob.release()
+		p.job.mob = nil
 	}
 }
 
 func amountMet(p *player, a *queuedAction) bool {
-	return a.spec.Goal == resources.GoalAmount && p.bank.Count(a.spec.Product()) >= a.spec.Amount
+	if a.spec.Goal != resources.GoalAmount {
+		return false
+	}
+	if resources.IsCombat(a.spec.Kind) {
+		return a.kills >= a.spec.Amount
+	}
+	return p.bank.Count(a.spec.Product()) >= a.spec.Amount
 }
 
 func timeUp(a *queuedAction) bool {
@@ -410,6 +430,11 @@ func (w *World) startNextAction(p *player) {
 	}
 	m, _ := resources.FindMaterial(a.spec.Kind, a.spec.Material)
 	skill := resources.ActionSkill[a.spec.Kind]
+	if resources.IsCombat(a.spec.Kind) {
+		p.job = &job{action: a, material: m, skill: skill}
+		w.goBank(p) // a fighting trip starts at the bank, collecting food
+		return
+	}
 	if g := gatherKinds[a.spec.Kind]; g != nil {
 		p.job = &job{action: a, material: m, skill: skill, gather: g}
 		w.gatherNext(p)
@@ -561,9 +586,12 @@ func (w *World) atBank(p *player) {
 		w.finishAction(p, activityIdle)
 		return
 	}
-	if j.gather != nil {
+	switch {
+	case resources.IsCombat(j.action.spec.Kind):
+		w.atBankForFight(p)
+	case j.gather != nil:
 		w.gatherNext(p) // back to the same node if it's still free
-	} else {
+	default:
 		w.collectInput(p)
 	}
 }
@@ -662,6 +690,10 @@ func (w *World) tickJob(p *player) {
 		if j.countdown > 0 {
 			return
 		}
+		if resources.IsCombat(j.action.spec.Kind) {
+			w.seekEnemy(p)
+			return
+		}
 		if n := w.nearestFreeNode(p, j.node, j.action.spec.Place, j.material.ID, j.gather); n != nil {
 			w.gatherNext(p)
 		} else {
@@ -672,6 +704,19 @@ func (w *World) tickJob(p *player) {
 		if arrived {
 			w.atBank(p)
 		}
+
+	case stateResting:
+		if p.health >= int(float64(p.maxHealth())*restUntil) {
+			w.collectFood(p)
+		}
+
+	case stateWalkToCamp:
+		if arrived {
+			w.seekEnemy(p)
+		}
+
+	case stateWalkToEnemy, stateFighting:
+		w.tickFight(p)
 
 	case stateWalkToStation:
 		if !arrived {
@@ -769,6 +814,9 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 	actions := make([]resources.QueuedAction, len(p.actions))
 	for i, a := range p.actions {
 		actions[i] = resources.QueuedAction{ActionSpec: a.spec, Banked: p.bank.Count(a.spec.Product())}
+		if resources.IsCombat(a.spec.Kind) {
+			actions[i].Banked = a.kills
+		}
 		if a.spec.Goal == resources.GoalTime {
 			actions[i].SecondsLeft = seconds(a.ticksLeft())
 		}
@@ -783,6 +831,9 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 		Actions:       actions,
 		Running:       p.running,
 		Skills:        p.skillStates(),
+		Health:        p.health,
+		MaxHealth:     p.maxHealth(),
+		Equipment:     p.equippedItems(),
 	})
 }
 

@@ -41,3 +41,7 @@ var infoBottom float32 = windowMargin
 // actionsLeft is the left edge of the actions window, so the action picker
 // can open beside it.
 var actionsLeft float32
+
+// inventoryTop is where the inventory window starts, so the equipment window
+// can sit above it.
+var inventoryTop float32

@@ -143,6 +143,7 @@ var placeHints = map[resources.PlaceKind]string{
 	resources.PlaceForest:  "find a named forest first",
 	resources.PlaceFarm:    "find a farm first",
 	resources.PlaceVillage: "find a village first",
+	resources.PlaceCamp:    "find a camp first",
 }
 
 // foundPlaces offers each action once, at the nearest place found for it,
@@ -170,7 +171,7 @@ func (a *Actions) foundPlaces() {
 		lvl := a.level(skill)
 		first := true
 		for _, m := range resources.ActionMaterials[kind] {
-			if resources.IsGathering(kind) && !slices.Contains(place.Materials, m.ID) {
+			if (resources.IsGathering(kind) || resources.IsCombat(kind)) && !slices.Contains(place.Materials, m.ID) {
 				continue
 			}
 			if !first {
@@ -178,6 +179,9 @@ func (a *Actions) foundPlaces() {
 			}
 			first = false
 			label := strings.ToUpper(m.Label[:1]) + m.Label[1:]
+			if e, ok := resources.FindEnemy(m.ID); ok && resources.IsCombat(kind) {
+				label = fmt.Sprintf("%s (level %d)", label, e.Level)
+			}
 			if lvl < m.Level {
 				button(fmt.Sprintf("%s (%s %d)##%s%s", label, resources.SkillNames[skill], m.Level, kind, m.ID), false)
 				continue
@@ -190,7 +194,7 @@ func (a *Actions) foundPlaces() {
 			}
 		}
 	}
-	dimmed("Walk into a village, mine, forest or farm to find it.")
+	dimmed("Walk into a village, mine, forest, farm or camp to find it.")
 }
 
 func (a *Actions) list() {
@@ -228,10 +232,14 @@ func (a *Actions) row(i int, q resources.QueuedAction) {
 	}
 
 	unit := resources.ItemUnits[spec.Product()]
+	amountLabel := "Until the bank has"
+	if resources.IsCombat(spec.Kind) {
+		unit, amountLabel = "enemies", "Kill"
+	}
 	edited := spec
 
 	// Goal: a bank total, or a length of time.
-	if imgui.RadioButton("Until the bank has", spec.Goal == resources.GoalAmount) {
+	if imgui.RadioButton(amountLabel, spec.Goal == resources.GoalAmount) {
 		edited.Goal = resources.GoalAmount
 	}
 	imgui.SameLine()
@@ -259,6 +267,9 @@ func (a *Actions) row(i int, q resources.QueuedAction) {
 	var progress string
 	if spec.Goal == resources.GoalAmount {
 		progress = fmt.Sprintf("Bank: %d/%d %s", min(q.Banked, spec.Amount), spec.Amount, unit)
+		if resources.IsCombat(spec.Kind) {
+			progress = fmt.Sprintf("Kills: %d/%d", min(q.Banked, spec.Amount), spec.Amount)
+		}
 	} else {
 		left := q.SecondsLeft
 		if i == 0 && a.state.Running {
