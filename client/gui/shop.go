@@ -81,37 +81,43 @@ func (s *Shop) Update() error {
 
 	imgui.BeginGroup()
 	imgui.Text("Sell from your backpack (each)")
+	// What the store pays: per piece for gear and tools, per kind for
+	// materials, at any quality.
+	pays := map[resources.ItemKind]int{}
+	piecePays := map[uint32]int{}
+	for _, p := range s.store.Prices {
+		if p.ID != 0 {
+			piecePays[p.ID] = p.Pays
+		} else if p.Pays > 0 {
+			pays[p.Item] = p.Pays
+		}
+	}
 	any := false
-	for i, p := range s.store.Prices {
-		if p.Pays == 0 {
+	for _, i := range slotOrder(s.state.Backpack) {
+		st := s.state.Backpack.Stacks[i]
+		price := pays[st.Kind]
+		if st.ID != 0 {
+			price = piecePays[st.ID]
+		}
+		if price == 0 {
 			continue
 		}
 		any = true
 		imgui.PushID(fmt.Sprintf("sell%d", i))
-		if p.ID != 0 {
-			q := 0
-			for _, st := range s.state.Backpack.Stacks {
-				if st.ID == p.ID {
-					q = st.Quality
-				}
-			}
-			imgui.Text(fmt.Sprintf("%s q%d  %d coins", resources.ItemNames[p.Item], q, p.Pays))
-			itemTooltip(p.Item)
-			imgui.SameLine()
+		imgui.Text(fmt.Sprintf("%s  %d coins", stackLabel(st), price))
+		itemTooltip(st.Kind)
+		imgui.SameLine()
+		if st.ID != 0 {
 			if imgui.Button("Sell") {
-				s.send(resources.ShopCommandContents{Op: resources.ShopOpSell, Village: s.shownAt, Item: p.Item, ID: p.ID})
+				s.send(resources.ShopCommandContents{Op: resources.ShopOpSell, Village: s.shownAt, Item: st.Kind, ID: st.ID})
 			}
 		} else {
-			n := s.state.Backpack.Count(p.Item)
-			imgui.Text(fmt.Sprintf("%s x%d  %d coins", resources.ItemNames[p.Item], n, p.Pays))
-			itemTooltip(p.Item)
-			imgui.SameLine()
-			if button("Sell 1", n > 0) {
-				s.send(resources.ShopCommandContents{Op: resources.ShopOpSell, Village: s.shownAt, Item: p.Item, Count: 1})
+			if imgui.Button("Sell 1") {
+				s.send(resources.ShopCommandContents{Op: resources.ShopOpSell, Village: s.shownAt, Item: st.Kind, Quality: st.Quality, Count: 1})
 			}
 			imgui.SameLine()
-			if button("Sell all", n > 0) {
-				s.send(resources.ShopCommandContents{Op: resources.ShopOpSell, Village: s.shownAt, Item: p.Item, Count: n})
+			if imgui.Button("Sell all") {
+				s.send(resources.ShopCommandContents{Op: resources.ShopOpSell, Village: s.shownAt, Item: st.Kind, Quality: st.Quality, Count: st.Count})
 			}
 		}
 		imgui.PopID()

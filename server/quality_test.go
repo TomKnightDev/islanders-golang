@@ -104,7 +104,7 @@ func TestEquipASpecificPiece(t *testing.T) {
 func TestLootGearIsRoughAndUnique(t *testing.T) {
 	w := jobWorld(t)
 	ids := map[uint32]bool{}
-	inv := resources.NewInventory(50, false)
+	inv := resources.NewInventory(50)
 	for i := 0; i < 30; i++ {
 		w.give(&inv, resources.ItemCopperSword, 1, lootGearQuality+w.rng.Intn(21))
 	}

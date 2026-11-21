@@ -50,29 +50,14 @@ func section(title string, c resources.Inventory, skills []resources.SkillState)
 		imgui.Text("  Empty")
 		return
 	}
-	// One line per item kind, in the order first seen.
-	var kinds []resources.ItemKind
-	seen := map[resources.ItemKind]bool{}
-	for _, s := range c.Stacks {
-		if !seen[s.Kind] {
-			seen[s.Kind] = true
-			kinds = append(kinds, s.Kind)
-		}
-	}
-	for _, k := range kinds {
-		if resources.IsPiece(k) {
-			// Gear and tools are listed piece by piece, each with its quality.
-			for _, s := range c.Stacks {
-				if s.Kind == k {
-					imgui.Text(fmt.Sprintf("  %s  q%d%s", resources.ItemNames[k], s.Quality, wornText(s)))
-					itemTooltip(k)
-					repairButton(s, skills, resources.RepairCommandContents{ID: s.ID})
-				}
-			}
-			continue
-		}
-		imgui.Text(fmt.Sprintf("  %s  %d  q%d", resources.ItemNames[k], c.Count(k), c.AverageQuality(k)))
-		itemTooltip(k)
+	// A line per slot: each material stack has one quality.
+	combined := map[resources.ItemKind]bool{}
+	for _, i := range slotOrder(c) {
+		s := c.Stacks[i]
+		imgui.Text("  " + stackLabel(s))
+		itemTooltip(s.Kind)
+		repairButton(s, skills, resources.RepairCommandContents{ID: s.ID})
+		combineButton(c, s, false, combined)
 	}
 }
 

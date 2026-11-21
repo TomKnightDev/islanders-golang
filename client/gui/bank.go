@@ -88,31 +88,30 @@ func (b *Bank) items(inv resources.Inventory, op, verb string) {
 		dimmed("  Empty")
 		return
 	}
-	seen := map[resources.ItemKind]bool{}
-	for i, s := range inv.Stacks {
+	combined := map[resources.ItemKind]bool{}
+	for _, i := range slotOrder(inv) {
+		s := inv.Stacks[i]
 		imgui.PushID(fmt.Sprintf("%s%d", op, i))
+		imgui.Text(stackLabel(s))
+		itemTooltip(s.Kind)
 		if resources.IsPiece(s.Kind) {
-			imgui.Text(fmt.Sprintf("%s q%d%s", resources.ItemNames[s.Kind], s.Quality, wornText(s)))
-			itemTooltip(s.Kind)
 			imgui.SameLine()
 			if imgui.Button(verb) {
 				b.sendBank(resources.BankCommandContents{Op: op, ID: s.ID})
 			}
 			repairButton(s, b.state.Skills, resources.RepairCommandContents{ID: s.ID})
-		} else if !seen[s.Kind] {
-			seen[s.Kind] = true
-			n := inv.Count(s.Kind)
-			imgui.Text(fmt.Sprintf("%s %d q%d", resources.ItemNames[s.Kind], n, inv.AverageQuality(s.Kind)))
-			itemTooltip(s.Kind)
+		} else {
+			// Moves come from stacks of this quality, so they keep it.
 			imgui.SameLine()
 			if imgui.Button(verb + " 1") {
-				b.sendBank(resources.BankCommandContents{Op: op, Item: s.Kind, Count: 1})
+				b.sendBank(resources.BankCommandContents{Op: op, Item: s.Kind, Quality: s.Quality, Count: 1})
 			}
 			imgui.SameLine()
 			if imgui.Button(verb + " all") {
-				b.sendBank(resources.BankCommandContents{Op: op, Item: s.Kind, Count: n})
+				b.sendBank(resources.BankCommandContents{Op: op, Item: s.Kind, Quality: s.Quality, Count: s.Count})
 			}
 		}
+		combineButton(inv, s, op == resources.BankOpWithdraw, combined)
 		imgui.PopID()
 	}
 }

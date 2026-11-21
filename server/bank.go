@@ -136,15 +136,37 @@ func (w *World) bankCommand(p *player, c resources.BankCommandContents) {
 	}
 }
 
-// moveOne moves a piece by ID, or Count of an item kind.
+// moveOne moves a piece by ID, or Count of an item kind (only of one
+// quality, if the command names one).
 func moveOne(from, to *resources.Inventory, c resources.BankCommandContents) {
-	if c.ID != 0 {
+	switch {
+	case c.ID != 0:
 		if piece, ok := from.TakeID(c.ID); ok && to.AddStack(piece) == 0 {
 			from.AddStack(piece) // no room
 		}
-		return
-	}
-	if c.Count > 0 {
+	case c.Count > 0 && c.Quality > 0:
+		for _, part := range from.TakeQuality(c.Item, c.Quality, c.Count) {
+			if got := to.AddStack(part); got < part.Count {
+				part.Count -= got
+				from.AddStack(part) // no room for the rest
+			}
+		}
+	case c.Count > 0:
 		moveItems(from, to, c.Item, c.Count)
+	}
+}
+
+// combineCommand merges a material's stacks, averaging their quality: in
+// the backpack anywhere, in the bank only standing at one.
+func (w *World) combineCommand(p *player, c resources.CombineCommandContents) {
+	inv := &p.backpack
+	if c.Bank {
+		if _, ok := w.bankOpen(p); !ok {
+			return
+		}
+		inv = &p.bank
+	}
+	if inv.Combine(c.Item) {
+		p.invDirty = true
 	}
 }

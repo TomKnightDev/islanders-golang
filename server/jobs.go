@@ -732,7 +732,7 @@ func (w *World) tickJob(p *player) {
 			w.empty(n)
 		}
 		switch {
-		case p.backpack.Full(item) || amountMet(p, j.action):
+		case p.backpack.Full() || amountMet(p, j.action):
 			w.goBank(p)
 		case n.amount == 0:
 			w.gatherNext(p)
@@ -929,7 +929,7 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 	}
 	making, makeLeft := p.making.item()
 	// The bank's contents only go to a player standing at it.
-	bank := resources.Inventory{Slots: p.bank.Slots, Stacking: true}
+	bank := resources.Inventory{Slots: p.bank.Slots}
 	if p.visit.at == resources.BuildingBank {
 		bank = p.bank.Clone()
 	}
