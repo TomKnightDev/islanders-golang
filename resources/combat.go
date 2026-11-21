@@ -2,7 +2,7 @@ package resources
 
 import "math"
 
-// The combat formulas are RuneScape-style, scaled 10x so health and hits
+// The combat formulas are scaled 10x so health and hits
 // are in the tens and hundreds.
 
 // AttackRoll is how accurate an attacker is.
