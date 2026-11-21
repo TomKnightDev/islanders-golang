@@ -18,7 +18,9 @@ Game design, the planned gathering/crafting loop and the phase plan live in `doc
 make build          # builds bin/server and bin/client
 make run-server     # go run ./server/ -addr 0.0.0.0:8285 -dev (override with SERVER_ADDR=...)
 make run-client     # go run ./client/
-make build-client-windows   # bin/windows/Islanders.exe; needs brew install mingw-w64. CI also builds it and uploads it as the Islanders-windows artifact
+make build-client-windows   # bin/windows/Islanders.exe; needs brew install mingw-w64
+make package-windows        # bin/Islanders-windows.zip
+make package-mac            # bin/Islanders-mac.zip: universal (arm64 + amd64) Islanders.app, ad-hoc signed; on a Mac
 go build ./server/  # what CI runs, plus the Windows client build
 go vet ./...
 go test ./server/ ./resources/   # what CI runs; client/client_test.go is commented out
@@ -85,9 +87,10 @@ Every push to `master` triggers `.github/workflows/server.yml`. It builds the se
 
 ## Building clients for playing
 
-- **Mac app on the Desktop.** `~/Desktop/Islanders.app` wraps the client: `Contents/MacOS/Islanders` is a shell script that `cd`s to `~/Library/Application Support/Islanders` (so `imgui.ini` can be written) and runs `Contents/MacOS/islanders-client`, built with `go build -o … ./client/`; `Contents/Info.plist` names it. After rebuilding, re-sign it with `codesign --force --deep -s - ~/Desktop/Islanders.app`.
+- **Releases.** Every push to `master` publishes a GitHub release (`build-<run number>`, marked latest) with `Islanders-mac.zip` and `Islanders-windows.zip`, after the deploy, so the latest release always matches the live server. Pull requests build both as artifacts without releasing.
+- **Mac app on the Desktop.** `make package-mac` builds `bin/mac/Islanders.app` from `packaging/mac/`: `Contents/MacOS/Islanders` is a shell script that `cd`s to `~/Library/Application Support/Islanders` (so `imgui.ini` can be written) and runs `Contents/MacOS/islanders-client`; `Contents/Info.plist` names it. Copy it to `~/Desktop/Islanders.app`, or unzip the latest release there.
 - **Matching the live server.** To build a client for what's deployed while a branch has unmerged changes, check out the deployed commit (`gh run list --branch master --workflow server.yml` shows it) in a temporary `git worktree` and build there.
-- **Windows.** `make build-client-windows`, zipped to `~/Desktop/Islanders-windows.zip`, or the CI artifact.
+- **Windows.** `make package-windows`, copied to `~/Desktop/Islanders-windows.zip`, or the latest release.
 - **Local testing.** `./bin/server -addr 127.0.0.1:8285 -dev`, then **Play locally**. `-dev` allows dev tools: **F12** in the client opens a Dev window to set the game speed (1×–20×, `World.speed` world ticks per real tick; action timings sent to the client are divided by it so bars stay in real time). The production container runs without `-dev`, so the live server refuses dev commands. A new server or client must be paired: protocol changes mean an old client can't play a new server and vice versa.
 
 ## Known pitfalls
