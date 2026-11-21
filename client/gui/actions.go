@@ -17,6 +17,7 @@ var dimText = imgui.Vec4{X: 0.7, Y: 0.75, Z: 0.7, W: 1}
 // Actions is the action window: places the player has found and what can be
 // done there, and the action list the character works through.
 type Actions struct {
+	Open   bool // shown; the menu bar toggles it
 	mgr    *renderer.Manager
 	player *entities.Player
 	places map[string]resources.Place
@@ -28,7 +29,7 @@ type Actions struct {
 }
 
 func NewActions(mgr *renderer.Manager, player *entities.Player, places []resources.Place) *Actions {
-	a := &Actions{mgr: mgr, player: player, places: map[string]resources.Place{}}
+	a := &Actions{Open: true, mgr: mgr, player: player, places: map[string]resources.Place{}}
 	for _, p := range places {
 		a.places[p.Name] = p
 	}
@@ -46,8 +47,11 @@ func (a *Actions) send(c resources.ActionCommandContents) {
 
 func (a *Actions) Update() error {
 	w, _ := screenSize()
-	placeWindow("Actions", imgui.Vec2{X: w - windowMargin, Y: windowMargin}, imgui.Vec2{X: 1, Y: 0})
-	imgui.BeginV("Actions", nil, imgui.WindowFlagsAlwaysAutoResize)
+	if !a.Open {
+		return nil
+	}
+	placeWindow("Actions", imgui.Vec2{X: w - windowMargin, Y: topMargin()}, imgui.Vec2{X: 1, Y: 0})
+	imgui.BeginV("Actions", &a.Open, imgui.WindowFlagsAlwaysAutoResize)
 	a.controls()
 	imgui.Separator()
 	a.list()
@@ -56,7 +60,7 @@ func (a *Actions) Update() error {
 
 	if a.picking {
 		// Opens beside the actions window each time.
-		imgui.SetNextWindowPosV(imgui.Vec2{X: actionsLeft - windowMargin, Y: windowMargin}, imgui.ConditionAppearing, imgui.Vec2{X: 1, Y: 0})
+		imgui.SetNextWindowPosV(imgui.Vec2{X: actionsLeft - windowMargin, Y: topMargin()}, imgui.ConditionAppearing, imgui.Vec2{X: 1, Y: 0})
 		imgui.BeginV("Add an action", &a.picking, imgui.WindowFlagsAlwaysAutoResize)
 		a.foundPlaces()
 		imgui.End()

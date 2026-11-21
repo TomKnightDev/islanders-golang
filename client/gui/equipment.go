@@ -13,13 +13,14 @@ import (
 // and the gear in the backpack they can equip. Gear in the bank is equipped
 // from the bank window.
 type Equipment struct {
+	Open  bool // shown; the menu bar toggles it
 	mgr   *renderer.Manager
 	send  func(resources.EquipCommandContents)
 	state resources.InventoryContents
 }
 
 func NewEquipment(mgr *renderer.Manager, send func(resources.EquipCommandContents)) *Equipment {
-	return &Equipment{mgr: mgr, send: send}
+	return &Equipment{Open: true, mgr: mgr, send: send}
 }
 
 func (e *Equipment) SetState(c resources.InventoryContents) { e.state = c }
@@ -34,9 +35,12 @@ func (e *Equipment) level(s resources.Skill) int {
 }
 
 func (e *Equipment) Update() error {
+	if !e.Open {
+		return nil
+	}
 	w, _ := screenSize()
 	placeWindow("Equipment", imgui.Vec2{X: w - windowMargin, Y: inventoryTop - windowMargin}, imgui.Vec2{X: 1, Y: 1})
-	imgui.BeginV("Equipment", nil, imgui.WindowFlagsAlwaysAutoResize)
+	imgui.BeginV("Equipment", &e.Open, imgui.WindowFlagsAlwaysAutoResize)
 
 	worn := map[resources.EquipSlot]resources.Stack{}
 	for _, it := range e.state.Equipment {

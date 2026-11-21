@@ -13,21 +13,28 @@ import (
 // bank is only seen in the bank window, standing at a bank. What the
 // character is doing is shown by the action bar instead.
 type Inventory struct {
+	Open     bool // shown; the menu bar toggles it
 	mgr      *renderer.Manager
 	Contents resources.InventoryContents
 }
 
 func NewInventory(mgr *renderer.Manager) *Inventory {
 	return &Inventory{
+		Open:     true,
 		mgr:      mgr,
 		Contents: resources.InventoryContents{Activity: "Idle"},
 	}
 }
 
 func (inv *Inventory) Update() error {
+	if !inv.Open {
+		_, h := screenSize()
+		inventoryTop = h - windowMargin
+		return nil
+	}
 	w, h := screenSize()
 	placeWindow("Inventory", imgui.Vec2{X: w - windowMargin, Y: h - windowMargin}, imgui.Vec2{X: 1, Y: 1})
-	imgui.BeginV("Inventory", nil, imgui.WindowFlagsAlwaysAutoResize)
+	imgui.BeginV("Inventory", &inv.Open, imgui.WindowFlagsAlwaysAutoResize)
 	imgui.Text(fmt.Sprintf("Coins: %d", inv.Contents.Coins))
 	imgui.Separator()
 	section("Backpack", inv.Contents.Backpack, inv.Contents.Skills)

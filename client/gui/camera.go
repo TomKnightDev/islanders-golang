@@ -21,7 +21,7 @@ func (c *CameraControls) Update() error {
 		return nil
 	}
 	w, _ := screenSize()
-	imgui.SetNextWindowPosV(imgui.Vec2{X: w / 2, Y: windowMargin}, imgui.ConditionAlways, imgui.Vec2{X: 0.5, Y: 0})
+	imgui.SetNextWindowPosV(imgui.Vec2{X: w / 2, Y: topMargin()}, imgui.ConditionAlways, imgui.Vec2{X: 0.5, Y: 0})
 	imgui.BeginV("##camera", nil, imgui.WindowFlagsNoTitleBar|imgui.WindowFlagsNoResize|
 		imgui.WindowFlagsAlwaysAutoResize|imgui.WindowFlagsNoMove|imgui.WindowFlagsNoSavedSettings)
 	if imgui.Button("Follow my character") {

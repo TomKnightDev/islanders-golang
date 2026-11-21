@@ -96,6 +96,7 @@ func guideStart() {
 	para("Islanders is played mostly by planning. Explore the island to find villages, mines, forests, farms and camps, then give your character a list of things to do. They work through it on their own, even while you're offline.")
 	point("Click the map to walk. Walking into a place finds it, and found places appear in the action picker.")
 	point("Drag the map to look around; scroll to zoom. The camera follows you again when you walk.")
+	point("The bar along the top opens and closes each window, and has Log out. Your character stays in the world, still working, while you're logged out.")
 	point("Every village has a bank, a store, an inn, a blacksmith, an anvil and a fletcher.")
 	point("Walk up to a building, or visit it from the action list, to open its window.")
 	point("Inns tell rumours of places you haven't found yet, with directions.")

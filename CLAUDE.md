@@ -57,6 +57,8 @@ Every push to `master` triggers `.github/workflows/server.yml`. It builds the se
 
 **Routes.** `World.sendPath` sends a player their own path (`PathMessage`) whenever its destination changes; the client trims it as the character walks and draws it after the camera image.
 
+**Menu bar and logging out.** `gui.MenuBar` (`client/gui/menubar.go`) runs along the top: a link per window that flips its `Open` flag, and Log out. Windows pinned to the top use `topMargin()` to sit below it. `logout` (`client/client.go`) closes `client.done`, which ends that connection's send loop, reader and forwarding goroutines (each holds its own connection's channels, so nothing leaks into the next login), clears the game state and puts `Game.menu` back; the character stays in the world as on any disconnect.
+
 **Window layout.** `client/gui/layout.go`: `placeWindow` pins a window to a screen position and corner for its first few frames each session (overriding `imgui.ini`), then leaves it movable. Skills sits under Info via `infoBottom`; the picker opens beside Actions via `actionsLeft`.
 
 **Repair** (`server/repair.go`, `resources/repair.go`, `client/gui/repair.go`). Any worn piece is repaired anywhere by `RepairCommandMessage` (an equipment slot, or a piece ID in the backpack, or the bank at a bank): wear goes to 0 for `RepairLoss` quality, and Repair gets `RepairXP`. The client's `repairButton` draws the button wherever a worn piece is listed.
