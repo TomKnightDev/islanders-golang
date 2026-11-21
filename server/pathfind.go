@@ -14,11 +14,30 @@ var neighbours = [4]tile{{1, 0}, {-1, 0}, {0, 1}, {0, -1}}
 // steps are the moves a walk can make: straight or diagonal.
 var steps = [8]tile{{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {1, -1}, {-1, 1}, {-1, -1}}
 
-// Step costs: a diagonal is about √2 times a straight step.
+// Step costs: a diagonal is about √2 times a straight step. Stepping onto a
+// road, bridge or village square costs 60% as much, so walkers follow roads
+// when the detour is sensible.
 const (
-	straightCost = 10
-	diagonalCost = 14
+	straightCost     = 10
+	diagonalCost     = 14
+	roadStraightCost = 6
+	roadDiagonalCost = 8
 )
+
+// stepCost is the cost of stepping onto t by d.
+func stepCost(wm *resources.WorldMap, t, d tile) int {
+	diag := d.x != 0 && d.y != 0
+	if resources.IsRoad(wm.Layers[resources.LayerGround].Data[t.y*wm.Width+t.x]) {
+		if diag {
+			return roadDiagonalCost
+		}
+		return roadStraightCost
+	}
+	if diag {
+		return diagonalCost
+	}
+	return straightCost
+}
 
 // octile is the cheapest cost between two tiles on an open map.
 func octile(a, b tile) int {
@@ -80,9 +99,12 @@ func findPath(wm *resources.WorldMap, start, goal tile) []tile {
 		return []tile{}
 	}
 
-	// Octile distance, less one step when the goal itself is blocked, so the
-	// estimate never overshoots the real cost to a tile beside it.
-	h := func(t tile) int { return max(0, octile(t, goal)-slack*straightCost) }
+	// Octile distance priced as if it were all road, less one step when the
+	// goal itself is blocked, so the estimate never overshoots the real cost.
+	h := func(t tile) int {
+		dx, dy := abs(t.x-goal.x), abs(t.y-goal.y)
+		return max(0, roadStraightCost*max(dx, dy)+(roadDiagonalCost-roadStraightCost)*min(dx, dy)-slack*roadStraightCost)
+	}
 
 	cameFrom := map[tile]tile{}
 	cost := map[tile]int{start: 0}
@@ -108,10 +130,7 @@ func findPath(wm *resources.WorldMap, start, goal tile) []tile {
 				continue
 			}
 			n := cur.t.add(d)
-			g := cur.g + straightCost
-			if d.x != 0 && d.y != 0 {
-				g = cur.g + diagonalCost
-			}
+			g := cur.g + stepCost(wm, n, d)
 			if old, seen := cost[n]; seen && g >= old {
 				continue
 			}

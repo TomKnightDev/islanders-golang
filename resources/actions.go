@@ -3,20 +3,45 @@ package resources
 type ActionKind string
 
 const (
-	ActionMine  ActionKind = "mine"  // mine iron at a mine, banking it
-	ActionSmelt ActionKind = "smelt" // smelt banked ore into bars at a village blacksmith
+	ActionMine   ActionKind = "mine"   // mine iron at a mine, banking it
+	ActionChop   ActionKind = "chop"   // chop logs in a forest, banking them
+	ActionSmelt  ActionKind = "smelt"  // smelt banked ore into bars at a village blacksmith
+	ActionFletch ActionKind = "fletch" // turn banked logs into arrows at a village fletcher
 )
+
+// ActionKinds lists the actions in the order the action window shows them.
+var ActionKinds = []ActionKind{ActionMine, ActionChop, ActionSmelt, ActionFletch}
 
 // ActionNames is how each action reads in the UI.
 var ActionNames = map[ActionKind]string{
-	ActionMine:  "Mine iron",
-	ActionSmelt: "Smelt iron",
+	ActionMine:   "Mine iron",
+	ActionChop:   "Chop wood",
+	ActionSmelt:  "Smelt iron",
+	ActionFletch: "Fletch arrows",
 }
 
 // ActionPlaceKind is the kind of place each action happens at.
 var ActionPlaceKind = map[ActionKind]PlaceKind{
-	ActionMine:  PlaceMine,
-	ActionSmelt: PlaceVillage,
+	ActionMine:   PlaceMine,
+	ActionChop:   PlaceForest,
+	ActionSmelt:  PlaceVillage,
+	ActionFletch: PlaceVillage,
+}
+
+// ActionProducts is the item an action's amount goal counts in the bank.
+var ActionProducts = map[ActionKind]ItemKind{
+	ActionMine:   ItemIronOre,
+	ActionChop:   ItemLogs,
+	ActionSmelt:  ItemIronIngot,
+	ActionFletch: ItemArrows,
+}
+
+// ActionDefaultAmounts is the bank total a new action aims for.
+var ActionDefaultAmounts = map[ActionKind]int{
+	ActionMine:   100,
+	ActionChop:   100,
+	ActionSmelt:  50,
+	ActionFletch: 500,
 }
 
 type GoalKind string
@@ -43,10 +68,7 @@ type ActionSpec struct {
 
 // Product is the item an action's amount goal counts in the bank.
 func (a ActionSpec) Product() ItemKind {
-	if a.Kind == ActionSmelt {
-		return ItemIronIngot
-	}
-	return ItemIronOre
+	return ActionProducts[a.Kind]
 }
 
 // QueuedAction is an entry in the action list as the server reports it.

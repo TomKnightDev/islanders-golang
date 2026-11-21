@@ -5,25 +5,39 @@
 Islanders is a semi-idle multiplayer gathering and crafting game. The player explores the island to find villages and mines, then plans up to five actions in the **action window**. The character works through the list on its own, even while the player is offline.
 
 ```
-mine iron ore ──► backpack full ──► nearest bank ──► deposit ──► back to the rock ──► mine…
+gather (mine ore / chop logs) ──► backpack full ──► nearest bank ──► back to the rock or tree ──► …
                                                          │
-bank ore ──► carry to a blacksmith ──► smelt into bars ──► bars to the bank
+bank ore  ──► blacksmith ──► iron bars ──► bank
+bank logs ──► fletcher's hut ──► arrows ──► bank
                                                          │
 bank bars ──► craft equipment at the anvil ──► better equipment makes jobs faster
 ```
 
 ### The action window
-- **Finding places.** A village or mine is *found* once the player walks into it (within its radius plus 2 tiles). Everyone starts having found their spawn village. Found places are listed with the actions available there:
+- **Finding places.** A village, mine or named forest is *found* once the player walks into it (within its radius plus 2 tiles). Everyone starts having found their spawn village. Found places are listed with the actions available there:
   - a mine offers **Mine iron**
-  - a village offers **Smelt iron** at its blacksmith
+  - a forest offers **Chop wood**
+  - a village offers **Smelt iron** at its blacksmith and **Fletch arrows** at its fletcher's hut
 - **The action list** holds up to 5 actions. Clicking an action adds it to the end. Entries can be moved up or down or removed.
 - **Goals.** Each action has one goal, which the player can change at any time:
-  - **Until the bank has N** of the action's product (ore for mining, bars for smelting). New actions start at 100 ore or 50 bars.
+  - **Until the bank has N** of the action's product: ore, logs, bars or arrows. New actions start at 100 ore, 100 logs, 50 bars or 500 arrows.
   - **For N minutes** of the character's time. The timer pauses while the list is stopped, and runs at 10% speed while the player is offline like everything else.
 - **Running the list.** **Start** works through the list from the top. When an action's goal is met, or its time is up, the character first banks anything it's carrying, then moves on. When the list is empty the character goes idle.
 - **Stop** halts the list where it is; anything carried stays in the backpack. Reordering or removing the running action stops it and starts whatever is now first.
 - **Clicks never cancel the list.** While the list is running, clicking the map does nothing. While it's stopped, clicking walks, which is how the player explores and finds new places.
 - **Failures.** If the bank account is full, or there's no way to a place, the list stops and the action stays in it, so the player can sort things out and press Start again.
+
+### Gathering: mining and chopping
+Mining and woodcutting work the same way, from *nodes*: iron rocks in a mine, trees in a named forest.
+
+| | Mining | Chopping |
+|---|---|---|
+| Where | the action's mine | the action's forest |
+| Gives | 1 iron ore per 2 s swing | 1 log per 3 s chop |
+| A node holds | 5–10 ore | 1–4 logs |
+| When empty | depleted rock for 30 s | felled tree for 60 s |
+
+Only trees inside a named forest can be chopped; scattered trees are scenery. A node with no walkable tile beside it is skipped.
 
 ### Mining
 - Mines only at the action's mine. The character walks to a free rock there and mines one **iron ore** per swing.
@@ -31,23 +45,30 @@ bank bars ──► craft equipment at the anvil ──► better equipment make
 - **One miner per rock.** A rock is reserved when a miner is sent to it. If every rock in the mine is taken or depleted, the character waits at the mine until one frees up.
 - **Rocks run out.** Each rock holds a random amount of ore. When it's empty it turns into a depleted rock and respawns after a delay. The miner moves on to the nearest free rock in the same mine.
 
-### Smelting
-- Smelts at the action's village blacksmith, in trips:
-  1. At the nearest bank: deposit anything carried, then take out iron ore, as much as fits in the backpack but no more than the goal still needs.
-  2. Walk to the blacksmith and smelt one **iron bar** per ore, one at a time.
-  3. Walk back to the bank, deposit the bars, and start the next trip.
-- If the bank runs out of ore, the action ends early ("No ore to smelt").
+### Crafting at a station: smelting and fletching
+Both run in trips from the action's village:
+1. At the nearest bank: deposit anything carried, then take out the input, as much as fits in the backpack but no more than the goal still needs.
+2. Walk to the station and work through the input one at a time.
+3. Walk back to the bank, deposit the output, and start the next trip.
+
+| | Smelting | Fletching |
+|---|---|---|
+| Station | blacksmith | fletcher's hut |
+| Makes | 1 iron bar from 1 ore, 3 s | 10 arrows from 1 log, 2 s |
+| Ends early | "No ore to smelt" | "No logs to fletch" |
 
 ### Items and stacking
 Backpacks and bank accounts are made of slots.
 
-- **Backpack:** items don't stack. Every item takes its own slot, so a player carries at most 20 items (20 iron ore per trip).
+- **Backpack:** most items don't stack. Every item takes its own slot, so a player carries at most 20 items (20 iron ore per trip). Arrows are the exception and stack 50 to a slot.
 - **Bank:** each slot holds one stack of a single item kind, up to that item's stack limit.
 
 | Item | Bank stack limit |
 |---|---|
 | Iron ore | 10 |
 | Iron bar | 20 |
+| Logs | 20 |
+| Arrows | 50 (also 50 in the backpack) |
 
 A container is full for an item when every slot is used and every stack of that item is at its limit.
 
@@ -64,6 +85,9 @@ Every village has a bank building, and every player has their own bank account, 
 | Iron pickaxe | 3 ingots | Mining is 25% faster |
 | Iron backpack straps | 5 ingots | Backpack holds +10 |
 | Iron helmet | 4 ingots | Cosmetic for now |
+
+### Hover information
+Pointing at a building, rock or tree on the map shows a tooltip with its name and what it's for, including where it is ("Saltmere's bank", "Iron rock at Old Quarry") and, for trees, whether they can be chopped. Items in the inventory window have tooltips too. The inventory window doesn't show the current activity; the progress bar does.
 
 ### Activity and progress bar
 The character shows what it's doing ("Mining", "Smelting", "Walking to the bank", "Waiting for a free rock", "Bank full") in a bar at the bottom middle of the screen. The bar fills green over each timed step: every mining swing, every smelt, every walk. Open-ended states show an empty bar, and the bar hides when idle.
@@ -84,6 +108,8 @@ These are tuning values, kept in one place in the server code.
 | Backpack size | 20 slots |
 | Bank account size | 100 slots |
 | Smelting | 1 ore → 1 bar, 3 s |
+| Chopping | 1 log per 3 s; trees hold 1–4, regrow in 60 s |
+| Fletching | 1 log → 10 arrows, 2 s |
 | Offline speed | 10% |
 | Server tick | 25 ms |
 
@@ -93,9 +119,10 @@ The island is generated by `server/worldgen.go` from a fixed seed, so it's the s
 
 - **Island.** Noise shaped by a falloff from the centre gives an irregular coastline: deep sea, shallow water, a sandy beach, then grassland. The map edge is always open sea.
 - **Rivers** start in the highlands and wander downhill to the sea. They're one tile wide up high and two wide lower down, and where they meander over flat ground they spread into small lakes. Rivers can't be walked through.
-- **Villages** (4): a cobbled square with the bank, blacksmith and anvil on its north side and cottages around it. The village nearest the middle, Oakhaven, has a tower and is where everyone spawns.
+- **Villages** (4): a cobbled square with the bank, blacksmith and anvil on its north side, a fletcher's hut on its south side, and cottages around it. The village nearest the middle, Oakhaven, has a tower and is where everyone spawns.
 - **Mines** (3): a patch of stony ground with six iron rocks, on higher ground away from villages.
 - **Roads** link the villages (a minimum spanning tree) and run from each mine to its nearest village. They prefer open ground, merge where they meet, clear trees in their way, and cross rivers on wooden bridges.
+- **Named forests** (4): the largest woods get a name (Whisperwood, Elderglade, Mossy Hollow, Thornwood) and become places where trees can be chopped.
 - **Forests** grow where a second noise field is high: dense woods on a darker forest floor with mushrooms, thinning out at the edges, with some autumn-coloured patches. Elsewhere there are scattered trees, bushes, flower meadows and pebbles.
 - **Reachability.** After generation, every bank, blacksmith, anvil and rock is checked to be walkable from the spawn; anything cut off would get a road.
 
@@ -107,7 +134,7 @@ The island is generated by `server/worldgen.go` from a fixed seed, so it's the s
 | 2 Decor | flowers, pebbles, mushrooms, stones, rubble | never |
 
 ### Places
-Villages and mines are named and listed in `WorldMap.Places`. The info panel describes a location as "in Oakhaven", "at Ironridge Mine" or "near Saltmere", and the names float over the map.
+Villages, mines and the largest forests are named and listed in `WorldMap.Places`. The info panel describes a location as "in Oakhaven", "at Ironridge Mine" or "near Saltmere", and the names float over the map.
 
 ### Sprites
 | Thing | Sprite (environments.png) |
@@ -116,6 +143,8 @@ Villages and mines are named and listed in `WorldMap.Places`. The info panel des
 | Bank | 92 stone house front |
 | Blacksmith | 93 wooden hut front |
 | Anvil | 175 anvil |
+| Fletcher's hut | 125 wooden hut |
+| Felled tree | 76 dead tree |
 | Cottage / tower | 95 / 94 |
 | River | 115 water |
 | Road / bridge / square | 191 dirt / 13 planks / 108 cobblestone |
@@ -128,7 +157,7 @@ The sprite sheet has no dedicated iron ore art. The grey boulder stands in until
 
 - **The server is authoritative for players.** Today the client moves itself and the server relays positions. That can't work for an idle game: progress has to happen while the client is closed, and inventories can't be trusted to the client. Clients send intents (`walk to tile`, `interact with object`). The server pathfinds, moves the character each tick, runs the jobs and broadcasts positions and inventories.
 - **One world goroutine owns all game state.** Connection handlers send it commands over a channel instead of touching shared maps. This also fixes the current data races.
-- **Pathfinding** is A* over tiles, 8-directional, using the passability rule above. A diagonal step needs both tiles beside it free, so sprites never clip a corner.
+- **Pathfinding** is A* over tiles, 8-directional, using the passability rule above. A diagonal step needs both tiles beside it free, so sprites never clip a corner. Steps onto roads, bridges and village squares cost 60% of open ground, so walkers follow roads when the detour is sensible. All water (sea, rivers, lakes) blocks.
 - **Click-to-move replaces WASD.** The camera's `GetCursorCoords` turns a click into a world tile.
 - **Typed messages.** New message contents are decoded with `resources.DecodeContents` (re-marshal into a struct) instead of hand-written `map[string]interface{}` assertions.
 

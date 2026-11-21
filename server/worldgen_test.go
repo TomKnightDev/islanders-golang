@@ -67,9 +67,42 @@ func TestEverythingIsReachableFromSpawn(t *testing.T) {
 		}
 	}
 	for _, p := range wm.Places {
-		if !reach[tile{p.X, p.Y}] {
+		if p.Kind != resources.PlaceForest && !reach[tile{p.X, p.Y}] {
 			t.Errorf("can't walk to the middle of %s", p.Name)
 		}
+	}
+}
+
+func TestForestsHaveTreesToChop(t *testing.T) {
+	w := NewWorld(testIsland)
+	reach := reachable(&w.wm, tile{w.wm.SpawnX, w.wm.SpawnY})
+	forests := 0
+	for _, pl := range w.wm.Places {
+		if pl.Kind != resources.PlaceForest {
+			continue
+		}
+		forests++
+		choppable := 0
+		for _, n := range w.nodes {
+			if n.place != pl.Name {
+				continue
+			}
+			for _, d := range neighbours {
+				if reach[n.t.add(d)] {
+					choppable++
+					break
+				}
+			}
+		}
+		if choppable < 10 {
+			t.Errorf("%s has only %d trees you can walk up to", pl.Name, choppable)
+		}
+	}
+	if forests != forestCount {
+		t.Errorf("%d named forests, want %d", forests, forestCount)
+	}
+	if got := countKind(testIsland, resources.ObjectFletcher); got != villageCount {
+		t.Errorf("%d fletcher's huts, want one per village", got)
 	}
 }
 
@@ -96,8 +129,8 @@ func TestIslandShape(t *testing.T) {
 		gid  int
 		what string
 	}{
-		{tileRiver, "rivers"}, {tileBridge, "bridges"}, {tileRoad, "roads"},
-		{tilePlaza, "village squares"}, {resources.TileSand, "beaches"}, {tileForestFloor, "forests"},
+		{resources.TileRiver, "rivers"}, {resources.TileBridge, "bridges"}, {resources.TileRoad, "roads"},
+		{resources.TilePlaza, "village squares"}, {resources.TileSand, "beaches"}, {tileForestFloor, "forests"},
 	} {
 		if counts[want.gid] == 0 {
 			t.Errorf("no %s", want.what)
@@ -109,7 +142,7 @@ func TestTreesAreOnObjectLayerAndDecorNeverBlocks(t *testing.T) {
 	wm := testIsland
 	trees := 0
 	for _, gid := range wm.Layers[resources.LayerObject].Data {
-		if isTree(gid) {
+		if isPlant(gid) {
 			trees++
 		}
 	}

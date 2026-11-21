@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image/png"
 	"log"
+	"math"
 	"net/url"
 	"reflect"
 
@@ -219,6 +220,11 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 		}
 	}
 	g.Gui = append(g.Gui, ActionsWindow)
+
+	g.Gui = append(g.Gui, gui.NewHover(worldMap, func() (int, int) {
+		wx, wy := cam.GetCursorCoords()
+		return int(math.Floor(wx / resources.TileSize)), int(math.Floor(wy / resources.TileSize))
+	}))
 
 	// Messages from chat send channel will be forwarded to the client send channel
 	go func(client *Client, chat *gui.Chat) {

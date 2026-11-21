@@ -17,6 +17,17 @@ const (
 	TileBank             = 92
 	TileBlacksmith       = 93
 	TileAnvil            = 175
+	TileFletcher         = 125
+	TileRiver            = 115 // rivers and lakes; lighter than the sea
+	TileRoad             = 191 // dirt road
+	TileBridge           = 13  // wooden planks over a river
+	TilePlaza            = 108 // cobbled village square
+	TilePine             = 80
+	TileAutumnTree       = 75
+	TileFelledTree       = 76
+	TileBush             = 79
+	TileCottage          = 95
+	TileTower            = 94
 )
 
 const (
@@ -33,6 +44,7 @@ const (
 	ObjectBank       ObjectKind = "bank"
 	ObjectBlacksmith ObjectKind = "blacksmith"
 	ObjectAnvil      ObjectKind = "anvil"
+	ObjectFletcher   ObjectKind = "fletcher"
 )
 
 // ObjectTiles maps each interactive object kind to its sprite.
@@ -41,6 +53,7 @@ var ObjectTiles = map[ObjectKind]int{
 	ObjectBank:       TileBank,
 	ObjectBlacksmith: TileBlacksmith,
 	ObjectAnvil:      TileAnvil,
+	ObjectFletcher:   TileFletcher,
 }
 
 // WorldObject is something on the object layer a player can interact with.
@@ -51,13 +64,29 @@ type WorldObject struct {
 	Y    int        `json:"y"`
 }
 
-// IsPassable reports whether a ground tile can be walked on.
+// IsPassable reports whether a ground tile can be walked on. All water
+// blocks: sea, shallows, rivers and lakes.
 func IsPassable(tileIndex int) bool {
 	switch tileIndex {
-	case TileWaterShallow, TileWaterDeep, TileTree1, TileTree2:
+	case TileWaterShallow, TileWaterDeep, TileRiver:
 		return false
 	}
 	return true
+}
+
+// IsTree reports whether an object tile is a choppable kind of tree.
+func IsTree(gid int) bool {
+	switch gid {
+	case TileTree1, TileTree2, TilePine, TileAutumnTree:
+		return true
+	}
+	return false
+}
+
+// IsRoad reports whether a ground tile is a road, bridge or village square,
+// which walkers prefer.
+func IsRoad(gid int) bool {
+	return gid == TileRoad || gid == TileBridge || gid == TilePlaza
 }
 
 type WorldMap struct {
@@ -90,6 +119,7 @@ type PlaceKind string
 const (
 	PlaceVillage PlaceKind = "village"
 	PlaceMine    PlaceKind = "mine"
+	PlaceForest  PlaceKind = "forest"
 )
 
 // Place is a named area of the island, such as a village or a mine.

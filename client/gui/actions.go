@@ -10,12 +10,9 @@ import (
 	"github.com/tomknightdev/islanders-golang/resources"
 )
 
-// Goals a new action starts with; the player can change them in the list.
-const (
-	defaultMineAmount  = 100
-	defaultSmeltAmount = 50
-	defaultMinutes     = 10
-)
+// defaultMinutes is the time goal a new action starts with; amounts come
+// from resources.ActionDefaultAmounts. The player can change both.
+const defaultMinutes = 10
 
 var dimText = imgui.Vec4{X: 0.7, Y: 0.75, Z: 0.7, W: 1}
 
@@ -101,24 +98,21 @@ func (a *Actions) foundPlaces() {
 		if !ok {
 			continue
 		}
-		for _, kind := range []resources.ActionKind{resources.ActionMine, resources.ActionSmelt} {
+		for _, kind := range resources.ActionKinds {
 			if resources.ActionPlaceKind[kind] != place.Kind {
 				continue
 			}
 			if button(resources.ActionNames[kind]+"##"+name, !full) {
-				amount := defaultMineAmount
-				if kind == resources.ActionSmelt {
-					amount = defaultSmeltAmount
-				}
 				a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
-					Kind: kind, Place: name, Goal: resources.GoalAmount, Amount: amount, Minutes: defaultMinutes,
+					Kind: kind, Place: name, Goal: resources.GoalAmount,
+					Amount: resources.ActionDefaultAmounts[kind], Minutes: defaultMinutes,
 				}})
 			}
 			imgui.SameLine()
 			imgui.Text(name)
 		}
 	}
-	dimmed("Walk into a village or mine to find it.")
+	dimmed("Walk into a village, mine or forest to find it.")
 }
 
 func (a *Actions) list() {
@@ -155,10 +149,7 @@ func (a *Actions) row(i int, q resources.QueuedAction) {
 		a.send(resources.ActionCommandContents{Op: resources.ActionOpRemove, Index: i})
 	}
 
-	unit := "ore"
-	if spec.Product() == resources.ItemIronIngot {
-		unit = "bars"
-	}
+	unit := resources.ItemUnits[spec.Product()]
 	edited := spec
 
 	// Goal: a bank total, or a length of time.

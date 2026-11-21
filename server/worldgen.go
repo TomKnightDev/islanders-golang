@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"math"
 	"math/rand"
+	"sort"
 
 	"github.com/tomknightdev/islanders-golang/resources"
 )
@@ -26,19 +27,10 @@ const (
 	highland     = 0.62 // rivers start above this
 )
 
-// Tiles the generator paints, beyond those in resources.
+// Tiles only the generator paints. Shared ones live in resources.
 const (
-	tileRiver       = 115 // fresh water, lighter than the sea
-	tileRoad        = 191 // dirt road
-	tileBridge      = 13  // wooden planks
-	tilePlaza       = 108 // cobblestone village square
 	tileForestFloor = 73
 	tileStones      = 118 // stony tufts, drawn over grass at mines
-	tileAutumnTree  = 75
-	tilePine        = 80
-	tileBush        = 79
-	tileCottage     = 95
-	tileTower       = 94
 	tileFlowersW    = 111
 	tileFlowersP    = 112
 	tilePebbles     = 119
@@ -49,12 +41,15 @@ const (
 var (
 	villageNames = []string{"Oakhaven", "Saltmere", "Brindlewick", "Fernhollow", "Gullcrest"}
 	mineNames    = []string{"Ironridge Mine", "Old Quarry", "Deepdelve Mine", "Greystone Pit"}
+	forestNames  = []string{"Whisperwood", "Elderglade", "Mossy Hollow", "Thornwood", "Amberwood"}
 )
 
 const (
 	villageCount   = 4
 	mineCount      = 3
 	riverCount     = 3
+	forestCount    = 4  // the largest woods get a name and can be chopped
+	minForestSize  = 60 // tiles of forest floor before a wood can be named
 	villageSpacing = 34 // tiles between village centres
 	mineSpacing    = 26
 )
@@ -102,6 +97,7 @@ func generateWorld(seed int64) resources.WorldMap {
 	mines := g.placeMines(mainland, villages)
 	g.buildRoads(villages, mines)
 	g.growPlants()
+	g.nameForests()
 	g.ensureReachable()
 
 	return resources.WorldMap{
@@ -210,7 +206,7 @@ func (g *worldGen) paintTerrain() {
 		case e < shallowLevel:
 			g.ground[i] = resources.TileWaterShallow
 		case g.river[i]:
-			g.ground[i] = tileRiver
+			g.ground[i] = resources.TileRiver
 		case e < beachLevel:
 			g.ground[i] = resources.TileSand
 		default:
@@ -362,32 +358,32 @@ func (g *worldGen) reserve(c tile, radius int) {
 // buildVillage lays out a cobbled square with the bank and blacksmith on its
 // north side and houses around it.
 //
-//	C . B . T . S A C      B bank, S blacksmith, A anvil
+//	C . B . T . S A C      B bank, S blacksmith, A anvil, F fletcher
 //	# # # # # # # # #      C cottage, T tower (first village only)
 //	# # # # # # # # #      # cobblestone square
 //	# # # # # # # # #
 //	# # # # # # # # #
 //	# # # # # # # # #
-//	. C . . C . . C .
+//	. C . . F . . C .
 func (g *worldGen) buildVillage(c tile, name string, capital bool) {
 	g.reserve(c, 7)
 	for y := c.y - 2; y <= c.y+2; y++ {
 		for x := c.x - 4; x <= c.x+4; x++ {
-			g.ground[g.at(tile{x, y})] = tilePlaza
+			g.ground[g.at(tile{x, y})] = resources.TilePlaza
 		}
 	}
 	north := c.y - 3
 	g.addObject(tile{c.x - 2, north}, resources.ObjectBank)
 	g.addObject(tile{c.x + 2, north}, resources.ObjectBlacksmith)
 	g.addObject(tile{c.x + 3, north}, resources.ObjectAnvil)
-	g.objects[g.at(tile{c.x - 4, north})] = tileCottage
-	g.objects[g.at(tile{c.x + 4, north})] = tileCottage
+	g.objects[g.at(tile{c.x - 4, north})] = resources.TileCottage
+	g.objects[g.at(tile{c.x + 4, north})] = resources.TileCottage
 	if capital {
-		g.objects[g.at(tile{c.x, north})] = tileTower
+		g.objects[g.at(tile{c.x, north})] = resources.TileTower
 	}
-	for _, dx := range []int{-3, 0, 3} {
-		g.objects[g.at(tile{c.x + dx, c.y + 3})] = tileCottage
-	}
+	g.objects[g.at(tile{c.x - 3, c.y + 3})] = resources.TileCottage
+	g.addObject(tile{c.x, c.y + 3}, resources.ObjectFletcher)
+	g.objects[g.at(tile{c.x + 3, c.y + 3})] = resources.TileCottage
 	g.places = append(g.places, resources.Place{Name: name, Kind: resources.PlaceVillage, X: c.x, Y: c.y, Radius: 6})
 }
 
@@ -454,9 +450,9 @@ func (g *worldGen) buildRoads(villages, mines []tile) {
 func (g *worldGen) roadCost(t tile) float64 {
 	i := g.at(t)
 	switch {
-	case !g.land(t), g.objects[i] != resources.TileNone && !isTree(g.objects[i]):
+	case !g.land(t), g.objects[i] != resources.TileNone && !isPlant(g.objects[i]):
 		return -1
-	case g.ground[i] == tileRoad, g.ground[i] == tileBridge, g.ground[i] == tilePlaza:
+	case g.ground[i] == resources.TileRoad, g.ground[i] == resources.TileBridge, g.ground[i] == resources.TilePlaza:
 		return 0.5
 	case g.river[i]:
 		return 12
@@ -467,12 +463,9 @@ func (g *worldGen) roadCost(t tile) float64 {
 	}
 }
 
-func isTree(gid int) bool {
-	switch gid {
-	case resources.TileTree1, resources.TileTree2, tileAutumnTree, tilePine, tileBush:
-		return true
-	}
-	return false
+// isPlant is anything roads may clear: trees and bushes.
+func isPlant(gid int) bool {
+	return resources.IsTree(gid) || gid == resources.TileBush
 }
 
 // road finds the cheapest route from a to b and paints it: dirt on land,
@@ -519,16 +512,16 @@ func (g *worldGen) paintRoad(t tile) {
 	i := g.at(t)
 	g.keepOut[i] = true
 	g.decor[i] = resources.TileNone
-	if isTree(g.objects[i]) {
+	if isPlant(g.objects[i]) {
 		g.objects[i] = resources.TileNone
 	}
 	switch {
-	case g.ground[i] == tilePlaza:
+	case g.ground[i] == resources.TilePlaza:
 	case g.river[i]:
-		g.ground[i] = tileBridge
+		g.ground[i] = resources.TileBridge
 		g.river[i] = false
 	default:
-		g.ground[i] = tileRoad
+		g.ground[i] = resources.TileRoad
 	}
 }
 
@@ -558,7 +551,7 @@ func (g *worldGen) growPlants() {
 	forest := newValueNoise(g.r)
 	autumn := newValueNoise(g.r)
 	flowers := newValueNoise(g.r)
-	greens := []int{resources.TileTree1, resources.TileTree2, tilePine}
+	greens := []int{resources.TileTree1, resources.TileTree2, resources.TilePine}
 	for y := 0; y < g.h; y++ {
 		for x := 0; x < g.w; x++ {
 			i := y*g.w + x
@@ -573,7 +566,7 @@ func (g *worldGen) growPlants() {
 				g.ground[i] = tileForestFloor
 				if roll < 0.5 {
 					if autumn.fbm(fx, fy, 24, 2) > 0.6 {
-						g.objects[i] = tileAutumnTree
+						g.objects[i] = resources.TileAutumnTree
 					} else {
 						g.objects[i] = greens[g.r.Intn(len(greens))]
 					}
@@ -592,7 +585,7 @@ func (g *worldGen) growPlants() {
 					continue
 				}
 				if roll < 0.02 {
-					g.objects[i] = tileBush
+					g.objects[i] = resources.TileBush
 					continue
 				}
 			}
@@ -606,6 +599,50 @@ func (g *worldGen) growPlants() {
 				g.decor[i] = tilePebbles
 			}
 		}
+	}
+}
+
+// nameForests gives the largest woods a name, making them places where
+// players can chop wood. Each is centred on the forest tile nearest its
+// middle and sized to cover most of it.
+func (g *worldGen) nameForests() {
+	seen := make([]bool, len(g.ground))
+	var woods [][]tile
+	for i, gid := range g.ground {
+		if gid != tileForestFloor || seen[i] {
+			continue
+		}
+		start := tile{i % g.w, i / g.w}
+		seen[i] = true
+		wood := []tile{start}
+		for q := 0; q < len(wood); q++ {
+			for _, d := range neighbours {
+				nb := wood[q].add(d)
+				if g.inside(nb) && !seen[g.at(nb)] && g.ground[g.at(nb)] == tileForestFloor {
+					seen[g.at(nb)] = true
+					wood = append(wood, nb)
+				}
+			}
+		}
+		if len(wood) >= minForestSize {
+			woods = append(woods, wood)
+		}
+	}
+	sort.SliceStable(woods, func(i, j int) bool { return len(woods[i]) > len(woods[j]) })
+	for n, wood := range woods[:min(forestCount, len(woods))] {
+		sx, sy := 0, 0
+		for _, t := range wood {
+			sx, sy = sx+t.x, sy+t.y
+		}
+		mid := tile{sx / len(wood), sy / len(wood)}
+		centre := wood[0]
+		for _, t := range wood {
+			if octile(t, mid) < octile(centre, mid) {
+				centre = t
+			}
+		}
+		radius := min(10, max(5, int(math.Sqrt(float64(len(wood))))/2+1))
+		g.places = append(g.places, resources.Place{Name: forestNames[n%len(forestNames)], Kind: resources.PlaceForest, X: centre.x, Y: centre.y, Radius: radius})
 	}
 }
 

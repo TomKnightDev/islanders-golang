@@ -9,7 +9,8 @@ import (
 	"github.com/tomknightdev/islanders-golang/resources"
 )
 
-// Inventory shows what the character is doing and what it's carrying.
+// Inventory shows what the character is carrying and what's in the bank.
+// What it's doing is shown by the action bar instead.
 type Inventory struct {
 	mgr      *renderer.Manager
 	Contents resources.InventoryContents
@@ -24,8 +25,6 @@ func NewInventory(mgr *renderer.Manager) *Inventory {
 
 func (inv *Inventory) Update() error {
 	imgui.BeginV("Inventory", nil, imgui.WindowFlagsAlwaysAutoResize)
-	imgui.Text(inv.Contents.Activity)
-	imgui.Separator()
 	section("Backpack", inv.Contents.Backpack)
 	imgui.Separator()
 	section("Bank", inv.Contents.Bank)
@@ -51,6 +50,14 @@ func section(title string, c resources.Inventory) {
 	}
 	for _, k := range kinds {
 		imgui.Text(fmt.Sprintf("  %s  %d", resources.ItemNames[k], c.Count(k)))
+		if imgui.IsItemHovered() {
+			imgui.BeginTooltip()
+			imgui.PushTextWrapPosV(tooltipWidth)
+			imgui.Text(resources.ItemNames[k])
+			dimmed(resources.ItemDescriptions[k])
+			imgui.PopTextWrapPos()
+			imgui.EndTooltip()
+		}
 	}
 }
 

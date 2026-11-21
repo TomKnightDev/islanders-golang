@@ -127,15 +127,15 @@ type command func(w *World)
 // World owns all game state. Only its Run goroutine touches it; connection
 // handlers send it commands with Do.
 type World struct {
-	wm      resources.WorldMap
-	players map[uint16]*player
-	byName  map[string]*player
-	nextID  uint16
-	rocks   map[tile]*rock
-	banks   []tile
-	smiths  map[string]tile // village name -> its blacksmith
-	ticks   int
-	cmds    chan command
+	wm       resources.WorldMap
+	players  map[uint16]*player
+	byName   map[string]*player
+	nextID   uint16
+	nodes    map[tile]*node // rocks and trees to gather from
+	banks    []tile
+	stations map[resources.ObjectKind]map[string]tile // crafting stations by kind, then village
+	ticks    int
+	cmds     chan command
 }
 
 func NewWorld(wm resources.WorldMap) *World {
@@ -145,7 +145,7 @@ func NewWorld(wm resources.WorldMap) *World {
 		byName:  make(map[string]*player),
 		cmds:    make(chan command, 256),
 	}
-	w.initRocks()
+	w.initNodes()
 	return w
 }
 
@@ -292,5 +292,5 @@ func (w *World) tick() {
 			p.invDirty = false
 		}
 	}
-	w.tickRocks()
+	w.tickNodes()
 }

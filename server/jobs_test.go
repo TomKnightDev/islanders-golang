@@ -9,11 +9,13 @@ import (
 const (
 	testVillage = "Testville"
 	testMine    = "Test Mine"
+	testWood    = "Test Wood"
 )
 
 // jobWorld is an open 20x20 field. Testville (centre 4,4) has a bank at
-// (2,2) and a blacksmith at (6,2); players spawn there. Test Mine (centre
-// 12,10) has rocks at (10,10) and (14,10).
+// (2,2), a blacksmith at (6,2) and a fletcher at (8,2); players spawn there.
+// Test Mine (centre 12,10) has rocks at (10,10) and (14,10). Test Wood
+// (centre 16,16) has trees at (15,15), (17,15) and (16,18).
 func jobWorld(t *testing.T) *World {
 	t.Helper()
 	wm := testMap(20, 20)
@@ -25,9 +27,14 @@ func jobWorld(t *testing.T) *World {
 	add(2, resources.ObjectBlacksmith, 6, 2)
 	add(3, resources.ObjectIronRock, 10, 10)
 	add(4, resources.ObjectIronRock, 14, 10)
+	add(5, resources.ObjectFletcher, 8, 2)
+	for _, tr := range []tile{{15, 15}, {17, 15}, {16, 18}} {
+		wm.Layers[resources.LayerObject].Data[tr.y*wm.Width+tr.x] = resources.TileTree1
+	}
 	wm.Places = []resources.Place{
 		{Name: testVillage, Kind: resources.PlaceVillage, X: 4, Y: 4, Radius: 4},
 		{Name: testMine, Kind: resources.PlaceMine, X: 12, Y: 10, Radius: 4},
+		{Name: testWood, Kind: resources.PlaceForest, X: 16, Y: 16, Radius: 3},
 	}
 	wm.SpawnX, wm.SpawnY = 4, 5
 	return NewWorld(wm)
@@ -42,6 +49,7 @@ func joinAt(t *testing.T, w *World, name string, at tile) *player {
 	}
 	p.pos[0], p.pos[1] = at.pixel()
 	p.found[testMine] = true
+	p.found[testWood] = true
 	return p
 }
 
@@ -78,7 +86,7 @@ func bars(inv resources.Inventory) int { return inv.Count(resources.ItemIronIngo
 
 func TestMineUntilBankHasAmount(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{10, 10}].ore = 100
+	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{8, 10})
 	addAction(w, p, mineFor(25))
 	run(w, p)
@@ -91,14 +99,14 @@ func TestMineUntilBankHasAmount(t *testing.T) {
 	if p.running || p.activity != activityIdle {
 		t.Errorf("should be idle after the last action: running %v, %q", p.running, p.activity)
 	}
-	if w.rocks[tile{10, 10}].claimedBy != nil {
+	if w.nodes[tile{10, 10}].claimedBy != nil {
 		t.Error("rock should be released")
 	}
 }
 
 func TestMineForTime(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{10, 10}].ore = 100
+	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
 	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalTime, Minutes: 1})
 	run(w, p)
@@ -151,7 +159,7 @@ func TestSmeltTiming(t *testing.T) {
 	p.bank.Add(resources.ItemIronOre, 3)
 	addAction(w, p, smeltFor(3))
 	run(w, p)
-	runUntil(t, w, 2000, "smelting", func() bool { return p.job != nil && p.job.state == stateSmelting })
+	runUntil(t, w, 2000, "smelting", func() bool { return p.job != nil && p.job.state == stateCrafting })
 	for i := 0; i < ticks(smeltTime)-1; i++ {
 		w.tick()
 	}
@@ -166,7 +174,7 @@ func TestSmeltTiming(t *testing.T) {
 
 func TestListRunsInOrder(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{10, 10}].ore = 100
+	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{8, 10})
 	addAction(w, p, mineFor(20))
 	addAction(w, p, smeltFor(20))
@@ -180,16 +188,16 @@ func TestListRunsInOrder(t *testing.T) {
 
 func TestClickDoesNotCancelARunningList(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{10, 10}].ore = 100
+	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
 	addAction(w, p, mineFor(50))
 	run(w, p)
-	runUntil(t, w, 100, "mining", func() bool { return p.job != nil && p.job.state == stateMining })
+	runUntil(t, w, 100, "mining", func() bool { return p.job != nil && p.job.state == stateGathering })
 
 	j := p.job
 	w.click(p, tile{1, 18})
 	w.tick()
-	if p.job != j || p.job.state != stateMining || len(p.path) != 0 {
+	if p.job != j || p.job.state != stateGathering || len(p.path) != 0 {
 		t.Error("a click while the list runs should change nothing")
 	}
 }
@@ -254,19 +262,19 @@ func TestActionValidation(t *testing.T) {
 
 func TestReorderAndRemove(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{10, 10}].ore = 100
+	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
 	addAction(w, p, mineFor(50))
 	addAction(w, p, smeltFor(5))
 	run(w, p)
-	runUntil(t, w, 100, "mining", func() bool { return p.job != nil && p.job.state == stateMining })
+	runUntil(t, w, 100, "mining", func() bool { return p.job != nil && p.job.state == stateGathering })
 
 	// Moving smelting to the top stops mining and starts smelting.
 	w.actionCommand(p, resources.ActionCommandContents{Op: resources.ActionOpUp, Index: 1})
 	if p.actions[0].spec.Kind != resources.ActionSmelt || p.job != nil {
 		t.Fatal("reordering should cancel the old first action")
 	}
-	if w.rocks[tile{10, 10}].claimedBy != nil {
+	if w.nodes[tile{10, 10}].claimedBy != nil {
 		t.Error("cancelled miner should free the rock")
 	}
 	w.actionCommand(p, resources.ActionCommandContents{Op: resources.ActionOpRemove, Index: 0})
@@ -277,7 +285,7 @@ func TestReorderAndRemove(t *testing.T) {
 
 func TestStopPausesTimer(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{10, 10}].ore = 100
+	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
 	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalTime, Minutes: 5})
 	run(w, p)
@@ -303,15 +311,15 @@ func TestOneMinerPerRock(t *testing.T) {
 		run(w, p)
 	}
 	w.tick()
-	if a.job.rock == nil || b.job.rock == nil || a.job.rock == b.job.rock {
+	if a.job.node == nil || b.job.node == nil || a.job.node == b.job.node {
 		t.Fatal("two miners should be on different rocks")
 	}
 }
 
 func TestWaitWhenNoRockIsFree(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{14, 10}].ore = 0 // depleted, and not respawning during the test
-	w.rocks[tile{14, 10}].respawnAt = 1 << 30
+	w.nodes[tile{14, 10}].amount = 0 // depleted, and not respawning during the test
+	w.nodes[tile{14, 10}].respawnAt = 1 << 30
 	a := joinAt(t, w, "a", tile{9, 9})
 	b := joinAt(t, w, "b", tile{9, 11})
 	addAction(w, a, mineFor(50))
@@ -320,17 +328,17 @@ func TestWaitWhenNoRockIsFree(t *testing.T) {
 	addAction(w, b, mineFor(50))
 	run(w, b)
 	w.tick()
-	if b.job.state != stateWaitForRock || b.activity != activityWaiting {
+	if b.job.state != stateWaitForNode || b.activity != activityWaiting {
 		t.Fatalf("b should wait, state %v activity %q", b.job.state, b.activity)
 	}
 	w.actionCommand(a, resources.ActionCommandContents{Op: resources.ActionOpStop})
-	runUntil(t, w, 200, "b claims the freed rock", func() bool { return w.rocks[tile{10, 10}].claimedBy == b })
+	runUntil(t, w, 200, "b claims the freed rock", func() bool { return w.nodes[tile{10, 10}].claimedBy == b })
 }
 
 func TestRockDepletesMovesOnAndRespawns(t *testing.T) {
 	w := jobWorld(t)
-	r1, r2 := w.rocks[tile{10, 10}], w.rocks[tile{14, 10}]
-	r1.ore, r2.ore = 1, 50
+	r1, r2 := w.nodes[tile{10, 10}], w.nodes[tile{14, 10}]
+	r1.amount, r2.amount = 1, 50
 	s := testSession()
 	p, _ := w.login("tom", "pw", s)
 	p.found[testMine] = true
@@ -338,11 +346,11 @@ func TestRockDepletesMovesOnAndRespawns(t *testing.T) {
 	addAction(w, p, mineFor(50))
 	run(w, p)
 
-	runUntil(t, w, 500, "rock depleted", func() bool { return r1.ore == 0 })
+	runUntil(t, w, 500, "rock depleted", func() bool { return r1.amount == 0 })
 	if got := w.wm.Layers[resources.LayerObject].Data[10*w.wm.Width+10]; got != resources.TileIronRockDepleted {
 		t.Errorf("depleted rock tile %d", got)
 	}
-	if p.job.rock != r2 || r2.claimedBy != p {
+	if p.job.node != r2 || r2.claimedBy != p {
 		t.Error("miner should move on to the other rock")
 	}
 	sawUpdate := false
@@ -354,15 +362,15 @@ func TestRockDepletesMovesOnAndRespawns(t *testing.T) {
 	if !sawUpdate {
 		t.Error("clients should be told the rock changed")
 	}
-	runUntil(t, w, ticks(rockRespawn)+10, "respawn", func() bool { return r1.ore > 0 })
-	if r1.ore < rockOreMin || r1.ore > rockOreMax {
-		t.Errorf("respawned with %d ore", r1.ore)
+	runUntil(t, w, ticks(rockRespawn)+10, "respawn", func() bool { return r1.amount > 0 })
+	if r1.amount < rockOreMin || r1.amount > rockOreMax {
+		t.Errorf("respawned with %d ore", r1.amount)
 	}
 }
 
 func TestBankFullStopsTheList(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{10, 10}].ore = 100
+	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
 	p.bank = resources.NewInventory(1, true)
 	p.bank.Add(resources.ItemIronOre, 5) // room for 5 more only
@@ -383,7 +391,7 @@ func TestBankFullStopsTheList(t *testing.T) {
 
 func TestFullBackpackIsTwentyOre(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{10, 10}].ore = 100
+	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
 	addAction(w, p, mineFor(100))
 	run(w, p)
@@ -408,7 +416,7 @@ func TestBankAccountsArePrivate(t *testing.T) {
 
 func TestMiningContinuesOfflineAtTenthSpeed(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{10, 10}].ore = 100
+	w.nodes[tile{10, 10}].amount = 100
 	s := testSession()
 	p, _ := w.login("tom", "pw", s)
 	p.found[testMine] = true
@@ -472,7 +480,7 @@ func TestInventoryReportsListAndPlaces(t *testing.T) {
 
 func TestActionTimingForProgressBar(t *testing.T) {
 	w := jobWorld(t)
-	w.rocks[tile{10, 10}].ore = 100
+	w.nodes[tile{10, 10}].amount = 100
 	s := testSession()
 	p, _ := w.login("tom", "pw", s)
 	p.found[testMine] = true
@@ -492,5 +500,76 @@ func TestActionTimingForProgressBar(t *testing.T) {
 	inv = lastInventory(t, s)
 	if inv.Activity != activityMining || inv.ActionSeconds != swingTime.Seconds() || inv.ActionElapsed != 0 {
 		t.Errorf("swing: %q %vs elapsed %vs", inv.Activity, inv.ActionSeconds, inv.ActionElapsed)
+	}
+}
+
+func logs(inv resources.Inventory) int   { return inv.Count(resources.ItemLogs) }
+func arrows(inv resources.Inventory) int { return inv.Count(resources.ItemArrows) }
+
+func TestChopWoodFellsAndRegrowsTrees(t *testing.T) {
+	w := jobWorld(t)
+	for _, n := range w.nodes {
+		if n.place == testWood {
+			n.amount = 2
+		}
+	}
+	p := joinAt(t, w, "tom", tile{14, 16})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionChop, Place: testWood, Goal: resources.GoalAmount, Amount: 5})
+	run(w, p)
+
+	runUntil(t, w, 20000, "chopped 5 logs", func() bool { return len(p.actions) == 0 })
+	if logs(p.bank) != 5 || !p.backpack.Empty() {
+		t.Errorf("bank %d logs, backpack %v", logs(p.bank), p.backpack.Stacks)
+	}
+	// Two logs a tree, so at least two trees came down.
+	felled := 0
+	for _, tr := range []tile{{15, 15}, {17, 15}, {16, 18}} {
+		if w.wm.Layers[resources.LayerObject].Data[tr.y*w.wm.Width+tr.x] == resources.TileFelledTree {
+			felled++
+		}
+	}
+	if felled < 2 {
+		t.Errorf("%d trees felled, want at least 2", felled)
+	}
+	runUntil(t, w, ticks(treeRegrow)+10, "trees regrow", func() bool {
+		return w.wm.Layers[resources.LayerObject].Data[15*w.wm.Width+15] == resources.TileTree1
+	})
+}
+
+func TestFletchArrows(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", tile{4, 5})
+	p.bank.Add(resources.ItemLogs, 25)
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFletch, Place: testVillage, Goal: resources.GoalAmount, Amount: 200})
+	run(w, p)
+
+	runUntil(t, w, 20000, "fletched", func() bool { return len(p.actions) == 0 })
+	// 200 arrows needs 20 logs: one trip, 5 logs left over.
+	if arrows(p.bank) != 200 || logs(p.bank) != 5 {
+		t.Errorf("bank %d arrows %d logs", arrows(p.bank), logs(p.bank))
+	}
+	// 200 arrows at 50 a slot.
+	slots := 0
+	for _, s := range p.bank.Stacks {
+		if s.Kind == resources.ItemArrows {
+			slots++
+		}
+	}
+	if slots != 4 {
+		t.Errorf("200 arrows took %d bank slots, want 4", slots)
+	}
+}
+
+func TestFletchingFillsBackpackWithStackedArrows(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", tile{4, 5})
+	p.bank.Add(resources.ItemLogs, 20)
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFletch, Place: testVillage, Goal: resources.GoalAmount, Amount: 1000})
+	run(w, p)
+	runUntil(t, w, 20000, "heading back with arrows", func() bool {
+		return p.job != nil && p.job.state == stateWalkToBank && arrows(p.backpack) > 0
+	})
+	if arrows(p.backpack) != 200 || len(p.backpack.Stacks) != 4 {
+		t.Errorf("carrying %d arrows in %d slots, want 200 in 4", arrows(p.backpack), len(p.backpack.Stacks))
 	}
 }

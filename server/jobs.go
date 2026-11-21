@@ -10,11 +10,17 @@ import (
 
 // Tuning values. See docs/DESIGN.md.
 const (
-	swingTime       = 2 * time.Second
+	swingTime       = 2 * time.Second // per ore
+	chopTime        = 3 * time.Second // per log
 	smeltTime       = 3 * time.Second // per bar
+	fletchTime      = 2 * time.Second // per log
+	arrowsPerLog    = 10
 	rockRespawn     = 30 * time.Second
 	rockOreMin      = 5
 	rockOreMax      = 10
+	treeRegrow      = 60 * time.Second
+	treeLogsMin     = 1
+	treeLogsMax     = 4
 	backpackSlots   = 20
 	bankSlots       = 100
 	rockWaitRetry   = 1 * time.Second
@@ -34,26 +40,87 @@ const (
 	activityMining   = "Mining"
 	activityToBank   = "Walking to the bank"
 	activityWaiting  = "Waiting for a free rock"
+	activityChopping = "Chopping"
+	activityToTree   = "Walking to a tree"
+	activityNoTree   = "Waiting for a free tree"
 	activityToSmith  = "Walking to the blacksmith"
 	activitySmelting = "Smelting"
 	activityNoOre    = "No ore to smelt"
+	activityToFletch = "Walking to the fletcher"
+	activityFletch   = "Fletching"
+	activityNoLogs   = "No logs to fletch"
 	activityBankFull = "Bank full"
 	activityNoPath   = "Can't get there"
 )
 
-type rock struct {
-	obj       resources.WorldObject
-	place     string // the mine it belongs to
-	ore       int
-	claimedBy *player
-	respawnAt int // world tick; only meaningful while depleted
+// gatherKind describes a gathering action: what it collects, from what,
+// and how fast.
+type gatherKind struct {
+	item               resources.ItemKind
+	swing              time.Duration
+	minYield, maxYield int // how much a node holds when full
+	respawn            time.Duration
+	spent              int // sprite while the node is empty
+	working, walking   string
+	waiting            string
 }
 
-func (r *rock) tile() tile { return tile{r.obj.X, r.obj.Y} }
+var gatherKinds = map[resources.ActionKind]*gatherKind{
+	resources.ActionMine: {
+		item: resources.ItemIronOre, swing: swingTime, minYield: rockOreMin, maxYield: rockOreMax,
+		respawn: rockRespawn, spent: resources.TileIronRockDepleted,
+		working: activityMining, walking: activityToRock, waiting: activityWaiting,
+	},
+	resources.ActionChop: {
+		item: resources.ItemLogs, swing: chopTime, minYield: treeLogsMin, maxYield: treeLogsMax,
+		respawn: treeRegrow, spent: resources.TileFelledTree,
+		working: activityChopping, walking: activityToTree, waiting: activityNoTree,
+	},
+}
 
-// freeFor reports whether p may mine r now.
-func (r *rock) freeFor(p *player) bool {
-	return r.ore > 0 && (r.claimedBy == nil || r.claimedBy == p)
+// recipe describes a crafting action: turn an input from the bank into an
+// output at a station in a village.
+type recipe struct {
+	input, output    resources.ItemKind
+	perInput         int // outputs made from one input
+	step             time.Duration
+	station          resources.ObjectKind
+	working, walking string
+	noInput          string
+}
+
+var recipes = map[resources.ActionKind]*recipe{
+	resources.ActionSmelt: {
+		input: resources.ItemIronOre, output: resources.ItemIronIngot, perInput: 1, step: smeltTime,
+		station: resources.ObjectBlacksmith, working: activitySmelting, walking: activityToSmith, noInput: activityNoOre,
+	},
+	resources.ActionFletch: {
+		input: resources.ItemLogs, output: resources.ItemArrows, perInput: arrowsPerLog, step: fletchTime,
+		station: resources.ObjectFletcher, working: activityFletch, walking: activityToFletch, noInput: activityNoLogs,
+	},
+}
+
+// node is something to gather from: an iron rock or a tree.
+type node struct {
+	kind        *gatherKind
+	t           tile
+	place       string // the mine or forest it belongs to
+	live        int    // sprite while it has something to gather
+	amount      int
+	claimedBy   *player
+	respawnAt   int  // world tick; only meaningful while empty
+	unreachable bool // no walkable tile beside it
+}
+
+func (n *node) tile() tile { return n.t }
+
+// freeFor reports whether p may gather from n now.
+func (n *node) freeFor(p *player) bool {
+	return n.amount > 0 && !n.unreachable && (n.claimedBy == nil || n.claimedBy == p)
+}
+
+func (n *node) refill() {
+	n.amount = n.kind.minYield + rand.Intn(n.kind.maxYield-n.kind.minYield+1)
 }
 
 // queuedAction is one entry in a player's action list.
@@ -70,41 +137,68 @@ func (a *queuedAction) ticksLeft() int {
 type jobState int
 
 const (
-	stateWalkToRock jobState = iota + 1
-	stateMining
-	stateWaitForRock
+	stateWalkToNode jobState = iota + 1
+	stateGathering
+	stateWaitForNode
 	stateWalkToBank
-	stateWalkToSmith
-	stateSmelting
+	stateWalkToStation
+	stateCrafting
 )
 
 // job is the running state of the action at the top of the list.
 type job struct {
 	action    *queuedAction
 	state     jobState
-	rock      *rock // mining: the rock being walked to or mined, and returned to after banking
-	smith     tile  // smelting: the blacksmith to work at
-	countdown int   // ticks left in a swing, a smelt or a wait
-	finishing bool  // goal met or time up: bank what's carried, then move on
+	gather    *gatherKind // gathering actions
+	node      *node       // the node being walked to or gathered, and returned to after banking
+	recipe    *recipe     // crafting actions
+	station   tile        // where to craft
+	countdown int         // ticks left in a swing, a craft step or a wait
+	finishing bool        // goal met or time up: bank what's carried, then move on
 }
 
-func (w *World) initRocks() {
-	w.rocks = map[tile]*rock{}
-	w.smiths = map[string]tile{}
+// initNodes finds everything to gather from and every crafting station.
+// Rocks are listed objects; trees are any tree tile inside a named forest.
+func (w *World) initNodes() {
+	w.nodes = map[tile]*node{}
+	w.stations = map[resources.ObjectKind]map[string]tile{}
+	objects := w.wm.Layers[resources.LayerObject].Data
 	for _, o := range w.wm.Objects {
 		t := tile{o.X, o.Y}
 		switch o.Kind {
 		case resources.ObjectIronRock:
-			r := &rock{obj: o, ore: rockOreMin + rand.Intn(rockOreMax-rockOreMin+1)}
+			n := &node{kind: gatherKinds[resources.ActionMine], t: t, live: objects[t.y*w.wm.Width+t.x]}
 			if pl := w.placeAt(t, resources.PlaceMine); pl != nil {
-				r.place = pl.Name
+				n.place = pl.Name
 			}
-			w.rocks[t] = r
+			n.refill()
+			w.nodes[t] = n
 		case resources.ObjectBank:
 			w.banks = append(w.banks, t)
-		case resources.ObjectBlacksmith:
+		case resources.ObjectBlacksmith, resources.ObjectFletcher:
 			if pl := w.placeAt(t, resources.PlaceVillage); pl != nil {
-				w.smiths[pl.Name] = t
+				if w.stations[o.Kind] == nil {
+					w.stations[o.Kind] = map[string]tile{}
+				}
+				w.stations[o.Kind][pl.Name] = t
+			}
+		}
+	}
+	for _, pl := range w.wm.Places {
+		if pl.Kind != resources.PlaceForest {
+			continue
+		}
+		for y := pl.Y - pl.Radius; y <= pl.Y+pl.Radius; y++ {
+			for x := pl.X - pl.Radius; x <= pl.X+pl.Radius; x++ {
+				t := tile{x, y}
+				if x < 0 || y < 0 || x >= w.wm.Width || y >= w.wm.Height || w.nodes[t] != nil {
+					continue
+				}
+				if gid := objects[y*w.wm.Width+x]; resources.IsTree(gid) {
+					n := &node{kind: gatherKinds[resources.ActionChop], t: t, place: pl.Name, live: gid}
+					n.refill()
+					w.nodes[t] = n
+				}
 			}
 		}
 	}
@@ -180,8 +274,8 @@ func (w *World) validAction(p *player, a resources.ActionSpec) bool {
 	if pl := w.place(a.Place); pl == nil || pl.Kind != kind {
 		return false
 	}
-	if a.Kind == resources.ActionSmelt {
-		if _, ok := w.smiths[a.Place]; !ok {
+	if r := recipes[a.Kind]; r != nil {
+		if _, ok := w.stations[r.station][a.Place]; !ok {
 			return false
 		}
 	}
@@ -252,15 +346,15 @@ func (w *World) cancelJob(p *player) {
 	if p.job == nil {
 		return
 	}
-	w.releaseRock(p)
+	w.releaseNode(p)
 	p.job = nil
 	p.path = p.path[:min(1, len(p.path))] // finish the current step, no further
 	w.setActivity(p, activityIdle)
 }
 
-func (w *World) releaseRock(p *player) {
-	if p.job != nil && p.job.rock != nil && p.job.rock.claimedBy == p {
-		p.job.rock.claimedBy = nil
+func (w *World) releaseNode(p *player) {
+	if p.job != nil && p.job.node != nil && p.job.node.claimedBy == p {
+		p.job.node.claimedBy = nil
 	}
 }
 
@@ -282,20 +376,21 @@ func (w *World) startNextAction(p *player) {
 		w.finishAction(p, activityIdle)
 		return
 	}
-	switch a.spec.Kind {
-	case resources.ActionMine:
-		p.job = &job{action: a}
-		w.mineNext(p)
-	case resources.ActionSmelt:
-		p.job = &job{action: a, smith: w.smiths[a.spec.Place]}
-		w.goBank(p) // a smelting trip starts at the bank, collecting ore
+	if g := gatherKinds[a.spec.Kind]; g != nil {
+		p.job = &job{action: a, gather: g}
+		w.gatherNext(p)
+		return
+	}
+	if r := recipes[a.spec.Kind]; r != nil {
+		p.job = &job{action: a, recipe: r, station: w.stations[r.station][a.spec.Place]}
+		w.goBank(p) // a crafting trip starts at the bank, collecting its input
 	}
 }
 
 // finishAction moves on to the next action. note is shown if the list is
 // now empty.
 func (w *World) finishAction(p *player, note string) {
-	w.releaseRock(p)
+	w.releaseNode(p)
 	p.job = nil
 	p.actions = p.actions[1:]
 	if len(p.actions) == 0 {
@@ -308,7 +403,7 @@ func (w *World) finishAction(p *player, note string) {
 // failAction stops the whole list, leaving the action in place so the
 // player can sort out the problem and start again.
 func (w *World) failAction(p *player, why string) {
-	w.releaseRock(p)
+	w.releaseNode(p)
 	p.job = nil
 	p.running = false
 	w.setActivity(p, why)
@@ -317,7 +412,7 @@ func (w *World) failAction(p *player, why string) {
 // wrapUp ends the action once anything carried has been banked.
 func (w *World) wrapUp(p *player) {
 	p.job.finishing = true
-	w.releaseRock(p)
+	w.releaseNode(p)
 	if p.backpack.Empty() {
 		w.finishAction(p, activityIdle)
 		return
@@ -325,59 +420,71 @@ func (w *World) wrapUp(p *player) {
 	w.goBank(p)
 }
 
-// --- mining ---
+// --- gathering ---
 
-// nearestFreeRock prefers the given rock if p can mine it, otherwise the
-// closest rock in the mine that nobody else is mining and that has ore.
-func (w *World) nearestFreeRock(p *player, prefer *rock, mine string) *rock {
-	if prefer != nil && prefer.place == mine && prefer.freeFor(p) {
+// nearestFreeNode prefers the given node if p can use it, otherwise the
+// closest node of the same kind in the place that nobody else is using.
+func (w *World) nearestFreeNode(p *player, prefer *node, place string, kind *gatherKind) *node {
+	if prefer != nil && prefer.place == place && prefer.freeFor(p) {
 		return prefer
 	}
 	from := p.currentTile()
-	var best *rock
+	var best *node
 	bestDist := 0
-	for _, r := range w.rocks {
-		if r.place != mine || !r.freeFor(p) {
+	for _, n := range w.nodes {
+		if n.kind != kind || n.place != place || !n.freeFor(p) {
 			continue
 		}
-		if d := octile(from, r.tile()); best == nil || d < bestDist || (d == bestDist && r.obj.ID < best.obj.ID) {
-			best, bestDist = r, d
+		if d := octile(from, n.t); best == nil || d < bestDist ||
+			(d == bestDist && (n.t.y < best.t.y || (n.t.y == best.t.y && n.t.x < best.t.x))) {
+			best, bestDist = n, d
 		}
 	}
 	return best
 }
 
-// mineNext sends p to a free rock in the action's mine, or to wait there.
-func (w *World) mineNext(p *player) {
+// gatherNext sends p to a free node in the action's place, or to wait there.
+func (w *World) gatherNext(p *player) {
 	j := p.job
-	mine := j.action.spec.Place
-	if r := w.nearestFreeRock(p, j.rock, mine); r != nil {
-		w.walkToRock(p, r)
-		return
+	place := j.action.spec.Place
+	for {
+		n := w.nearestFreeNode(p, j.node, place, j.gather)
+		if n == nil {
+			break
+		}
+		if w.walkToNode(p, n) {
+			return
+		}
+		if p.job == nil {
+			return
+		}
 	}
-	if j.rock == nil {
-		// Every rock is busy and we're not there yet: walk to the mine.
-		if pl := w.place(mine); pl != nil {
+	if j.node == nil {
+		// Everything is busy and we're not there yet: walk to the place.
+		if pl := w.place(place); pl != nil {
 			w.moveTo(p, tile{pl.X, pl.Y})
 		}
 	}
-	j.state = stateWaitForRock
+	j.state = stateWaitForNode
 	j.countdown = ticks(rockWaitRetry)
-	w.setActivity(p, activityWaiting)
+	w.setActivity(p, j.gather.waiting)
 }
 
-func (w *World) walkToRock(p *player, r *rock) {
-	if p.job.rock != r {
-		w.releaseRock(p)
+// walkToNode reserves n and walks p beside it. A node with no way to it is
+// marked unreachable and skipped from then on.
+func (w *World) walkToNode(p *player, n *node) bool {
+	if p.job.node != n {
+		w.releaseNode(p)
 	}
-	r.claimedBy = p // reserve it now so two players don't walk to the same rock
-	p.job.rock = r
-	p.job.state = stateWalkToRock
-	if !w.moveTo(p, r.tile()) {
-		w.failAction(p, activityNoPath)
-		return
+	if !w.moveTo(p, n.t) {
+		n.unreachable = true
+		return false
 	}
-	w.startAction(p, activityToRock, walkTicks(p))
+	n.claimedBy = p // reserve it now so two players don't head for the same one
+	p.job.node = n
+	p.job.state = stateWalkToNode
+	w.startAction(p, p.job.gather.walking, walkTicks(p))
+	return true
 }
 
 // --- banking ---
@@ -396,7 +503,7 @@ func (w *World) nearestBank(p *player) (tile, bool) {
 }
 
 func (w *World) goBank(p *player) {
-	w.releaseRock(p)
+	w.releaseNode(p)
 	b, ok := w.nearestBank(p)
 	if !ok || !w.moveTo(p, b) {
 		w.failAction(p, activityNoPath)
@@ -420,37 +527,38 @@ func (w *World) atBank(p *player) {
 		w.finishAction(p, activityIdle)
 		return
 	}
-	switch j.action.spec.Kind {
-	case resources.ActionMine:
-		w.mineNext(p) // back to the same rock if it's still free
-	case resources.ActionSmelt:
-		w.collectOre(p)
+	if j.gather != nil {
+		w.gatherNext(p) // back to the same node if it's still free
+	} else {
+		w.collectInput(p)
 	}
 }
 
-// --- smelting ---
+// --- crafting ---
 
-// collectOre takes ore from the bank for one smelting trip: as much as the
+// collectInput takes a crafting trip's input from the bank: as much as the
 // backpack holds, but no more than the goal still needs.
-func (w *World) collectOre(p *player) {
+func (w *World) collectInput(p *player) {
 	j := p.job
-	n := min(backpackSlots-len(p.backpack.Stacks), p.bank.Count(resources.ItemIronOre))
+	r := j.recipe
+	n := min(p.backpack.FreeSlots(), p.bank.Count(r.input))
 	if j.action.spec.Goal == resources.GoalAmount {
-		n = min(n, j.action.spec.Amount-p.bank.Count(resources.ItemIronIngot))
+		need := j.action.spec.Amount - p.bank.Count(r.output)
+		n = min(n, (need+r.perInput-1)/r.perInput)
 	}
 	if n <= 0 {
-		w.finishAction(p, activityNoOre)
+		w.finishAction(p, r.noInput)
 		return
 	}
-	p.bank.Remove(resources.ItemIronOre, n)
-	p.backpack.Add(resources.ItemIronOre, n)
+	p.bank.Remove(r.input, n)
+	p.backpack.Add(r.input, n)
 	p.invDirty = true
-	j.state = stateWalkToSmith
-	if !w.moveTo(p, j.smith) {
+	j.state = stateWalkToStation
+	if !w.moveTo(p, j.station) {
 		w.failAction(p, activityNoPath)
 		return
 	}
-	w.startAction(p, activityToSmith, walkTicks(p))
+	w.startAction(p, r.walking, walkTicks(p))
 }
 
 // --- the tick ---
@@ -478,50 +586,49 @@ func (w *World) tickJob(p *player) {
 	}
 
 	switch j.state {
-	case stateWalkToRock:
+	case stateWalkToNode:
 		if !arrived {
 			return
 		}
-		if !j.rock.freeFor(p) { // emptied while we walked
-			w.mineNext(p)
+		if !j.node.freeFor(p) { // emptied while we walked
+			w.gatherNext(p)
 			return
 		}
-		j.state = stateMining
-		j.countdown = ticks(swingTime)
-		w.startAction(p, activityMining, j.countdown)
+		j.state = stateGathering
+		j.countdown = ticks(j.gather.swing)
+		w.startAction(p, j.gather.working, j.countdown)
 
-	case stateMining:
+	case stateGathering:
 		j.countdown--
 		if j.countdown > 0 {
 			return
 		}
-		r := j.rock
-		r.ore--
-		p.backpack.Add(resources.ItemIronOre, 1)
+		n, item := j.node, j.gather.item
+		n.amount--
+		p.backpack.Add(item, 1)
 		p.invDirty = true
-		if r.ore == 0 {
-			w.depleteRock(r)
+		if n.amount == 0 {
+			w.empty(n)
 		}
 		goal := j.action.spec
-		enough := goal.Goal == resources.GoalAmount &&
-			p.bank.Count(resources.ItemIronOre)+p.backpack.Count(resources.ItemIronOre) >= goal.Amount
+		enough := goal.Goal == resources.GoalAmount && p.bank.Count(item)+p.backpack.Count(item) >= goal.Amount
 		switch {
-		case p.backpack.Full(resources.ItemIronOre) || enough:
+		case p.backpack.Full(item) || enough:
 			w.goBank(p)
-		case r.ore == 0:
-			w.mineNext(p)
+		case n.amount == 0:
+			w.gatherNext(p)
 		default:
-			j.countdown = ticks(swingTime)
-			w.startAction(p, activityMining, j.countdown)
+			j.countdown = ticks(j.gather.swing)
+			w.startAction(p, j.gather.working, j.countdown)
 		}
 
-	case stateWaitForRock:
+	case stateWaitForNode:
 		j.countdown--
 		if j.countdown > 0 {
 			return
 		}
-		if r := w.nearestFreeRock(p, j.rock, j.action.spec.Place); r != nil {
-			w.walkToRock(p, r)
+		if n := w.nearestFreeNode(p, j.node, j.action.spec.Place, j.gather); n != nil {
+			w.gatherNext(p)
 		} else {
 			j.countdown = ticks(rockWaitRetry)
 		}
@@ -531,28 +638,29 @@ func (w *World) tickJob(p *player) {
 			w.atBank(p)
 		}
 
-	case stateWalkToSmith:
+	case stateWalkToStation:
 		if !arrived {
 			return
 		}
-		j.state = stateSmelting
-		j.countdown = ticks(smeltTime)
-		w.startAction(p, activitySmelting, j.countdown)
+		j.state = stateCrafting
+		j.countdown = ticks(j.recipe.step)
+		w.startAction(p, j.recipe.working, j.countdown)
 
-	case stateSmelting:
+	case stateCrafting:
 		j.countdown--
 		if j.countdown > 0 {
 			return
 		}
-		p.backpack.Remove(resources.ItemIronOre, 1)
-		p.backpack.Add(resources.ItemIronIngot, 1)
+		r := j.recipe
+		p.backpack.Remove(r.input, 1)
+		p.backpack.Add(r.output, r.perInput) // the input's slot is free, so this fits
 		p.invDirty = true
-		if p.backpack.Count(resources.ItemIronOre) == 0 {
+		if p.backpack.Count(r.input) == 0 {
 			w.goBank(p)
 			return
 		}
-		j.countdown = ticks(smeltTime)
-		w.startAction(p, activitySmelting, j.countdown)
+		j.countdown = ticks(r.step)
+		w.startAction(p, r.working, j.countdown)
 	}
 }
 
@@ -570,24 +678,25 @@ func (w *World) tickDiscovery(p *player) {
 	}
 }
 
-// --- rocks ---
+// --- nodes ---
 
 func (w *World) setObjectTile(t tile, gid int) {
 	w.wm.Layers[resources.LayerObject].Data[t.y*w.wm.Width+t.x] = gid
 	w.broadcast(resources.NewObjectUpdateMessage(resources.ObjectUpdateContents{X: t.x, Y: t.y, Tile: gid}))
 }
 
-func (w *World) depleteRock(r *rock) {
-	r.claimedBy = nil
-	r.respawnAt = w.ticks + ticks(rockRespawn)
-	w.setObjectTile(r.tile(), resources.TileIronRockDepleted)
+// empty turns a gathered-out node into its spent sprite until it refills.
+func (w *World) empty(n *node) {
+	n.claimedBy = nil
+	n.respawnAt = w.ticks + ticks(n.kind.respawn)
+	w.setObjectTile(n.t, n.kind.spent)
 }
 
-func (w *World) tickRocks() {
-	for _, r := range w.rocks {
-		if r.ore == 0 && w.ticks >= r.respawnAt {
-			r.ore = rockOreMin + rand.Intn(rockOreMax-rockOreMin+1)
-			w.setObjectTile(r.tile(), resources.TileIronRock)
+func (w *World) tickNodes() {
+	for _, n := range w.nodes {
+		if n.amount == 0 && w.ticks >= n.respawnAt {
+			n.refill()
+			w.setObjectTile(n.t, n.live)
 		}
 	}
 }

@@ -4,19 +4,47 @@ type ItemKind string
 
 const (
 	ItemIronOre   ItemKind = "ironOre"
-	ItemIronIngot ItemKind = "ironIngot"
+	ItemIronIngot ItemKind = "ironIngot" // shown as "Iron bar"
+	ItemLogs      ItemKind = "logs"
+	ItemArrows    ItemKind = "arrows"
 )
 
 // StackLimits is how many of an item fit in one slot of a stacking
-// inventory (the bank). In the backpack every item takes its own slot.
+// inventory (the bank).
 var StackLimits = map[ItemKind]int{
 	ItemIronOre:   10,
 	ItemIronIngot: 20,
+	ItemLogs:      20,
+	ItemArrows:    50,
+}
+
+// BackpackStackLimits is how many of an item share one backpack slot. Most
+// items take a slot each; arrows stack.
+var BackpackStackLimits = map[ItemKind]int{
+	ItemArrows: 50,
 }
 
 var ItemNames = map[ItemKind]string{
 	ItemIronOre:   "Iron ore",
 	ItemIronIngot: "Iron bar",
+	ItemLogs:      "Logs",
+	ItemArrows:    "Arrows",
+}
+
+// ItemUnits is how a quantity of the item reads: "100 ore", "20 arrows".
+var ItemUnits = map[ItemKind]string{
+	ItemIronOre:   "ore",
+	ItemIronIngot: "bars",
+	ItemLogs:      "logs",
+	ItemArrows:    "arrows",
+}
+
+// ItemDescriptions are shown when hovering over an item.
+var ItemDescriptions = map[ItemKind]string{
+	ItemIronOre:   "Mined from iron rocks. Smelt it into bars at a blacksmith.",
+	ItemIronIngot: "Smelted from iron ore. Used for crafting at the anvil (coming soon).",
+	ItemLogs:      "Chopped from trees in the forests. A fletcher turns each log into 10 arrows.",
+	ItemArrows:    "Made from logs at a fletcher's hut. Stacks 50 to a slot, even in the backpack.",
 }
 
 type Stack struct {
@@ -26,7 +54,8 @@ type Stack struct {
 
 // Inventory is a fixed number of slots, each holding one stack of a single
 // item kind. Used for backpacks and bank accounts. When Stacking is false
-// (the backpack) every stack is a single item, so slots = items carried.
+// (the backpack) stacks follow BackpackStackLimits: one item per slot unless
+// the item says otherwise.
 type Inventory struct {
 	Slots    int     `json:"slots"`
 	Stacking bool    `json:"stacking"`
@@ -40,6 +69,9 @@ func NewInventory(slots int, stacking bool) Inventory {
 // limit is how many of kind one slot holds.
 func (inv *Inventory) limit(kind ItemKind) int {
 	if !inv.Stacking {
+		if n, ok := BackpackStackLimits[kind]; ok {
+			return n
+		}
 		return 1
 	}
 	return StackLimits[kind]
@@ -137,3 +169,6 @@ func (inv Inventory) Clone() Inventory {
 	inv.Stacks = append([]Stack(nil), inv.Stacks...)
 	return inv
 }
+
+// FreeSlots is how many slots hold nothing.
+func (inv *Inventory) FreeSlots() int { return inv.Slots - len(inv.Stacks) }
