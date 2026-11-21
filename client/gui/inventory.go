@@ -30,14 +30,14 @@ func (inv *Inventory) Update() error {
 	imgui.BeginV("Inventory", nil, imgui.WindowFlagsAlwaysAutoResize)
 	imgui.Text(fmt.Sprintf("Coins: %d", inv.Contents.Coins))
 	imgui.Separator()
-	section("Backpack", inv.Contents.Backpack)
+	section("Backpack", inv.Contents.Backpack, inv.Contents.Skills)
 	inventoryTop = imgui.WindowPos().Y
 	imgui.End()
 
 	return nil
 }
 
-func section(title string, c resources.Inventory) {
+func section(title string, c resources.Inventory, skills []resources.SkillState) {
 	imgui.Text(fmt.Sprintf("%s  %d/%d slots", title, len(c.Stacks), c.Slots))
 	if len(c.Stacks) == 0 {
 		imgui.Text("  Empty")
@@ -57,8 +57,9 @@ func section(title string, c resources.Inventory) {
 			// Gear and tools are listed piece by piece, each with its quality.
 			for _, s := range c.Stacks {
 				if s.Kind == k {
-					imgui.Text(fmt.Sprintf("  %s  q%d", resources.ItemNames[k], s.Quality))
+					imgui.Text(fmt.Sprintf("  %s  q%d%s", resources.ItemNames[k], s.Quality, wornText(s)))
 					itemTooltip(k)
+					repairButton(s, skills, resources.RepairCommandContents{ID: s.ID})
 				}
 			}
 			continue

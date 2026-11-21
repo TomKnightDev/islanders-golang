@@ -253,6 +253,9 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 		go func() { client.SendChan <- resources.NewStationCommandMessage(c) }()
 	})
 	g.Gui = append(g.Gui, StationWindow)
+	gui.SendRepair = func(c resources.RepairCommandContents) {
+		go func() { client.SendChan <- resources.NewRepairCommandMessage(c) }()
+	}
 	GuideWindow = gui.NewGuide(g.renderMgr)
 	InfoWindow.OpenGuide = func() { GuideWindow.Open = true }
 	g.Gui = append(g.Gui, GuideWindow)

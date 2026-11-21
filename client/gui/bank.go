@@ -92,12 +92,13 @@ func (b *Bank) items(inv resources.Inventory, op, verb string) {
 	for i, s := range inv.Stacks {
 		imgui.PushID(fmt.Sprintf("%s%d", op, i))
 		if resources.IsPiece(s.Kind) {
-			imgui.Text(fmt.Sprintf("%s q%d", resources.ItemNames[s.Kind], s.Quality))
+			imgui.Text(fmt.Sprintf("%s q%d%s", resources.ItemNames[s.Kind], s.Quality, wornText(s)))
 			itemTooltip(s.Kind)
 			imgui.SameLine()
 			if imgui.Button(verb) {
 				b.sendBank(resources.BankCommandContents{Op: op, ID: s.ID})
 			}
+			repairButton(s, b.state.Skills, resources.RepairCommandContents{ID: s.ID})
 		} else if !seen[s.Kind] {
 			seen[s.Kind] = true
 			n := inv.Count(s.Kind)

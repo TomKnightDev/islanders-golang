@@ -29,6 +29,7 @@ const (
 	BankCommandMessage        MessageType = "bankCommandMessage"     // client: move items at the bank
 	InnMessage                MessageType = "innMessage"             // server: quests and rumours at an inn
 	StationCommandMessage     MessageType = "stationCommandMessage"  // client: make or improve gear at an anvil or the fletcher's hut
+	RepairCommandMessage      MessageType = "repairCommandMessage"   // client: repair a worn piece
 )
 
 type Message struct {

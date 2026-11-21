@@ -75,3 +75,12 @@ func TestToolsExist(t *testing.T) {
 		t.Errorf("tool naming: %q", ToolItem("Mithril", SlotKnife))
 	}
 }
+
+func TestRepairLoss(t *testing.T) {
+	if RepairLoss(0, 1) != 0 || RepairLoss(1, 99) != 1 {
+		t.Error("nothing to repair costs nothing; any repair costs at least 1")
+	}
+	if RepairLoss(60, 1) != 3 || RepairLoss(60, 99) != 1 {
+		t.Errorf("60%% wear: %d at level 1, %d at 99", RepairLoss(60, 1), RepairLoss(60, 99))
+	}
+}

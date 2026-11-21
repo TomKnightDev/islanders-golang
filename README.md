@@ -6,9 +6,9 @@ A small multiplayer, semi-idle, top-down 2D game written in Go. Explore an islan
 
 - **Classes.** Create a warrior, archer, mage or necromancer. Each starts with its own gear and combat skills.
 - **The action list.** Plan up to five actions: mine, chop, farm, smelt, fletch, fight, or visit a village building. Each has a goal of 10, 20, 50 or 100. Adding an action to an empty list starts it. Your character walks the roads, banks what it gathers and moves on to the next action.
-- **Skills.** Twelve skills, levels 1–99: Melee, Strength, Defence, Ranged, Magic, Hitpoints, Mining, Woodcutting, Farming, Smithing, Fletching and Stamina. Fight XP is only paid when the enemy dies.
+- **Skills.** Thirteen skills, levels 1–99: Melee, Strength, Defence, Ranged, Magic, Hitpoints, Mining, Woodcutting, Farming, Smithing, Fletching, Stamina and Repair. Fight XP is only paid when the enemy dies.
 - **Stamina.** Work tires your character out; they rest at the nearest inn (or the free, slower stable if they can't pay) and then carry on.
-- **Items and quality.** Gear, tools and materials have a quality from 1 to 100. Better skill and better tools gather better materials, and better gear hits harder and sells for more. A tool belt holds a pickaxe, hatchet, sickle, hammer and knife.
+- **Items and quality.** Gear, tools and materials have a quality from 1 to 100. Worn pieces can be repaired anywhere, for a little quality. Better skill and better tools gather better materials, and better gear hits harder and sells for more. A tool belt holds a pickaxe, hatchet, sickle, hammer and knife.
 - **Villages.** Each village has a bank, a store, an inn, a blacksmith and a fletcher. Visit the bank to move items and equip gear (its contents are only visible there), the store to buy and sell, the inn for rumours of places you haven't found, and the anvil or fletcher to make and improve gear from what's in your backpack.
 - **Coins.** Earned from camp loot and selling to stores, spent at stores and inns. Store prices fall as they buy more of something and recover over time.
 

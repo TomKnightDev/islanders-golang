@@ -27,6 +27,7 @@ bank bars ──► craft equipment at the anvil ──► better equipment make
 The game is meant to be played for hundreds of hours, so skills level slowly, with lots to unlock on the way.
 
 - **Gathering and crafting skills:** Mining, Woodcutting, Farming, Smithing (smelting), Fletching. Each action trains one. The six combat skills are under Combat, and Stamina under Stamina and inns.
+- **Repair** trains by repairing worn gear and tools (see Repairing).
 - **Levels 1–99.** The XP curve roughly doubles every seven levels: level 2 at 83 XP, level 50 at about 100,000, level 99 at about 13 million.
 - **XP** comes from every item gathered, every input crafted and every enemy defeated. Higher tiers give more. Every award is then halved (`xpRateNum`/`xpRateDen` in `server/jobs.go`), so the tables below show XP before that.
 - **Speed.** Each level takes 0.4% off that skill's step time, so level 99 works in about 61% of the base time.
@@ -158,6 +159,11 @@ Every village has a bank building, and every player has their own bank account, 
 - **Fletcher** (Fletching, knife): shortbows (3 logs) and staves (2 logs and a bar of the matching tier: oak with copper, pine with iron, maple with gold, dark oak with mithril), at the wood's level plus 4 (bows) or 8 (staves). Arrows are still a Fletch action.
 - A piece takes 10 s per bar at the anvil, or 8 s per log or bar at the fletcher, scaled by skill and tool; without the tool it's half speed.
 - **New gear comes out rough:** quality around half the maker's level (plus a tenth of their tool's quality; halved again with no tool), and never better than the ingredients.
+
+### Repairing
+- Any worn piece (wear shows as "40% worn") can be repaired anywhere with its **Repair** button: in the Equipment window for what's worn, the Inventory window for the backpack, and the Bank window at a bank.
+- Repairing takes the wear back to 0% but costs quality: about 1 for every 20% of wear at Repair level 1, down to a third of that at level 99, and always at least 1.
+- Each repair gives Repair XP: half a point per 1% of wear mended (before the XP rate), so it rises slowly.
 
 ### Improving
 - Improving also happens at the station: the **Improve** tab of the **anvil** (metal gear and tools) or **fletcher** (bows and staves) window lists the pieces in the backpack that can be improved there.

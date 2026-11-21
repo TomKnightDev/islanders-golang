@@ -35,6 +35,7 @@ var guidePages = []guidePage{
 	{"Quality and tools", guideQuality},
 	{"Making gear", guideMaking},
 	{"Improving gear", guideImproving},
+	{"Repairing", guideRepairing},
 	{"Fighting", guideFighting},
 }
 
@@ -116,7 +117,7 @@ func guideActions() {
 }
 
 func guideSkills() {
-	para("There are twelve skills, each from level 1 to 99: Melee, Strength, Defence, Ranged, Magic and Hitpoints for fighting; Mining, Woodcutting, Farming, Smithing and Fletching for gathering and making; and Stamina.")
+	para("There are thirteen skills, each from level 1 to 99: Melee, Strength, Defence, Ranged, Magic and Hitpoints for fighting; Mining, Woodcutting, Farming, Smithing and Fletching for gathering and making; Stamina; and Repair.")
 	point("XP comes at the end of each step: each item gathered, each bar or arrow made, each piece of gear made or improving attempt.")
 	point("Fight XP is held until the enemy dies. A fight that ends any other way pays nothing.")
 	point("Each level makes that skill's work a little faster (about 40% faster by level 99) and unlocks better materials and recipes.")
@@ -213,6 +214,14 @@ func guideImproving() {
 	point("Improving stops when you press Stop, walk away, run out of better material, break your tool, or get too tired.")
 	heading("Tip")
 	para("Better material lets a piece go higher. Gather with a good tool at a high level to get high-quality ore and logs, and smelt them yourself.")
+}
+
+func guideRepairing() {
+	para("Gear and tools wear with use, shown as \"40% worn\". Wear lowers how well a piece works, and at 100% it breaks and is gone. Repair it before then.")
+	point("Repair works anywhere: use the Repair button next to a worn piece in the Equipment window, the Inventory window, or the Bank window at a bank.")
+	point("A repair takes the wear back to 0%, but costs a little quality: about 1 for every 20% of wear.")
+	point("Repair is a skill. Each repair trains it a little, and a higher level loses less quality, down to a third at level 99.")
+	point("Hover over the Repair button to see what it will cost.")
 }
 
 func guideFighting() {

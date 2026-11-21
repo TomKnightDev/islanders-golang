@@ -103,10 +103,7 @@ func (e *Equipment) slots(worn map[resources.EquipSlot]resources.Stack, slots []
 		imgui.Text(fmt.Sprintf("%-8s", resources.SlotNames[slot]))
 		imgui.SameLine()
 		if s, ok := worn[slot]; ok {
-			name := fmt.Sprintf("%s q%d", resources.ItemNames[s.Kind], s.Quality)
-			if s.Damage > 0 {
-				name += fmt.Sprintf(" (%d%% worn)", s.Damage)
-			}
+			name := fmt.Sprintf("%s q%d%s", resources.ItemNames[s.Kind], s.Quality, wornText(s))
 			if slot == resources.SlotAmmo {
 				name = fmt.Sprintf("%s x%d q%d", resources.ItemNames[s.Kind], s.Count, s.Quality)
 			}
@@ -118,6 +115,7 @@ func (e *Equipment) slots(worn map[resources.EquipSlot]resources.Stack, slots []
 			if imgui.Button("Remove") {
 				e.send(resources.EquipCommandContents{Op: resources.EquipOpUnequip, Slot: slot})
 			}
+			repairButton(s, e.state.Skills, resources.RepairCommandContents{Slot: slot})
 		} else if resources.ActionToolSlot(slot) {
 			dimmed("Empty: that work goes at half speed")
 		} else {
