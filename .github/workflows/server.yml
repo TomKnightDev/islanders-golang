@@ -84,6 +84,9 @@ jobs:
     - name: Download the clients
       uses: actions/download-artifact@v7
       with:
+        # Only the clients: the run also holds the Docker job's build record,
+        # which isn't a zip and fails to download this way.
+        pattern: Islanders-*
         path: clients
         merge-multiple: true
 
