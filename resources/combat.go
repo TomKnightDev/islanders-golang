@@ -51,7 +51,7 @@ type LootDrop struct {
 }
 
 var Enemies = []EnemyKind{
-	{ID: "goblin", Name: "Goblin", Plural: "goblins", Level: 3, Health: 50, Attack: 3, Defence: 2, MaxHit: 8, Sprite: [2]int{0, 24},
+	{ID: "goblin", Name: "Goblin", Plural: "goblins", Level: 3, Health: 50, Attack: 3, Defence: 2, MaxHit: 8, Sprite: [2]int{0, 40},
 		Loot: []LootDrop{
 			{ItemCopperOre, 0.4, 1, 3}, {ItemCabbage, 0.25, 1, 2}, {ItemOakArrows, 0.15, 5, 15},
 			{ItemCopperSword, 0.04, 1, 1}, {ItemCopperHelmet, 0.04, 1, 1}, {ItemCopperShield, 0.03, 1, 1},

@@ -12,10 +12,10 @@ import (
 
 // Tuning values. See docs/DESIGN.md.
 const (
-	swingTime       = 4 * time.Second // per ore
-	chopTime        = 6 * time.Second // per log
-	smeltTime       = 6 * time.Second // per bar
-	fletchTime      = 4 * time.Second // per log
+	swingTime       = 8 * time.Second  // per ore
+	chopTime        = 12 * time.Second // per log
+	smeltTime       = 12 * time.Second // per bar
+	fletchTime      = 8 * time.Second  // per log
 	arrowsPerLog    = 10
 	rockRespawn     = 30 * time.Second
 	rockOreMin      = 5
@@ -23,7 +23,7 @@ const (
 	treeRegrow      = 60 * time.Second
 	treeLogsMin     = 1
 	treeLogsMax     = 4
-	farmTime        = 5 * time.Second // per crop
+	farmTime        = 10 * time.Second // per crop
 	cropRegrow      = 45 * time.Second
 	cropYieldMin    = 2
 	cropYieldMax    = 5
@@ -31,7 +31,6 @@ const (
 	bankSlots       = 100
 	rockWaitRetry   = 1 * time.Second
 	noPathShown     = 3 * time.Second // how long "Can't get there" stays up
-	offlineSlowdown = 10              // offline characters run at 1/10 speed
 	discoveryCheck  = 500 * time.Millisecond
 	discoveryMargin = 2 // tiles beyond a place's edge that count as finding it
 )

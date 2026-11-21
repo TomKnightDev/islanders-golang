@@ -401,7 +401,7 @@ func TestFullBackpackIsTwentyOre(t *testing.T) {
 	p := joinAt(t, w, "tom", tile{9, 10})
 	addAction(w, p, mineFor(100))
 	run(w, p)
-	runUntil(t, w, 5000, "head to the bank", func() bool { return p.job != nil && p.job.state == stateWalkToBank })
+	runUntil(t, w, ticks(swingTime)*backpackSlots*2, "head to the bank", func() bool { return p.job != nil && p.job.state == stateWalkToBank })
 	if got := ore(p.backpack); got != backpackSlots {
 		t.Errorf("went to the bank carrying %d ore, want %d", got, backpackSlots)
 	}
@@ -420,7 +420,7 @@ func TestBankAccountsArePrivate(t *testing.T) {
 	}
 }
 
-func TestMiningContinuesOfflineAtTenthSpeed(t *testing.T) {
+func TestMiningContinuesOfflineAtFullSpeed(t *testing.T) {
 	w := jobWorld(t)
 	w.nodes[tile{10, 10}].amount = 100
 	s := testSession()
@@ -433,21 +433,12 @@ func TestMiningContinuesOfflineAtTenthSpeed(t *testing.T) {
 	w.tick() // arrive and start the first swing while online
 	w.disconnect(p, s)
 
-	// Ten swings' worth of time offline yields one swing.
-	for i := 0; i < ticks(swingTime)*offlineSlowdown; i++ {
+	// Three swings' time offline gives three ore, the same as online.
+	for i := 0; i < ticks(swingTime)*3; i++ {
 		w.tick()
 	}
-	if got := ore(p.backpack); got != 1 {
-		t.Errorf("offline for 10 swings' time: mined %d ore, want 1", got)
-	}
-
-	// Back online, full speed again.
-	w.login("tom", "pw", testSession())
-	for i := 0; i < ticks(swingTime); i++ {
-		w.tick()
-	}
-	if got := ore(p.backpack); got != 2 {
-		t.Errorf("after one online swing: %d ore, want 2", got)
+	if got := ore(p.backpack); got != 3 {
+		t.Errorf("offline for three swings' time: mined %d ore, want 3", got)
 	}
 }
 

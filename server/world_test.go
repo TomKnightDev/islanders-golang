@@ -244,7 +244,7 @@ func TestOfflineCharacterKeepsWalking(t *testing.T) {
 	p.pos[0], p.pos[1] = tile{2, 2}.pixel()
 	w.moveTo(p, tile{10, 2})
 	w.disconnect(p, s)
-	for i := 0; i < 200*offlineSlowdown; i++ {
+	for i := 0; i < 200; i++ {
 		w.tick()
 	}
 	if x, _ := (tile{10, 2}).pixel(); p.pos[0] != x {

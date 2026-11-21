@@ -11,8 +11,8 @@ import (
 
 // Combat tuning. See docs/DESIGN.md.
 const (
-	playerAttackTime = 4800 * time.Millisecond
-	enemyAttackTime  = 6 * time.Second
+	playerAttackTime = 9600 * time.Millisecond
+	enemyAttackTime  = 12 * time.Second
 	enemyRespawn     = 30 * time.Second
 	enemyWanderMin   = 3 * time.Second
 	enemyWanderMax   = 7 * time.Second

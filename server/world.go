@@ -100,9 +100,8 @@ type player struct {
 	healthDirty  bool // changed since last broadcast, for everyone's health bars
 	regenCounter int
 	equipment    map[resources.EquipSlot]resources.Stack
-	// ticks is this character's own clock. It advances every world tick
-	// while the player is online and every offlineSlowdown ticks while
-	// they're offline, so idle progress runs slower without them.
+	// ticks is this character's own clock, advancing every world tick.
+	// Job and action timing use it.
 	ticks int
 	// The current action's timing, for the client's progress bar, on the
 	// character's clock. actionTicks is 0 for actions with no set length.
@@ -300,9 +299,6 @@ func stepAlong(pos *f64.Vec2, path *[]tile, speed float64) bool {
 func (w *World) tick() {
 	w.ticks++
 	for _, p := range w.players {
-		if p.sess == nil && w.ticks%offlineSlowdown != 0 {
-			continue
-		}
 		p.ticks++
 		moved := p.step()
 		w.tickDiscovery(p)
