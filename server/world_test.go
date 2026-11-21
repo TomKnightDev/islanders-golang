@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"testing"
 
 	"github.com/tomknightdev/islanders-golang/resources"
@@ -23,15 +24,25 @@ func testMap(w, h int, blocked ...tile) resources.WorldMap {
 	}
 }
 
+// testBuffer is a test session's message buffer: big enough that long
+// tests that only drain at the end don't overflow it (an overflowing session
+// is closed, as a slow real client would be).
+const testBuffer = 1 << 16
+
 func testSession() *session {
-	return &session{send: make(chan *resources.Message, sessionBuffer)}
+	return &session{send: make(chan *resources.Message, testBuffer)}
 }
 
+// drain takes every queued message. It stops at a closed session, whose
+// channel would otherwise yield nil forever.
 func drain(s *session) []*resources.Message {
 	var out []*resources.Message
 	for {
 		select {
-		case m := <-s.send:
+		case m, ok := <-s.send:
+			if !ok {
+				return out
+			}
 			out = append(out, m)
 		default:
 			return out
@@ -169,7 +180,8 @@ func TestPlayerWalksToClickedTile(t *testing.T) {
 		t.Fatalf("player at %v, want (%v,%v)", p.pos, x, y)
 	}
 	// 4 tiles at walkSpeed tiles/s with 40 ticks/s.
-	want := int(4 / walkSpeed * 40)
+	speed := walkSpeed
+	want := int(math.Ceil(4 / speed * 40))
 	if ticks < want-1 || ticks > want+1 {
 		t.Errorf("took %d ticks, want about %d", ticks, want)
 	}
@@ -244,7 +256,7 @@ func TestOfflineCharacterKeepsWalking(t *testing.T) {
 	p.pos[0], p.pos[1] = tile{2, 2}.pixel()
 	w.moveTo(p, tile{10, 2})
 	w.disconnect(p, s)
-	for i := 0; i < 200*offlineSlowdown; i++ {
+	for i := 0; i < 1000; i++ {
 		w.tick()
 	}
 	if x, _ := (tile{10, 2}).pixel(); p.pos[0] != x {

@@ -19,6 +19,15 @@ const (
 	ActionCommandMessage      MessageType = "actionCommandMessage"
 	EquipCommandMessage       MessageType = "equipCommandMessage"
 	PathMessage               MessageType = "pathMessage"
+	ChooseClassMessage        MessageType = "chooseClassMessage"     // server: a new name; pick a class
+	CreateCharacterMessage    MessageType = "createCharacterMessage" // client: the class picked
+	FightMessage              MessageType = "fightMessage"           // server: a fight the player is in
+	ShopCommandMessage        MessageType = "shopCommandMessage"     // client: view a store or buy from it
+	StoreMessage              MessageType = "storeMessage"           // server: a village store's prices
+	DevCommandMessage         MessageType = "devCommandMessage"      // client: change the game speed (dev servers only)
+	DevStateMessage           MessageType = "devStateMessage"        // server: dev tools on or off, and the game speed
+	BankCommandMessage        MessageType = "bankCommandMessage"     // client: move items at the bank
+	InnMessage                MessageType = "innMessage"             // server: quests and rumours at an inn
 )
 
 type Message struct {
@@ -134,8 +143,13 @@ func NewMoveRequestMessage(clientId uint16, contents MoveRequestContents) *Messa
 // account, current activity, found places or action list changes.
 type InventoryContents struct {
 	Backpack Inventory `json:"backpack"`
-	Bank     Inventory `json:"bank"`
-	Activity string    `json:"activity"`
+	// At is the building the player is standing at with the action list
+	// stopped, if any, in village AtVillage; its window opens. Bank is only
+	// filled in at a bank.
+	At        Building  `json:"at"`
+	AtVillage string    `json:"atVillage"`
+	Bank      Inventory `json:"bank"`
+	Activity  string    `json:"activity"`
 	// ActionSeconds is how long the current action takes, or 0 if it has no
 	// set length. ActionElapsed is how far into it the player already is.
 	ActionSeconds float64 `json:"actionSeconds"`
@@ -146,9 +160,12 @@ type InventoryContents struct {
 	Running bool           `json:"running"` // whether the list is being worked through
 	Skills  []SkillState   `json:"skills"`
 
-	Health    int            `json:"health"`
-	MaxHealth int            `json:"maxHealth"`
-	Equipment []EquippedItem `json:"equipment"`
+	Health     int            `json:"health"`
+	MaxHealth  int            `json:"maxHealth"`
+	Stamina    int            `json:"stamina"`
+	Coins      int            `json:"coins"`
+	MaxStamina int            `json:"maxStamina"`
+	Equipment  []EquippedItem `json:"equipment"`
 }
 
 func NewInventoryMessage(contents InventoryContents) *Message {
@@ -181,4 +198,31 @@ type PathContents struct {
 
 func NewPathMessage(c PathContents) *Message {
 	return &Message{MessageType: PathMessage, Contents: c}
+}
+
+// Who made an attack in a FightContents event.
+const (
+	AttackerPlayer = "player"
+	AttackerEnemy  = "enemy"
+)
+
+// FightContents tells a player about the fight they're in, for the fight
+// panel. It's sent when a fight starts (Attacker empty), after every attack
+// by either side, and with Active false when the fight ends. Only the
+// fighter receives it.
+type FightContents struct {
+	Active          bool   `json:"active"`
+	EnemyName       string `json:"enemyName"`
+	EnemySprite     [2]int `json:"enemySprite"` // pixel position in characters.png
+	EnemyHealth     int    `json:"enemyHealth"`
+	EnemyMaxHealth  int    `json:"enemyMaxHealth"`
+	PlayerHealth    int    `json:"playerHealth"`
+	PlayerMaxHealth int    `json:"playerMaxHealth"`
+	Attacker        string `json:"attacker"` // AttackerPlayer, AttackerEnemy, or empty
+	Hit             bool   `json:"hit"`
+	Damage          int    `json:"damage"`
+}
+
+func NewFightMessage(c FightContents) *Message {
+	return &Message{MessageType: FightMessage, Contents: c}
 }

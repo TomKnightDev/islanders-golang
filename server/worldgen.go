@@ -30,10 +30,8 @@ const (
 // Tiles only the generator paints. Shared ones live in resources.
 const (
 	tileForestFloor = 73
-	tileStones      = 118 // stony tufts, drawn over grass at mines
 	tileFlowersW    = 111
 	tileFlowersP    = 112
-	tilePebbles     = 119
 	tileMushroom    = 109
 	tileRubble      = 123
 )
@@ -424,7 +422,7 @@ func (g *worldGen) reserve(c tile, radius int) {
 // buildVillage lays out a cobbled square with the bank and blacksmith on its
 // north side and houses around it.
 //
-//	C . B . T . S A C      B bank, S blacksmith, A anvil, F fletcher
+//	I . B . T . S A G      B bank, S blacksmith, A anvil, F fletcher, I inn, G store
 //	# # # # # # # # #      C cottage, T tower (first village only)
 //	# # # # # # # # #      # cobblestone square
 //	# # # # # # # # #
@@ -442,8 +440,8 @@ func (g *worldGen) buildVillage(c tile, name string, capital bool) {
 	g.addObject(tile{c.x - 2, north}, resources.ObjectBank)
 	g.addObject(tile{c.x + 2, north}, resources.ObjectBlacksmith)
 	g.addObject(tile{c.x + 3, north}, resources.ObjectAnvil)
-	g.objects[g.at(tile{c.x - 4, north})] = resources.TileCottage
-	g.objects[g.at(tile{c.x + 4, north})] = resources.TileCottage
+	g.addObject(tile{c.x - 4, north}, resources.ObjectInn)
+	g.addObject(tile{c.x + 4, north}, resources.ObjectStore)
 	if capital {
 		g.objects[g.at(tile{c.x, north})] = resources.TileTower
 	}
@@ -464,8 +462,6 @@ func (g *worldGen) buildMine(c tile, name string, ores []int) {
 			}
 			if g.r.Float64() < 0.2 {
 				g.decor[g.at(t)] = tileRubble
-			} else {
-				g.decor[g.at(t)] = tileStones
 			}
 		}
 	}
@@ -745,8 +741,10 @@ func (g *worldGen) growPlants() {
 				} else {
 					g.decor[i] = tileFlowersW
 				}
-			} else if g.r.Float64() < 0.008 {
-				g.decor[i] = tilePebbles
+			} else {
+				// This roll used to place pebbles; it stays so the rest of the
+				// island keeps its layout.
+				g.r.Float64()
 			}
 		}
 	}

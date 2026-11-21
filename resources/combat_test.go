@@ -26,16 +26,17 @@ func TestMaxHit(t *testing.T) {
 }
 
 func TestEquipmentBonuses(t *testing.T) {
+	// Quality 50 gives exactly the listed bonuses.
 	b := EquipmentBonuses(map[EquipSlot]Stack{
-		SlotWeapon: {ItemOakShortbow, 1},
-		SlotAmmo:   {ItemPineArrows, 40},
-		SlotHead:   {ItemCopperHelmet, 1},
+		SlotWeapon: {Kind: ItemOakShortbow, Count: 1, Quality: 50},
+		SlotAmmo:   {Kind: ItemPineArrows, Count: 40, Quality: 50},
+		SlotHead:   {Kind: ItemCopperHelmet, Count: 1, Quality: 50},
 	})
 	if !b.Ranged || b.Accuracy != 8 || b.Strength != 14 || b.Defence != 4 {
 		t.Errorf("bow + pine arrows + helmet: %+v", b)
 	}
 	// Arrows don't add strength to a sword.
-	b = EquipmentBonuses(map[EquipSlot]Stack{SlotWeapon: {ItemCopperSword, 1}, SlotAmmo: {ItemOakArrows, 10}})
+	b = EquipmentBonuses(map[EquipSlot]Stack{SlotWeapon: {Kind: ItemCopperSword, Count: 1, Quality: 50}, SlotAmmo: {Kind: ItemOakArrows, Count: 10, Quality: 50}})
 	if b.Ranged || b.Strength != 6 {
 		t.Errorf("sword with arrows: %+v", b)
 	}
@@ -61,6 +62,24 @@ func TestEnemies(t *testing.T) {
 		}
 		if d.Level < 1 || SkillNames[d.Skill] == "" {
 			t.Errorf("equipment %q has a bad requirement", k)
+		}
+	}
+}
+
+func TestEveryItemHasAValue(t *testing.T) {
+	for k := range Items {
+		if Values[k] <= 0 {
+			t.Errorf("%s has no value", k)
+		}
+	}
+	for _, s := range StoreStock {
+		if StorePrice(s) <= int(float64(Values[s.Item])*StoreBuysAt) {
+			t.Errorf("a store would sell %s for no more than it pays", s.Item)
+		}
+	}
+	for _, e := range Enemies {
+		if e.Coins[0] <= 0 || e.Coins[1] < e.Coins[0] {
+			t.Errorf("%s drops a bad coin range %v", e.Name, e.Coins)
 		}
 	}
 }

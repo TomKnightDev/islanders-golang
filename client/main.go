@@ -6,6 +6,7 @@ import (
 	"github.com/gabstv/ebiten-imgui/renderer"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 
 	"github.com/inkyblackness/imgui-go/v4"
 	"github.com/tomknightdev/islanders-golang/client/entities"
@@ -39,6 +40,11 @@ type Game struct {
 
 func (g *Game) Update() error {
 	handleMessages(g)
+
+	// F12 opens the dev window (game speed, for testing).
+	if inpututil.IsKeyJustPressed(ebiten.KeyF12) && DevWindow != nil {
+		DevWindow.Open = !DevWindow.Open
+	}
 
 	if g.Player != nil {
 		if err := g.Player.Update(); err != nil {

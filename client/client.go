@@ -46,6 +46,11 @@ var ActionBar = gui.NewActionBar()
 var ActionsWindow = &gui.Actions{}
 var SkillsWindow = &gui.Skills{}
 var EquipmentWindow = &gui.Equipment{}
+var FightPanel = &gui.FightPanel{}
+var ShopWindow = &gui.Shop{}
+var BankWindow = &gui.Bank{}
+var InnWindow = &gui.Inn{}
+var DevWindow *gui.Dev
 var world *entities.World
 var client = &Client{}
 
@@ -132,9 +137,32 @@ func handleMessages(g *Game) {
 		select {
 		case message := <-client.RecvChan:
 			switch message.MessageType {
+			case resources.DevStateMessage:
+				var dev resources.DevStateContents
+				if err := resources.DecodeContents(message.Contents, &dev); err == nil && DevWindow != nil {
+					DevWindow.SetState(dev)
+				}
+			case resources.InnMessage:
+				var inn resources.InnContents
+				if err := resources.DecodeContents(message.Contents, &inn); err == nil {
+					InnWindow.SetInn(inn)
+				}
+			case resources.StoreMessage:
+				var st resources.StoreContents
+				if err := resources.DecodeContents(message.Contents, &st); err == nil {
+					ShopWindow.SetStore(st)
+				}
+			case resources.FightMessage:
+				var fight resources.FightContents
+				if err := resources.DecodeContents(message.Contents, &fight); err == nil {
+					FightPanel.Set(fight)
+				}
+			case resources.ChooseClassMessage:
+				showCharacterCreation(g)
 			case resources.ConnectResponseMessage:
 				handleConnectResponse(message, g)
 				removeGui(&gui.MainMenu{}, g)
+				removeGui(&gui.CharacterCreation{}, g)
 			case resources.ChatMessage:
 				receiveChatMessage(message)
 			case resources.UpdateMessage:
@@ -197,6 +225,8 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 
 	// Add gui. The action bar goes first so the imgui windows draw over it.
 	g.Gui = append(g.Gui, ActionBar)
+	FightPanel = gui.NewFightPanel(CharactersImage, [2]int{int(tile[0].(float64)), int(tile[1].(float64))}, g.username)
+	g.Gui = append(g.Gui, FightPanel)
 
 	ChatWindow = gui.NewChat(g.screenWidth, g.screenHeight, g.renderMgr)
 	g.Gui = append(g.Gui, ChatWindow)
@@ -211,10 +241,27 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	InventoryWindow = gui.NewInventory(g.renderMgr)
 	g.Gui = append(g.Gui, InventoryWindow)
 
-	EquipmentWindow = gui.NewEquipment(g.renderMgr, func(c resources.EquipCommandContents) {
-		go func() { client.SendChan <- resources.NewEquipCommandMessage(c) }()
+	ShopWindow = gui.NewShop(g.renderMgr, func(c resources.ShopCommandContents) {
+		go func() { client.SendChan <- resources.NewShopCommandMessage(c) }()
 	})
+	g.Gui = append(g.Gui, ShopWindow)
+	InnWindow = gui.NewInn(g.renderMgr)
+	g.Gui = append(g.Gui, InnWindow)
+
+	DevWindow = gui.NewDev(func(c resources.DevCommandContents) {
+		go func() { client.SendChan <- resources.NewDevCommandMessage(c) }()
+	})
+	g.Gui = append(g.Gui, DevWindow)
+
+	sendEquip := func(c resources.EquipCommandContents) {
+		go func() { client.SendChan <- resources.NewEquipCommandMessage(c) }()
+	}
+	EquipmentWindow = gui.NewEquipment(g.renderMgr, sendEquip)
 	g.Gui = append(g.Gui, EquipmentWindow)
+	BankWindow = gui.NewBank(g.renderMgr, func(c resources.BankCommandContents) {
+		go func() { client.SendChan <- resources.NewBankCommandMessage(c) }()
+	}, sendEquip)
+	g.Gui = append(g.Gui, BankWindow)
 	g.Gui = append(g.Gui, gui.NewCameraControls(client.Player))
 
 	// Action commands go through one queue so they reach the server in the
@@ -341,18 +388,33 @@ func removeNetworkPlayer(clientId uint16, g *Game) {
 	delete(client.NetworkPlayers, clientId)
 }
 
+// removeGui removes the window of guiType's type, if it's open.
 func removeGui(guiType Entity, g *Game) {
 	gt := reflect.TypeOf(guiType)
-
-	index := 0
-
-	for i, g := range g.Gui {
-		if gt == reflect.TypeOf(g) {
-			index = i
+	for i, e := range g.Gui {
+		if gt == reflect.TypeOf(e) {
+			g.Gui = append(g.Gui[:i], g.Gui[i+1:]...)
+			return
 		}
 	}
+}
 
-	g.Gui = append(g.Gui[:index], g.Gui[index+1:]...)
+// showCharacterCreation swaps the login menu for the class picker, for a
+// name the server hasn't seen before.
+func showCharacterCreation(g *Game) {
+	for _, e := range g.Gui {
+		switch w := e.(type) {
+		case *gui.CharacterCreation:
+			return // already open
+		case *gui.MainMenu:
+			w.Connected = true // hides the login window
+		}
+	}
+	g.Gui = append(g.Gui, gui.NewCharacterCreation(g.renderMgr, CharactersImage, func(c resources.ClassID) {
+		go func() {
+			client.SendChan <- resources.NewCreateCharacterMessage(resources.CreateCharacterContents{Class: c})
+		}()
+	}))
 }
 
 func receiveInventoryMessage(message *resources.Message) {
@@ -365,9 +427,13 @@ func receiveInventoryMessage(message *resources.Message) {
 	ActionBar.Set(contents.Activity, contents.ActionSeconds, contents.ActionElapsed)
 	ActionsWindow.SetState(contents)
 	SkillsWindow.SetState(contents.Skills)
+	ShopWindow.SetState(contents)
 	EquipmentWindow.SetState(contents)
+	BankWindow.SetState(contents)
+	InnWindow.SetState(contents)
 	if client.Player != nil {
 		client.Player.Health, client.Player.MaxHealth = contents.Health, contents.MaxHealth
+		client.Player.Stamina, client.Player.MaxStamina = contents.Stamina, contents.MaxStamina
 	}
 }
 

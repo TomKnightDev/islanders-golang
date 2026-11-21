@@ -83,9 +83,15 @@ func init() {
 	}
 }
 
+// Stack is some of one item kind in one slot. Materials stack, keeping the
+// average quality of what's in them; gear and tools are always a stack of
+// one, carrying that piece's own quality, damage and ID.
 type Stack struct {
-	Kind  ItemKind `json:"kind"`
-	Count int      `json:"count"`
+	Kind    ItemKind `json:"kind"`
+	Count   int      `json:"count"`
+	Quality int      `json:"quality,omitempty"` // 1–100
+	Damage  int      `json:"damage,omitempty"`  // 0–100; gear and tools only
+	ID      uint32   `json:"id,omitempty"`      // gear and tools only; 0 if unassigned
 }
 
 // Inventory is a fixed number of slots, each holding one stack of a single
@@ -113,27 +119,44 @@ func (inv *Inventory) limit(kind ItemKind) int {
 	return StackLimits[kind]
 }
 
-// Add puts up to n of kind into the inventory, topping up partial stacks
-// before starting new ones, and returns how many fit.
+// Add puts up to n of kind into the inventory at the default quality and
+// returns how many fit.
 func (inv *Inventory) Add(kind ItemKind, n int) int {
-	limit := inv.limit(kind)
-	added := 0
-	for i := range inv.Stacks {
-		if n == 0 {
-			break
+	return inv.AddStack(Stack{Kind: kind, Count: n, Quality: DefaultQuality})
+}
+
+// AddStack puts up to s.Count items into the inventory, topping up partial
+// stacks of the same kind before starting new ones, and returns how many
+// fit. A topped-up stack's quality becomes the weighted average. Items that
+// never stack (gear, tools) each take their own slot, keeping their quality,
+// damage and ID.
+func (inv *Inventory) AddStack(s Stack) int {
+	limit := inv.limit(s.Kind)
+	n, added := s.Count, 0
+	if limit > 1 {
+		for i := range inv.Stacks {
+			if n == 0 {
+				break
+			}
+			cur := &inv.Stacks[i]
+			if cur.Kind != s.Kind || cur.Count >= limit {
+				continue
+			}
+			take := min(n, limit-cur.Count)
+			cur.Quality = (cur.Quality*cur.Count + s.Quality*take) / (cur.Count + take)
+			cur.Count += take
+			added += take
+			n -= take
 		}
-		s := &inv.Stacks[i]
-		if s.Kind != kind || s.Count >= limit {
-			continue
-		}
-		take := min(n, limit-s.Count)
-		s.Count += take
-		added += take
-		n -= take
 	}
 	for n > 0 && len(inv.Stacks) < inv.Slots {
 		take := min(n, limit)
-		inv.Stacks = append(inv.Stacks, Stack{Kind: kind, Count: take})
+		piece := s
+		piece.Count = take
+		if added > 0 && limit == 1 {
+			piece.ID = 0 // only the first piece keeps an ID; callers add gear one at a time
+		}
+		inv.Stacks = append(inv.Stacks, piece)
 		added += take
 		n -= take
 	}
@@ -163,22 +186,64 @@ func (inv *Inventory) Count(kind ItemKind) int {
 	return total
 }
 
+// AverageQuality is the average quality of everything of kind held, or 0.
+func (inv *Inventory) AverageQuality(kind ItemKind) int {
+	sum, n := 0, 0
+	for _, s := range inv.Stacks {
+		if s.Kind == kind {
+			sum += s.Quality * s.Count
+			n += s.Count
+		}
+	}
+	if n == 0 {
+		return 0
+	}
+	return sum / n
+}
+
 func (inv *Inventory) Empty() bool { return len(inv.Stacks) == 0 }
 
 // Remove takes up to n of kind out, emptying the last stacks first, and
 // returns how many were removed.
 func (inv *Inventory) Remove(kind ItemKind, n int) int {
 	removed := 0
+	for _, s := range inv.Take(kind, n) {
+		removed += s.Count
+	}
+	return removed
+}
+
+// Take removes up to n of kind, emptying the last stacks first, and returns
+// what it took with each part's quality, damage and ID.
+func (inv *Inventory) Take(kind ItemKind, n int) []Stack {
+	var taken []Stack
 	for i := len(inv.Stacks) - 1; i >= 0 && n > 0; i-- {
 		s := &inv.Stacks[i]
 		if s.Kind != kind {
 			continue
 		}
-		take := min(n, s.Count)
-		s.Count -= take
-		removed += take
-		n -= take
+		part := *s
+		part.Count = min(n, s.Count)
+		s.Count -= part.Count
+		n -= part.Count
+		taken = append(taken, part)
 	}
+	inv.compact()
+	return taken
+}
+
+// TakeID removes the piece with this ID.
+func (inv *Inventory) TakeID(id uint32) (Stack, bool) {
+	for i, s := range inv.Stacks {
+		if s.ID == id && id != 0 {
+			inv.Stacks = append(inv.Stacks[:i], inv.Stacks[i+1:]...)
+			return s, true
+		}
+	}
+	return Stack{}, false
+}
+
+func (inv *Inventory) compact() {
 	kept := inv.Stacks[:0]
 	for _, s := range inv.Stacks {
 		if s.Count > 0 {
@@ -186,16 +251,26 @@ func (inv *Inventory) Remove(kind ItemKind, n int) int {
 		}
 	}
 	inv.Stacks = kept
-	return removed
 }
 
-// TransferAll moves everything that fits into dst and reports whether the
-// inventory ended up empty.
-func (inv *Inventory) TransferAll(dst *Inventory) bool {
-	for _, s := range append([]Stack(nil), inv.Stacks...) {
-		moved := dst.Add(s.Kind, s.Count)
-		inv.Remove(s.Kind, moved)
+// AddAll adds stacks, as taken from another inventory, and returns how many
+// items fit.
+func (inv *Inventory) AddAll(stacks []Stack) int {
+	added := 0
+	for _, s := range stacks {
+		added += inv.AddStack(s)
 	}
+	return added
+}
+
+// TransferAll moves everything that fits into dst, keeping each item's
+// quality, and reports whether the inventory ended up empty.
+func (inv *Inventory) TransferAll(dst *Inventory) bool {
+	for i := range inv.Stacks {
+		s := &inv.Stacks[i]
+		s.Count -= dst.AddStack(*s)
+	}
+	inv.compact()
 	return inv.Empty()
 }
 

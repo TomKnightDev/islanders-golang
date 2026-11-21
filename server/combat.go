@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"slices"
 	"time"
 
 	"github.com/tomknightdev/islanders-golang/resources"
@@ -11,8 +12,8 @@ import (
 
 // Combat tuning. See docs/DESIGN.md.
 const (
-	playerAttackTime = 4800 * time.Millisecond
-	enemyAttackTime  = 6 * time.Second
+	playerAttackTime = 9600 * time.Millisecond
+	enemyAttackTime  = 12 * time.Second
 	enemyRespawn     = 30 * time.Second
 	enemyWanderMin   = 3 * time.Second
 	enemyWanderMax   = 7 * time.Second
@@ -21,7 +22,7 @@ const (
 	enemyRepath      = 500 * time.Millisecond  // how often a chasing enemy re-aims at its target
 	regenTime        = 1200 * time.Millisecond // per health point, out of combat
 	restRegenTime    = 250 * time.Millisecond  // per health point, resting at the bank
-	bowRange         = 5                       // tiles; swords need to be next to the enemy
+	castRange        = 5                       // tiles, for bows and staves; swords need to be next to the enemy
 	foodPerTrip      = 10
 	eatBelow         = 0.5 // eat when health drops below this share of max
 	retreatBelow     = 0.3 // with no food left, leave below this share
@@ -42,11 +43,19 @@ const (
 	activityNoEnemies = "Waiting for enemies to return"
 )
 
-// Starting kit for every new character.
-var (
-	startingWeapon = resources.ItemTrainingSword
-	startingFood   = 5
+// Every new character starts with this much food in the bank, on top of
+// their class's gear.
+const startingFood = 5
+
+// Loot quality: gear drops rough so crafted gear is worth more.
+const (
+	lootGearQuality     = 5  // to 25
+	lootMaterialQuality = 10 // to 30
 )
+
+// defaultClass is what a character gets if they're created without a
+// choice (tests use World.login directly).
+const defaultClass = resources.ClassWarrior
 
 // mob is one enemy at a camp.
 type mob struct {
@@ -163,11 +172,31 @@ func (p *player) maxHealth() int {
 	return resources.MaxHealth(p.level(resources.SkillHitpoints))
 }
 
-func (w *World) giveStartingKit(p *player) {
+// giveStartingKit sets a new character up as their class: look, head-start
+// levels, gear (equipped or banked) and some food.
+func (w *World) giveStartingKit(p *player, class resources.Class) {
+	p.class = class.ID
+	p.sprite = f64.Vec2{float64(class.Sprite[0]), float64(class.Sprite[1])}
 	p.xp[resources.SkillHitpoints] = resources.XPForLevel(resources.StartingHitpoints)
+	for s, l := range class.Levels {
+		p.xp[s] = resources.XPForLevel(l)
+	}
 	p.health = p.maxHealth()
-	p.equipment = map[resources.EquipSlot]resources.Stack{
-		resources.SlotWeapon: {Kind: startingWeapon, Count: 1},
+	p.stamina = p.maxStamina()
+	p.coins = resources.StartingCoins
+	p.equipment = map[resources.EquipSlot]resources.Stack{}
+	for _, g := range class.Gear {
+		switch {
+		case !slices.Contains(class.Equipped, g.Kind):
+			w.give(&p.bank, g.Kind, g.Count, resources.StarterQuality)
+		case resources.IsPiece(g.Kind):
+			p.equipment[resources.Equipment[g.Kind].Slot] = w.newPiece(g.Kind, resources.StarterQuality)
+		default: // arrows
+			p.equipment[resources.Equipment[g.Kind].Slot] = resources.Stack{Kind: g.Kind, Count: g.Count, Quality: resources.StarterQuality}
+		}
+	}
+	for _, slot := range resources.ToolSlots {
+		p.equipment[slot] = w.newPiece(resources.ToolItem("Copper", slot), resources.ToolStartQuality)
 	}
 	p.bank.Add(resources.ItemCabbage, startingFood)
 }
@@ -239,8 +268,7 @@ func (w *World) atBankForFight(p *player) {
 func (w *World) collectFood(p *player) {
 	n := min(foodPerTrip, p.backpack.FreeSlots(), p.bank.Count(resources.ItemCabbage))
 	if n > 0 {
-		p.bank.Remove(resources.ItemCabbage, n)
-		p.backpack.Add(resources.ItemCabbage, n)
+		moveItems(&p.bank, &p.backpack, resources.ItemCabbage, n)
 		p.invDirty = true
 	}
 	pl := w.place(p.job.action.spec.Place)
@@ -284,11 +312,12 @@ func (w *World) seekEnemy(p *player) {
 
 func (p *player) bonuses() resources.Bonuses { return resources.EquipmentBonuses(p.equipment) }
 
-// inRange reports whether p can hit m from where they are.
+// inRange reports whether p can hit m from where they are. Bows and staves
+// reach further than swords.
 func (p *player) inRange(m *mob) bool {
 	reach := 1
-	if p.bonuses().Ranged {
-		reach = bowRange
+	if b := p.bonuses(); b.Ranged || b.Magic {
+		reach = castRange
 	}
 	a, b := p.currentTile(), m.tile()
 	return max(abs(a.x-b.x), abs(a.y-b.y)) <= reach
@@ -356,9 +385,13 @@ func (w *World) tickFight(p *player) {
 	j.countdown--
 	if j.countdown <= 0 {
 		j.countdown = ticks(playerAttackTime)
+		if w.exhausted(p) {
+			return // let go and rest; the fight picks up afterwards
+		}
 		if !w.playerAttack(p, m) {
 			return
 		}
+		w.spendStamina(p, staminaPerAttack)
 		if m.dead {
 			w.afterKill(p)
 			return
@@ -382,7 +415,7 @@ func adjacent(a, b tile) bool { return max(abs(a.x-b.x), abs(a.y-b.y)) <= 1 }
 // attack at all (out of arrows), which ends the list.
 func (w *World) playerAttack(p *player, m *mob) bool {
 	b := p.bonuses()
-	attackSkill, strengthSkill := resources.SkillAttack, resources.SkillStrength
+	attackSkill, strengthSkill := b.Skills()
 	if b.Ranged {
 		ammo, ok := p.equipment[resources.SlotAmmo]
 		if !ok || ammo.Count == 0 {
@@ -397,22 +430,29 @@ func (w *World) playerAttack(p *player, m *mob) bool {
 			p.equipment[resources.SlotAmmo] = ammo
 		}
 		p.invDirty = true
-		attackSkill, strengthSkill = resources.SkillRanged, resources.SkillRanged
 	}
 	roll := resources.AttackRoll(p.level(attackSkill), b.Accuracy)
 	if rand.Float64() >= resources.HitChance(roll, resources.DefenceRoll(m.kind.Defence, 0)) {
+		w.fightEvent(p, m, resources.AttackerPlayer, false, 0)
 		return true // missed
 	}
 	dmg := min(m.health, rand.Intn(resources.MaxHit(p.level(strengthSkill), b.Strength)+1))
 	m.health -= dmg
 	m.dirty = true
-	if b.Ranged {
-		w.addXP(p, resources.SkillRanged, 4*dmg)
-	} else {
-		w.addXP(p, resources.SkillAttack, 2*dmg)
-		w.addXP(p, resources.SkillStrength, 2*dmg)
+	defer w.fightEvent(p, m, resources.AttackerPlayer, true, dmg) // after any drain healing below
+	switch {
+	case b.Magic:
+		w.earnXP(p, resources.SkillMagic, 4*dmg)
+	case b.Ranged:
+		w.earnXP(p, resources.SkillRanged, 4*dmg)
+	default:
+		w.earnXP(p, resources.SkillMelee, 2*dmg)
+		w.earnXP(p, resources.SkillStrength, 2*dmg)
 	}
-	w.addXP(p, resources.SkillHitpoints, dmg*4/3)
+	w.earnXP(p, resources.SkillHitpoints, dmg*4/3)
+	if b.Drain > 0 {
+		w.heal(p, dmg*b.Drain/100)
+	}
 	if m.health <= 0 {
 		m.dead = true
 		m.fighting = nil
@@ -425,16 +465,15 @@ func (w *World) playerAttack(p *player, m *mob) bool {
 func (w *World) enemyAttack(m *mob, p *player) {
 	roll := resources.AttackRoll(m.kind.Attack, 0)
 	if rand.Float64() >= resources.HitChance(roll, resources.DefenceRoll(p.level(resources.SkillDefence), p.bonuses().Defence)) {
-		w.addXP(p, resources.SkillDefence, 2) // blocked
+		w.earnXP(p, resources.SkillDefence, 2) // blocked
+		w.fightEvent(p, m, resources.AttackerEnemy, false, 0)
 		return
 	}
 	dmg := rand.Intn(m.kind.MaxHit + 1)
-	if dmg == 0 {
-		return
-	}
 	p.health -= dmg
 	p.healthDirty = true
 	p.invDirty = true
+	w.fightEvent(p, m, resources.AttackerEnemy, true, dmg)
 	if p.health <= 0 {
 		w.defeat(p, m)
 	}
@@ -445,10 +484,26 @@ func (w *World) afterKill(p *player) {
 	j := p.job
 	kind := j.mob.kind
 	j.mob = nil
-	j.action.kills++
+	for _, s := range resources.Skills {
+		if xp := j.fightXP[s]; xp > 0 {
+			w.addXP(p, s, xp)
+		}
+	}
+	j.fightXP = nil
+	j.action.count++
+	w.dropCoins(p, kind)
 	for _, drop := range kind.Loot {
 		if rand.Float64() < drop.Chance {
-			p.backpack.Add(drop.Item, drop.Min+rand.Intn(drop.Max-drop.Min+1)) // whatever doesn't fit is left behind
+			// Gear drops rough, quality 5–25; materials 10–30. Whatever doesn't
+			// fit is left behind.
+			n := drop.Min + rand.Intn(drop.Max-drop.Min+1)
+			if resources.IsPiece(drop.Item) {
+				for i := 0; i < n; i++ {
+					w.give(&p.backpack, drop.Item, 1, lootGearQuality+rand.Intn(21))
+				}
+			} else {
+				w.give(&p.backpack, drop.Item, n, lootMaterialQuality+rand.Intn(21))
+			}
 		}
 	}
 	p.invDirty = true
@@ -468,6 +523,7 @@ func (w *World) defeat(p *player, m *mob) {
 	m.release()
 	if p.job != nil {
 		p.job.mob = nil
+		p.job.fightXP = nil
 	}
 	p.backpack.Stacks = nil
 	p.path = nil
@@ -483,54 +539,102 @@ func (w *World) defeat(p *player, m *mob) {
 
 // --- equipment ---
 
-// equipCommand equips an item from the bank or puts one back.
+// equipCommand equips an item from the backpack (or, standing at a bank,
+// from the bank) or takes one off.
 func (w *World) equipCommand(p *player, c resources.EquipCommandContents) {
 	defer func() { p.invDirty = true }()
+	_, atBank := w.bankOpen(p)
 	switch c.Op {
 	case resources.EquipOpUnequip:
-		w.unequip(p, c.Slot)
+		// Into the backpack, or the bank if the backpack's full and the
+		// player is at one.
+		if !w.unequip(p, c.Slot, &p.backpack) && atBank {
+			w.unequip(p, c.Slot, &p.bank)
+		}
 	case resources.EquipOpEquip:
-		def, ok := resources.Equipment[c.Item]
-		if !ok || p.bank.Count(c.Item) == 0 || p.level(def.Skill) < def.Level {
+		src := &p.backpack
+		if c.FromBank {
+			if !atBank {
+				return
+			}
+			src = &p.bank
+		}
+		kind := c.Item
+		if c.ID != 0 {
+			kind = ""
+			for _, s := range src.Stacks {
+				if s.ID == c.ID {
+					kind = s.Kind
+				}
+			}
+		}
+		def, ok := resources.Equipment[kind]
+		if !ok || src.Count(kind) == 0 || p.level(def.Skill) < def.Level {
 			return
 		}
 		// Two hands or a shield, not both.
-		if def.TwoHanded && !w.unequip(p, resources.SlotShield) {
+		if def.TwoHanded && !w.unequip(p, resources.SlotShield, src) {
 			return
 		}
 		if def.Slot == resources.SlotShield {
-			if weapon, ok := p.equipment[resources.SlotWeapon]; ok && resources.Equipment[weapon.Kind].TwoHanded && !w.unequip(p, resources.SlotWeapon) {
+			if weapon, ok := p.equipment[resources.SlotWeapon]; ok && resources.Equipment[weapon.Kind].TwoHanded && !w.unequip(p, resources.SlotWeapon, src) {
 				return
 			}
 		}
-		count := 1
 		if def.Slot == resources.SlotAmmo {
-			count = p.bank.Count(c.Item) // all of that kind
-			if cur, ok := p.equipment[resources.SlotAmmo]; ok && cur.Kind == c.Item {
-				p.bank.Remove(c.Item, count)
-				cur.Count += count
-				p.equipment[resources.SlotAmmo] = cur
-				return
-			}
-		}
-		p.bank.Remove(c.Item, count)
-		if !w.unequip(p, def.Slot) {
-			p.bank.Add(c.Item, count) // no room to put the old one away
+			w.equipAmmo(p, kind, src)
 			return
 		}
-		p.equipment[def.Slot] = resources.Stack{Kind: c.Item, Count: count}
+		var piece resources.Stack
+		if c.ID != 0 {
+			piece, ok = src.TakeID(c.ID)
+		} else {
+			piece, ok = takeBest(src, kind)
+		}
+		if !ok {
+			return
+		}
+		if !w.unequip(p, def.Slot, src) {
+			src.AddStack(piece) // no room to put the old one away
+			return
+		}
+		p.equipment[def.Slot] = piece
 	}
 }
 
-// unequip puts a slot's item back in the bank, if there's room. An empty
-// slot counts as done.
-func (w *World) unequip(p *player, slot resources.EquipSlot) bool {
+// equipAmmo moves every arrow of a kind from src to the ammo slot, the
+// stack taking their average quality. The ammo slot has no size limit.
+func (w *World) equipAmmo(p *player, kind resources.ItemKind, src *resources.Inventory) {
+	cur, ok := p.equipment[resources.SlotAmmo]
+	if ok && cur.Kind != kind {
+		if !w.unequip(p, resources.SlotAmmo, src) {
+			return
+		}
+		cur, ok = resources.Stack{}, false
+	}
+	if !ok {
+		cur = resources.Stack{Kind: kind}
+	}
+	quality := cur.Quality * cur.Count
+	for _, part := range src.Take(kind, src.Count(kind)) {
+		quality += part.Quality * part.Count
+		cur.Count += part.Count
+	}
+	if cur.Count > 0 {
+		cur.Quality = quality / cur.Count
+		p.equipment[resources.SlotAmmo] = cur
+	}
+}
+
+// unequip puts a slot's item into dst, if there's room. An empty slot
+// counts as done.
+func (w *World) unequip(p *player, slot resources.EquipSlot, dst *resources.Inventory) bool {
 	cur, ok := p.equipment[slot]
 	if !ok {
 		return true
 	}
-	if added := p.bank.Add(cur.Kind, cur.Count); added < cur.Count {
-		p.bank.Remove(cur.Kind, added)
+	if added := dst.AddStack(cur); added < cur.Count {
+		dst.Remove(cur.Kind, added)
 		return false
 	}
 	delete(p.equipment, slot)
@@ -539,10 +643,54 @@ func (w *World) unequip(p *player, slot resources.EquipSlot) bool {
 
 func (p *player) equippedItems() []resources.EquippedItem {
 	var out []resources.EquippedItem
-	for _, slot := range resources.EquipSlots {
+	for _, slot := range resources.AllSlots {
 		if s, ok := p.equipment[slot]; ok {
-			out = append(out, resources.EquippedItem{Slot: slot, Item: s.Kind, Count: s.Count})
+			out = append(out, resources.EquippedItem{Slot: slot, Item: s.Kind, Count: s.Count, Quality: s.Quality, Damage: s.Damage})
 		}
 	}
 	return out
+}
+
+// --- the fight panel ---
+
+func (w *World) fightContents(p *player, m *mob) resources.FightContents {
+	return resources.FightContents{
+		Active:          true,
+		EnemyName:       fmt.Sprintf("%s (level %d)", m.kind.Name, m.kind.Level),
+		EnemySprite:     m.kind.Sprite,
+		EnemyHealth:     max(m.health, 0),
+		EnemyMaxHealth:  m.kind.Health,
+		PlayerHealth:    max(p.health, 0),
+		PlayerMaxHealth: p.maxHealth(),
+	}
+}
+
+// fightEvent tells the fighter about one attack, for the fight panel's
+// animation.
+func (w *World) fightEvent(p *player, m *mob, attacker string, hit bool, dmg int) {
+	if p.sess == nil {
+		return
+	}
+	c := w.fightContents(p, m)
+	c.Attacker, c.Hit, c.Damage = attacker, hit, dmg
+	p.sess.push(resources.NewFightMessage(c))
+}
+
+// sendFightState tells the player when they start fighting an enemy or
+// stop, so the fight panel opens and closes.
+func (w *World) sendFightState(p *player) {
+	var cur *mob
+	if p.job != nil && p.job.state == stateFighting {
+		cur = p.job.mob
+	}
+	if cur == p.fightShown || p.sess == nil {
+		p.fightShown = cur
+		return
+	}
+	p.fightShown = cur
+	if cur == nil {
+		p.sess.push(resources.NewFightMessage(resources.FightContents{Active: false}))
+		return
+	}
+	p.sess.push(resources.NewFightMessage(w.fightContents(p, cur)))
 }

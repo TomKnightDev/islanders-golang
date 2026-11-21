@@ -16,11 +16,9 @@ bank bars ──► craft equipment at the anvil ──► better equipment make
 ### The action window
 - **Finding places.** A village, mine, named forest or farm is *found* once the player walks into it (within its radius plus 2 tiles). Everyone starts having found their spawn village.
 - **Adding actions.** The Actions window holds just the list and its buttons: **Add action**, **Start**/**Stop**. **Add action** opens a separate picker window, which stays open while you add several. It shows one row per action (Mine, Chop, Farm, Smelt, Fletch), at the **nearest found place** for it, with its distance and a button per material. Materials the player doesn't have the level for are greyed out with the level needed. Actions with no place found yet say what to look for.
-- **The action list** holds up to 5 actions. Clicking an action adds it to the end. Entries can be moved up or down or removed.
-- **Goals.** Each action has one goal, which the player can change at any time:
-  - **Until the bank has N** of the action's product. New actions start at 100 (ore, logs, crops), 50 bars or 500 arrows.
-  - **For N minutes** of the character's time. The timer pauses while the list is stopped, and runs at 10% speed while the player is offline like everything else.
-- **Running the list.** **Start** works through the list from the top. When an action's goal is met, or its time is up, the character first banks anything it's carrying, then moves on. When the list is empty the character goes idle.
+- **The action list** holds up to 5 actions. Clicking an action adds it to the end. Adding one to an empty list starts the list straight away. Entries can be moved up or down or removed.
+- **Goals.** Each action has an amount: gather, make or defeat **10, 20, 50 or 100**, picked with buttons and changeable at any time. New actions start at 10. Only what the action itself does counts, not what's already in the bank.
+- **Running the list.** **Start** works through the list from the top. When an action's goal is met, the character first banks anything it's carrying, then moves on. When the list is empty the character goes idle.
 - **Stop** halts the list where it is; anything carried stays in the backpack. Reordering or removing the running action stops it and starts whatever is now first.
 - **Clicks never cancel the list.** While the list is running, clicking the map does nothing. While it's stopped, clicking walks, which is how the player explores and finds new places.
 - **Failures.** If the bank account is full, or there's no way to a place, the list stops and the action stays in it, so the player can sort things out and press Start again.
@@ -28,9 +26,9 @@ bank bars ──► craft equipment at the anvil ──► better equipment make
 ### Skills
 The game is meant to be played for hundreds of hours, so skills level slowly, with lots to unlock on the way.
 
-- **Gathering and crafting skills:** Mining, Woodcutting, Farming, Smithing (smelting), Fletching. Each action trains one. The five combat skills are under Combat.
+- **Gathering and crafting skills:** Mining, Woodcutting, Farming, Smithing (smelting), Fletching. Each action trains one. The six combat skills are under Combat, and Stamina under Stamina and inns.
 - **Levels 1–99.** The XP curve roughly doubles every seven levels: level 2 at 83 XP, level 50 at about 100,000, level 99 at about 13 million.
-- **XP** comes from every item gathered, and every input crafted. Higher tiers give more.
+- **XP** comes from every item gathered, every input crafted and every enemy defeated. Higher tiers give more. Every award is then halved (`xpRateNum`/`xpRateDen` in `server/jobs.go`), so the tables below show XP before that.
 - **Speed.** Each level takes 0.4% off that skill's step time, so level 99 works in about 61% of the base time.
 - **Tiers.** Levels unlock materials:
 
@@ -51,15 +49,25 @@ All three work the same way, from *nodes* of the chosen material at the action's
 | | Mining | Chopping | Farming |
 |---|---|---|---|
 | Where | a mine | a named forest | a farm |
-| Base speed | 1 ore per 4 s | 1 log per 6 s | 1 crop per 5 s |
+| Base speed | 1 ore per 8 s | 1 log per 12 s | 1 crop per 10 s |
 | A node holds | 5–10 ore | 1–4 logs | 2–5 crops |
 | When empty | depleted rock, 30 s | felled tree, 60 s | harvested plot, 45 s |
 
 Mines are ranked by distance from the spawn: the nearest has copper and iron, the next iron and gold, the farthest gold and mithril. Forests have whichever trees grew there. Every farm has rows of cabbages and cotton. Only trees inside a named forest can be chopped; scattered trees are scenery. A node with no walkable tile beside it is skipped.
 
+### Visiting buildings
+- **Visit** is an action for a village's **bank**, **store** or **inn**. The character walks there, the action finishes, and the list stops so the building's window opens; **Start** carries on with the rest of the list. Walking up to a building by clicking does the same.
+- **Store:** buy into the backpack and sell from it. Prices are in `docs/ECONOMY.md`.
+- **Inn:** a Quests and Rumours window. There are no quests yet. Rumours give directions from the inn to the three nearest places the player hasn't found ("Travellers speak of a mine called Greyrock, about 40 tiles north-east of here, where copper ore is mined.").
+
+### The bank
+- Each player has their own bank account, shared between every village's bank. Its contents are only visible at a bank: walk up to one with the action list stopped and the **Bank** window opens, showing the backpack beside the bank.
+- In the Bank window, items move either way (gear and tools piece by piece, materials one at a time or all at once, or **Deposit all**), and gear in the bank can be equipped. Elsewhere, gear is equipped from the backpack.
+- Away from a bank, everything a character collects or buys goes into the backpack. Jobs still bank on their own as they work.
+
 ### Mining
 - Mines only at the action's mine. The character walks to a free rock there and mines one **iron ore** per swing.
-- When the backpack is full, or when it holds enough to reach the goal, the character walks to the nearest bank, deposits, and goes back to the same rock.
+- When the backpack is full, or the goal is met, the character walks to the nearest bank, deposits, and goes back to the same rock.
 - **One miner per rock.** A rock is reserved when a miner is sent to it. If every rock in the mine is taken or depleted, the character waits at the mine until one frees up.
 - **Rocks run out.** Each rock holds a random amount of ore. When it's empty it turns into a depleted rock and respawns after a delay. The miner moves on to the nearest free rock in the same mine.
 
@@ -72,29 +80,58 @@ Both run in trips from the action's village:
 | | Smelting | Fletching |
 |---|---|---|
 | Station | blacksmith | fletcher's hut |
-| Makes | 1 bar from 1 ore, 6 s | 10 arrows from 1 log, 4 s |
+| Makes | 1 bar from 1 ore, 12 s | 10 arrows from 1 log, 8 s |
 | Ends early | "No ore to smelt" | "No logs to fletch" |
 
 ### Combat
-- **Five combat skills**: Attack (melee accuracy), Strength (melee max hit), Defence (how often enemies hit you), Ranged (bow accuracy and max hit) and Hitpoints (max health). Hitpoints starts at level 10; max health is 10 × the Hitpoints level, so 100 to start.
-- **XP.** Each point of melee damage gives 2 Attack and 2 Strength XP; ranged damage gives 4 Ranged XP; all damage gives 1⅓ Hitpoints XP; each enemy attack you block gives 2 Defence XP.
+- **Six combat skills**: Attack (melee accuracy), Strength (melee max hit), Defence (how often enemies hit you), Ranged (bow accuracy and max hit), Magic (staff accuracy and max hit) and Hitpoints (max health). Hitpoints starts at level 10; max health is 10 × the Hitpoints level, so 100 to start.
+- **XP.** Each point of melee damage earns 2 Melee and 2 Strength XP; ranged damage earns 4 Ranged XP; all damage earns 1⅓ Hitpoints XP; each enemy attack you block earns 2 Defence XP; each attack's stamina earns Stamina XP. It's all paid **only when the enemy dies**: a fight that ends any other way (resting, defeat, stopping) pays nothing, so nobody can train on an enemy they can't beat.
 - **Formulas**, scaled 10× to match the health numbers: an attack roll `(level + 8) × (accuracy + 64)` against a defence roll `(level + 9) × (armour + 64)` sets the hit chance, and `(level + 8) × (strength + 64) / 64` is the max hit.
 - **Health** regenerates slowly out of combat and quickly while resting at a bank. **Food** heals when eaten: a cabbage restores 30.
 - **Defeat.** At 0 health you lose everything in the backpack (not your equipment), wake up in your spawn village at full health, and the action list stops.
 
+### Stamina and inns
+- **Stamina** is used up by work: each gathering swing, smelt or fletch costs 1, each attack costs 2. Walking and idling cost nothing.
+- **Running out.** At the start of the next step, a character with no stamina lets go of their rock, tree or enemy and walks to the **nearest inn**. They relax there, recovering 2 stamina a second, until fully rested, then go back to the same action; progress such as kills carries over.
+- **Inns** are the only place stamina comes back. Every village has one (the open-doored wooden building).
+- **The Stamina skill** trains like any other: each point spent gives 1 XP. Max stamina is 100 at level 1 and rises by 5 a level, to 590 at level 99. At level 1 that's about 13 minutes of mining or 8 of fighting before a rest.
+- Stamina shows under health in the Info window.
+
+### Coins and stores
+Every player has a coin balance in their bank account (50 to start; never lost on defeat), shown in the inventory window. Coins come from enemy drops and selling to village general stores; they go on inn stays (5 coins, or a free half-speed rest in the stable) and buying from stores. Each village has a general store (the gold-door building): visit it to buy into the backpack or sell from it. Full details and what comes next are in `docs/ECONOMY.md`.
+
+### Classes
+A new name gets a **Create your character** screen before the character exists. Each class sets the character's look, starting gear and a head start; after that anyone can train anything.
+
+| Class | Look (characters.png) | Starts with | Head start |
+|---|---|---|---|
+| Warrior | grey knight (8, 0) | copper sword and shield | Melee 5, Strength 5, Defence 3 |
+| Archer | elf (0, 24) | oak shortbow, 150 oak arrows | Ranged 5, Defence 3 |
+| Mage | lavender wizard (16, 0) | apprentice staff | Magic 5, Defence 3 |
+| Necromancer | necromancer (0, 16) | bone staff | Magic 5, Defence 3 |
+
+### Magic
+- **Staves** are two-handed and cast from up to 5 tiles with no ammo, using Magic for accuracy and max hit; each point of damage gives 4 Magic XP.
+- **Mage staves** (apprentice, adept, battle, archmage; Magic 1/15/30/45) hit hardest.
+- **Necromancer staves** (bone, grave, wraith, lich; Magic 1/15/30/45) hit softer but heal the wielder for 25% of the damage dealt.
+- Staves drop from camps at their tier, like other gear. There are no spells, runes or spellbook yet.
+
 ### Equipment
+- **Quality.** Gear, tools and materials have a quality from 1 to 100 (see `docs/ECONOMY.md`). Gear and tools are individual pieces, each with its own quality; materials stack and keep the average. Gear bonuses scale from 70% at quality 0 to 130% at 100.
+- **Tool belt.** A pickaxe, hatchet, sickle, hammer and knife each have their own slot. A tool speeds up its action (up to 30% faster for mithril at quality 100) and raises the quality of what it gathers or makes; without one, the action runs at half speed and gathers only quality 1–10. Everyone starts with copper tools at quality 10; stores sell them too.
 - **Slots:** weapon, ammo, head, body, shield. The Equipment window shows them, your combat stats, and the gear in your bank; click to equip, Remove to put back. Gear above your level is greyed out with the level it needs.
-- **Weapons:** a training sword (everyone starts with one); copper, iron, gold and mithril swords (Attack 1/15/30/45); oak, pine, maple and dark oak shortbows (Ranged 1/15/30/45). Bows are two-handed, attack from up to 5 tiles, and use one arrow from the ammo slot per shot; equipping arrows moves all of that kind from the bank. Better arrows hit harder.
+- **Weapons:** a training sword; copper, iron, gold and mithril swords (Melee 1/15/30/45); oak, pine, maple and dark oak shortbows (Ranged 1/15/30/45). Bows are two-handed, attack from up to 5 tiles, and use one arrow from the ammo slot per shot; equipping arrows moves all of that kind from the bank. Better arrows hit harder.
 - **Armour:** helmet, platebody and shield in each metal (Defence 1/15/30/45).
-- **Starting kit:** a training sword and 5 cabbages in the bank.
+- **Starting kit:** set by the character's class (see Classes), plus 5 cabbages in the bank.
 - Gear comes from camp loot for now; crafting it at the anvil is a later phase.
 
 ### Camps and fighting
 - **Four camps**, easiest nearest the spawn: Goblin Camp (goblins, level 3), Bandit Hideout (bandits, 12), Orc Warband (orc warriors, 28), Skeleton Ruins (skeletons, 45). Each is a dirt clearing with huts (ruins for the skeletons) and four enemies who wander near home, with health bars when hurt.
-- **Fight** is an action at a found camp, with a goal of N kills or a time. Each trip: deposit at the bank (resting first below 60% health until 90%), take up to 10 food, walk to the camp, then fight enemy after enemy. One player fights an enemy at a time; it respawns 30 s after it dies.
+- **Fight** is an action at a found camp, with a goal of N kills. Each trip: deposit at the bank (resting first below 60% health until 90%), take up to 10 food, walk to the camp, then fight enemy after enemy. One player fights an enemy at a time; it respawns 30 s after it dies.
 - **In a fight** the character eats below half health, retreats to the bank to rest when below 30% with no food left, and banks the loot when the backpack is full. A bow user runs out of arrows and the list stops.
 - **Loot** per kill rolls each drop in the enemy's table: their tier's ore and bars, food, arrows, and small chances of each piece of their tier's gear.
-- Fights run on the fighter's clock, so an offline character's fights slow down with them.
+- Fights run on the fighter's clock.
+- **The fight panel** sits above the action bar while fighting: your character and the enemy face each other with their names and health bars, "VS" between. Whoever attacks lunges towards the other; a hit flashes the target red and floats the damage up (gold for damage you deal, red for damage you take), a miss floats "Miss". After the last blow the panel stays a moment, with a defeated enemy greyed out.
 
 ### Items and stacking
 Backpacks and bank accounts are made of slots.
@@ -139,7 +176,7 @@ Pointing at a building, rock or tree on the map shows a tooltip with its name an
 The character shows what it's doing ("Mining", "Smelting", "Walking to the bank", "Waiting for a free rock", "Bank full") in a bar at the bottom middle of the screen. The bar fills green over each timed step: every mining swing, every smelt, every walk. Open-ended states show an empty bar, and the bar hides when idle.
 
 ### Idle behaviour
-The server owns the character and simulates it, so loops keep running while the player is disconnected, at 10% speed. Walking and every timed step run slower together, because each character has its own clock that only advances every tenth tick while they're offline. Logging back in shows whatever was earned in the meantime. Offline characters stay visible to other players while they work. This works because characters already stay in server memory after disconnecting. Once persistence lands, progress survives server restarts too.
+The server owns the character and simulates it, so loops keep running at full speed while the player is disconnected. Logging back in shows whatever was earned in the meantime. Offline characters stay visible to other players while they work. This works because characters already stay in server memory after disconnecting. Once persistence lands, progress survives server restarts too.
 
 ## Starting numbers
 
@@ -147,20 +184,20 @@ These are tuning values, kept in one place in the server code.
 
 | Value | Start |
 |---|---|
-| Walk speed | 2 tiles/s |
-| Mining swing | 4 s per ore |
+| Walk speed | 1.5 tiles/s |
+| XP rate | ½ of the listed XP values, applied to every award |
+| Mining swing | 8 s per ore |
 | Ore per rock | 5–10, random |
 | Rock respawn | 30 s |
 | Backpack size | 20 slots |
 | Bank account size | 100 slots |
-| Smelting | 1 ore → 1 bar, 6 s |
-| Chopping | 1 log per 6 s; trees hold 1–4, regrow in 60 s |
-| Fletching | 1 log → 10 arrows, 4 s |
-| Farming | 1 crop per 5 s; plants hold 2–5, regrow in 45 s |
-| Your attack / enemy attack | every 4.8 s / every 6 s |
+| Smelting | 1 ore → 1 bar, 12 s |
+| Chopping | 1 log per 12 s; trees hold 1–4, regrow in 60 s |
+| Fletching | 1 log → 10 arrows, 8 s |
+| Farming | 1 crop per 10 s; plants hold 2–5, regrow in 45 s |
+| Your attack / enemy attack | every 9.6 s / every 12 s |
 | Enemy respawn | 30 s |
 | Health regeneration | 1 per 1.2 s, 1 per 0.25 s resting at the bank |
-| Offline speed | 10% |
 | Server tick | 25 ms |
 
 ## World
@@ -169,12 +206,12 @@ The island is generated by `server/worldgen.go` from a fixed seed, so it's the s
 
 - **Island.** Noise shaped by a falloff from the centre gives an irregular coastline: deep sea, shallow water, a sandy beach, then grassland. The map edge is always open sea.
 - **Rivers** start in the highlands and wander downhill to the sea. They're one tile wide up high and two wide lower down, and where they meander over flat ground they spread into small lakes. Rivers can't be walked through.
-- **Villages** (4): a cobbled square with the bank, blacksmith and anvil on its north side, a fletcher's hut on its south side, and cottages around it. The village nearest the middle, Oakhaven, has a tower and is where everyone spawns.
-- **Mines** (3): a patch of stony ground with six iron rocks, on higher ground away from villages.
+- **Villages** (4): a cobbled square with the bank, blacksmith and anvil on its north side, a fletcher's hut on its south side, an inn, a general store, and cottages around it. The village nearest the middle, Oakhaven, has a tower and is where everyone spawns.
+- **Mines** (3): a patch of rubble-strewn ground with six rocks, on higher ground away from villages.
 - **Roads** link the villages (a minimum spanning tree) and run from each mine to its nearest village. They prefer open ground, merge where they meet, clear trees in their way, and cross rivers on wooden bridges.
 - **Farms** (3): a tilled field a short walk from a village, with rows of cabbages and cotton, each row beside a walkable one. Roads lead to them and never cut through the crops.
 - **Named forests** (4): the largest woods get a name (Whisperwood, Elderglade, Mossy Hollow, Thornwood) and become places where trees can be chopped.
-- **Forests** grow where a second noise field is high: dense woods on a darker forest floor with mushrooms, thinning out at the edges, with some autumn-coloured patches. Elsewhere there are scattered trees, bushes, flower meadows and pebbles.
+- **Forests** grow where a second noise field is high: dense woods on a darker forest floor with mushrooms, thinning out at the edges, with some autumn-coloured patches. Elsewhere there are scattered trees, bushes and flower meadows.
 - **Reachability.** After generation, every bank, blacksmith, anvil and rock is checked to be walkable from the spawn; anything cut off would get a road.
 
 ### Layers
@@ -182,7 +219,7 @@ The island is generated by `server/worldgen.go` from a fixed seed, so it's the s
 |---|---|---|
 | 0 Ground | grass, sand, water, roads, bridges, cobbles, forest floor | water only |
 | 1 Objects | trees, bushes, buildings, rocks | always |
-| 2 Decor | flowers, pebbles, mushrooms, stones, rubble | never |
+| 2 Decor | flowers, mushrooms, rubble | never |
 
 ### Places
 Villages, mines, farms and the largest forests are named and listed in `WorldMap.Places`, with the materials each gathering place offers. The info panel describes a location as "in Oakhaven", "at Ironridge Mine" or "near Saltmere", and the names float over the map.
@@ -198,12 +235,15 @@ Villages, mines, farms and the largest forests are named and listed in `WorldMap
 | Blacksmith | 93 wooden hut front |
 | Anvil | 175 anvil |
 | Fletcher's hut | 125 wooden hut |
+| Inn | 210 open wooden door |
+| General store | 215 gold door |
 | Felled tree | 76 dead tree |
 | Cottage / tower | 95 / 94 |
 | River | 115 water |
 | Road / bridge / square | 191 dirt / 13 planks / 108 cobblestone |
 | Trees | oak 74, pine 80, maple 75 (autumn), dark oak 78; bush 79 |
-| Decor | 111, 112 flowers; 119 pebbles; 109 mushroom; 118 stones; 123 rubble |
+| Decor | 111, 112 flowers; 109 mushroom; 123 rubble |
+| Weather (not used yet) | 118 / 134 rain, 119 / 135 snow (two animation frames each) |
 
 The sprite sheet has no ore-specific rocks. Copper and mithril are the iron rock drawn with a colour tint (`resources.TintedTiles`, sprite numbers past the end of the sheet).
 
@@ -230,11 +270,13 @@ Each phase is one PR and leaves the game playable.
 1. **World objects.** Object layer, town and iron rocks in world generation, shared passability check, fix for last-column tiles, pre-rendered map. *(done)*
 2. **Server-authoritative movement.** World goroutine and command channel, click-to-move with A*, client renders the server's position, WASD removed. *(done)*
 3. **Mining and inventory.** Action system with the rules above, the mining loop, rock claiming, depletion and respawn, backpack and per-player bank accounts, an inventory window, and new messages for inventory, action state and rock state. *(done)*
-4. **Smelting and the action window.** Found places, a 5-action list with amount or time goals, smelting trips. *(done)*
+4. **Smelting and the action window.** Found places, a 5-action list with amount or time goals, smelting trips. *(done; time goals were later removed in favour of fixed amounts)*
 5. **Skills, tiers and farms.** Five skills levelling 1–99, four material tiers each, farms with cabbages and cotton, a nearest-place action window, a skills window. *(done)*
-6. **Equipment, combat and health.** Five combat skills, health and food, an equipment window, four tiered camps with enemies and loot, the Fight action. Also half-speed actions and walking, a draggable camera, the route line, and a Windows build in CI. *(done; PR #14)*
-7. **Crafting.** Make the gear that camps drop: swords, helmets, platebodies and shields from bars at the anvil, bows at the fletcher; weave cotton into cloth and cloth armour; cook or prepare better food. Equipment stats already exist (`resources.Equipment`). An item quality and improving system is proposed in `docs/CRAFTING-QUALITY.md`.
-8. **Persistence.** Save characters (skills, health, bank, equipment, action lists, found places) to disk on a Docker volume, and hash passwords. Until this lands, every deploy wipes progress, which hurts more now there's combat and gear; consider doing it before crafting.
+6. **Equipment, combat and health.** Five combat skills, health and food, an equipment window, four tiered camps with enemies and loot, the Fight action. Also half-speed actions and walking, a draggable camera, the route line, and a Windows build in CI. *(done)*
+6½. **Classes and magic.** A character creation screen with four classes (warrior, archer, mage, necromancer), the Magic skill and mage and necromancer staves. Also full speed while offline, doubled action timers, and stamina with inns in every village. *(done)*
+7. **Crafting and the economy.** Built in the order set out in `docs/ECONOMY.md`: coins and merchants, item quality and tools, making and improving, wear and repair, per-village player markets, village orders, rarity.
+   Original crafting notes: Make the gear that camps drop: swords, helmets, platebodies and shields from bars at the anvil, bows at the fletcher; weave cotton into cloth and cloth armour; cook or prepare better food. Equipment stats already exist (`resources.Equipment`). An item quality and improving system is proposed in `docs/CRAFTING-QUALITY.md`. The economy built on it (coins, merchants, a player market, village orders) is proposed in `docs/ECONOMY.md`, with a suggested order.
+8. **Persistence.** Save characters (skills, health, bank, equipment, action lists, found places, coins, listings) to disk on a Docker volume, and hash passwords. Deferred until development settles (decided 2026-11-21); until then every deploy wipes progress.
 
 ## Decisions
 

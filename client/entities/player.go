@@ -16,16 +16,18 @@ import (
 )
 
 type Player struct {
-	imageTile *ebiten.Image
-	Id        uint16
-	Username  string
-	Position  f64.Vec2
-	SendChan  chan resources.MoveRequestContents
-	Health    int
-	MaxHealth int
-	Cam       *camera.Camera
-	WorldMap  *resources.WorldMap
-	flipX     bool
+	imageTile  *ebiten.Image
+	Id         uint16
+	Username   string
+	Position   f64.Vec2
+	SendChan   chan resources.MoveRequestContents
+	Health     int
+	MaxHealth  int
+	Stamina    int
+	MaxStamina int
+	Cam        *camera.Camera
+	WorldMap   *resources.WorldMap
+	flipX      bool
 
 	clickTile  image.Point
 	clickUntil time.Time
@@ -91,6 +93,7 @@ func (p *Player) SetPosition(pos f64.Vec2) {
 		p.flipX = false
 	}
 	p.Position = pos
+	p.trimPath()
 }
 
 // SetPath sets the route the character is walking.
@@ -99,19 +102,36 @@ func (p *Player) SetPath(tiles [][2]int) {
 	for _, t := range tiles {
 		p.path = append(p.path, image.Pt(t[0], t[1]))
 	}
+	p.trimPath()
+}
+
+// trimPath drops route tiles the character has reached or walked past.
+// It runs on every position from the server: several can arrive in one
+// frame, so the character may never be seen standing exactly on a tile.
+func (p *Player) trimPath() {
+	tilePos := func(t image.Point) (float64, float64) {
+		return float64(t.X * resources.TileSize), float64(t.Y * resources.TileSize)
+	}
+	for len(p.path) > 0 {
+		x, y := tilePos(p.path[0])
+		if math.Hypot(p.Position[0]-x, p.Position[1]-y) < 0.01 {
+			p.path = p.path[1:]
+			continue
+		}
+		// Past it: nearer the next tile than the reached tile itself is.
+		if len(p.path) > 1 {
+			nx, ny := tilePos(p.path[1])
+			if math.Hypot(p.Position[0]-nx, p.Position[1]-ny) < math.Hypot(x-nx, y-ny)-0.01 {
+				p.path = p.path[1:]
+				continue
+			}
+		}
+		break
+	}
 }
 
 func (p *Player) Update() error {
 	p.handleMouse()
-
-	// Drop route tiles the character has reached.
-	for len(p.path) > 0 {
-		x, y := float64(p.path[0].X*resources.TileSize), float64(p.path[0].Y*resources.TileSize)
-		if math.Abs(p.Position[0]-x) > 0.01 || math.Abs(p.Position[1]-y) > 0.01 {
-			break
-		}
-		p.path = p.path[1:]
-	}
 
 	if p.FollowCam {
 		p.Cam.SetPosition(p.Position[0]+float64(resources.TileSize)/2, p.Position[1]+float64(resources.TileSize)/2)

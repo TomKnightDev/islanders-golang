@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -14,16 +15,13 @@ import (
 
 const (
 	tickInterval = 25 * time.Millisecond
-	walkSpeed    = 2.0 // tiles per second
+	walkSpeed    = 1.5 // tiles per second
 
 	// Pixels moved per tick.
 	walkStep = walkSpeed * resources.TileSize * float64(tickInterval) / float64(time.Second)
 
 	sessionBuffer = 256
 )
-
-// playerSprite is the sprite's pixel position in characters.png.
-var playerSprite = f64.Vec2{0, 0}
 
 // session is one websocket connection. Only its writer goroutine writes to
 // the connection; everything else queues messages with push.
@@ -84,6 +82,8 @@ type player struct {
 	pos      f64.Vec2 // top-left pixel of the sprite
 	path     []tile   // tiles still to walk through; path[0] is the next one
 	sess     *session // nil while offline; the character stays in the world
+	class    resources.ClassID
+	sprite   f64.Vec2 // pixel position in characters.png, from the class
 
 	backpack resources.Inventory
 	bank     resources.Inventory // this player's own bank account
@@ -93,22 +93,26 @@ type player struct {
 	running  bool            // working through the action list
 	found    map[string]bool // places this player has found
 	xp       map[resources.Skill]int
+	xpCarry  map[resources.Skill]int // XP fractions left over from xpRate
 
 	sentDest *tile // the path destination last sent to the client; nil if stopped
 
 	health       int
+	stamina      int  // used up by work; recovered only at an inn
+	coins        int  // in the bank account; never lost on defeat
+	fightShown   *mob // the enemy the client's fight panel shows, if any
 	healthDirty  bool // changed since last broadcast, for everyone's health bars
 	regenCounter int
 	equipment    map[resources.EquipSlot]resources.Stack
-	// ticks is this character's own clock. It advances every world tick
-	// while the player is online and every offlineSlowdown ticks while
-	// they're offline, so idle progress runs slower without them.
+	// ticks is this character's own clock, advancing every world tick.
+	// Job and action timing use it.
 	ticks int
 	// The current action's timing, for the client's progress bar, on the
 	// character's clock. actionTicks is 0 for actions with no set length.
 	actionStart int
 	actionTicks int
-	invDirty    bool // backpack, bank or action changed since last sent
+	invDirty    bool  // backpack, bank or action changed since last sent
+	visit       visit // the building the client was last told p is at
 }
 
 // currentTile is the tile the player stands on, or is walking onto.
@@ -128,7 +132,7 @@ func walkerTile(pos f64.Vec2, path []tile) tile {
 func (p *player) updateMessage() *resources.Message {
 	return resources.NewUpdateMessage(p.id, resources.UpdateContents{
 		Pos:       p.pos,
-		Tile:      playerSprite,
+		Tile:      p.sprite,
 		Username:  p.username,
 		Health:    p.health,
 		MaxHealth: p.maxHealth(),
@@ -140,20 +144,27 @@ type command func(w *World)
 // World owns all game state. Only its Run goroutine touches it; connection
 // handlers send it commands with Do.
 type World struct {
-	wm       resources.WorldMap
-	players  map[uint16]*player
-	byName   map[string]*player
-	nextID   uint16
-	nodes    map[tile]*node // rocks and trees to gather from
-	banks    []tile
-	stations map[resources.ObjectKind]map[string]tile // crafting stations by kind, then village
-	mobs     []*mob
-	ticks    int
-	cmds     chan command
+	wm         resources.WorldMap
+	players    map[uint16]*player
+	byName     map[string]*player
+	nextID     uint16
+	nodes      map[tile]*node // rocks and trees to gather from
+	banks      []tile
+	inns       []tile
+	stores     map[string]*store                        // village name -> its general store
+	stations   map[resources.ObjectKind]map[string]tile // crafting stations by kind, then village
+	mobs       []*mob
+	ticks      int
+	nextItemID uint32 // for giving every piece of gear and tool its own ID
+	rng        *rand.Rand
+	dev        bool // started with -dev: dev tools such as game speed are allowed
+	speed      int  // world ticks per real tick; 1 is normal
+	cmds       chan command
 }
 
 func NewWorld(wm resources.WorldMap) *World {
 	w := &World{
+		rng:     rand.New(rand.NewSource(time.Now().UnixNano())),
 		wm:      wm,
 		players: make(map[uint16]*player),
 		byName:  make(map[string]*player),
@@ -172,8 +183,28 @@ func (w *World) Run() {
 		case c := <-w.cmds:
 			c(w)
 		case <-ticker.C:
-			w.tick()
+			// At game speed N the world advances N ticks for each real one.
+			for i := 0; i < max(w.speed, 1); i++ {
+				w.tick()
+			}
 		}
+	}
+}
+
+// devState is what clients are told about dev tools.
+func (w *World) devState() *resources.Message {
+	return resources.NewDevStateMessage(resources.DevStateContents{Enabled: w.dev, Speed: max(w.speed, 1)})
+}
+
+// devCommand changes the game speed, on servers started with -dev only.
+func (w *World) devCommand(c resources.DevCommandContents) {
+	if !w.dev {
+		return
+	}
+	w.speed = min(max(c.Speed, 1), resources.MaxGameSpeed)
+	w.broadcast(w.devState())
+	for _, p := range w.players {
+		p.invDirty = true // re-send action timings at the new speed
 	}
 }
 
@@ -188,6 +219,41 @@ func (w *World) broadcast(m *resources.Message) {
 	}
 }
 
+// exists reports whether a character with this name has been created.
+func (w *World) exists(username string) bool {
+	_, ok := w.byName[username]
+	return ok
+}
+
+// createCharacter makes a new character of a class. The name must be free.
+func (w *World) createCharacter(username, password string, class resources.Class) *player {
+	x, y := tile{w.wm.SpawnX, w.wm.SpawnY}.pixel()
+	p := &player{
+		id:       w.nextID,
+		username: username,
+		password: password,
+		pos:      f64.Vec2{x, y},
+		backpack: resources.NewInventory(backpackSlots, false),
+		bank:     resources.NewInventory(bankSlots, true),
+		activity: activityIdle,
+		found:    map[string]bool{},
+		xp:       map[resources.Skill]int{},
+		xpCarry:  map[resources.Skill]int{},
+	}
+	w.giveStartingKit(p, class)
+	// Everyone knows the village they start in.
+	if pl := w.placeAt(tile{w.wm.SpawnX, w.wm.SpawnY}, resources.PlaceVillage); pl != nil {
+		p.found[pl.Name] = true
+	}
+	w.nextID++
+	w.players[p.id] = p
+	w.byName[username] = p
+	return p
+}
+
+// login connects a session to a character. A name nobody has used yet gets
+// a new character of defaultClass; players choose their class first through
+// the connection handler, which calls createCharacter.
 func (w *World) login(username, password string, sess *session) (*player, error) {
 	p, found := w.byName[username]
 	if found {
@@ -198,37 +264,21 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 			p.sess.close() // logged in somewhere else; that connection loses
 		}
 	} else {
-		x, y := tile{w.wm.SpawnX, w.wm.SpawnY}.pixel()
-		p = &player{
-			id:       w.nextID,
-			username: username,
-			password: password,
-			pos:      f64.Vec2{x, y},
-			backpack: resources.NewInventory(backpackSlots, false),
-			bank:     resources.NewInventory(bankSlots, true),
-			activity: activityIdle,
-			found:    map[string]bool{},
-			xp:       map[resources.Skill]int{},
-		}
-		w.giveStartingKit(p)
-		// Everyone knows the village they start in.
-		if pl := w.placeAt(tile{w.wm.SpawnX, w.wm.SpawnY}, resources.PlaceVillage); pl != nil {
-			p.found[pl.Name] = true
-		}
-		w.nextID++
-		w.players[p.id] = p
-		w.byName[username] = p
+		class, _ := resources.FindClass(defaultClass)
+		p = w.createCharacter(username, password, class)
 	}
 	p.sess = sess
 	p.sentDest = &tile{-1, -1} // force the current path to be sent
+	p.fightShown = nil         // and the current fight
 	sess.push(resources.NewConnectResponseMessage(resources.ConnectResponseContents{
 		ClientId: p.id,
 		Pos:      p.pos,
-		Tile:     playerSprite,
+		Tile:     p.sprite,
 		WorldMap: w.wm.Clone(),
 	}))
 	sess.push(w.inventoryMessage(p))
 	sess.push(w.mobSnapshot())
+	sess.push(w.devState())
 	for _, other := range w.players {
 		if other != p {
 			sess.push(other.updateMessage())
@@ -300,14 +350,13 @@ func stepAlong(pos *f64.Vec2, path *[]tile, speed float64) bool {
 func (w *World) tick() {
 	w.ticks++
 	for _, p := range w.players {
-		if p.sess == nil && w.ticks%offlineSlowdown != 0 {
-			continue
-		}
 		p.ticks++
 		moved := p.step()
 		w.tickDiscovery(p)
 		w.tickJob(p)
+		w.tickVisit(p)
 		w.tickHealth(p)
+		w.sendFightState(p)
 		if moved || p.healthDirty {
 			w.broadcast(p.updateMessage())
 			p.healthDirty = false
@@ -319,6 +368,7 @@ func (w *World) tick() {
 		}
 	}
 	w.tickNodes()
+	w.tickStores()
 	w.tickMobs()
 }
 

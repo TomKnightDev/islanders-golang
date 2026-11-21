@@ -5,35 +5,40 @@ import "math"
 type Skill string
 
 const (
-	SkillAttack      Skill = "attack"    // melee accuracy
+	SkillMelee       Skill = "melee"     // melee accuracy
 	SkillStrength    Skill = "strength"  // melee max hit
 	SkillDefence     Skill = "defence"   // how often enemies hit you
 	SkillRanged      Skill = "ranged"    // bow accuracy and max hit
+	SkillMagic       Skill = "magic"     // staff accuracy and max hit
 	SkillHitpoints   Skill = "hitpoints" // max health
 	SkillMining      Skill = "mining"
 	SkillWoodcutting Skill = "woodcutting"
 	SkillFarming     Skill = "farming"
 	SkillSmithing    Skill = "smithing"
 	SkillFletching   Skill = "fletching"
+	SkillStamina     Skill = "stamina" // how long a character can work before resting at an inn
 )
 
 // Skills lists every skill in the order the skills window shows them.
 var Skills = []Skill{
-	SkillAttack, SkillStrength, SkillDefence, SkillRanged, SkillHitpoints,
+	SkillMelee, SkillStrength, SkillDefence, SkillRanged, SkillMagic, SkillHitpoints,
 	SkillMining, SkillWoodcutting, SkillFarming, SkillSmithing, SkillFletching,
+	SkillStamina,
 }
 
 var SkillNames = map[Skill]string{
-	SkillAttack:      "Attack",
+	SkillMelee:       "Melee",
 	SkillStrength:    "Strength",
 	SkillDefence:     "Defence",
 	SkillRanged:      "Ranged",
+	SkillMagic:       "Magic",
 	SkillHitpoints:   "Hitpoints",
 	SkillMining:      "Mining",
 	SkillWoodcutting: "Woodcutting",
 	SkillFarming:     "Farming",
 	SkillSmithing:    "Smithing",
 	SkillFletching:   "Fletching",
+	SkillStamina:     "Stamina",
 }
 
 const MaxLevel = 99
@@ -43,6 +48,10 @@ const StartingHitpoints = 10
 
 // MaxHealth is a character's full health at a Hitpoints level.
 func MaxHealth(hitpointsLevel int) int { return 10 * hitpointsLevel }
+
+// MaxStamina is how much stamina a character has when rested, at a Stamina
+// level: 100 at level 1, 590 at 99.
+func MaxStamina(staminaLevel int) int { return 100 + 5*(staminaLevel-1) }
 
 // levelXP[l] is the total XP needed to reach level l. The curve roughly
 // doubles every seven levels, so level 99 takes about 13 million XP: the

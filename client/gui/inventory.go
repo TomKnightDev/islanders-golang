@@ -9,8 +9,9 @@ import (
 	"github.com/tomknightdev/islanders-golang/resources"
 )
 
-// Inventory shows what the character is carrying and what's in the bank.
-// What it's doing is shown by the action bar instead.
+// Inventory shows the character's coins and what they're carrying. The
+// bank is only seen in the bank window, standing at a bank. What the
+// character is doing is shown by the action bar instead.
 type Inventory struct {
 	mgr      *renderer.Manager
 	Contents resources.InventoryContents
@@ -27,9 +28,9 @@ func (inv *Inventory) Update() error {
 	w, h := screenSize()
 	placeWindow("Inventory", imgui.Vec2{X: w - windowMargin, Y: h - windowMargin}, imgui.Vec2{X: 1, Y: 1})
 	imgui.BeginV("Inventory", nil, imgui.WindowFlagsAlwaysAutoResize)
-	section("Backpack", inv.Contents.Backpack)
+	imgui.Text(fmt.Sprintf("Coins: %d", inv.Contents.Coins))
 	imgui.Separator()
-	section("Bank", inv.Contents.Bank)
+	section("Backpack", inv.Contents.Backpack)
 	inventoryTop = imgui.WindowPos().Y
 	imgui.End()
 
@@ -52,16 +53,32 @@ func section(title string, c resources.Inventory) {
 		}
 	}
 	for _, k := range kinds {
-		imgui.Text(fmt.Sprintf("  %s  %d", resources.ItemNames[k], c.Count(k)))
-		if imgui.IsItemHovered() {
-			imgui.BeginTooltip()
-			imgui.PushTextWrapPosV(tooltipWidth)
-			imgui.Text(resources.ItemNames[k])
-			dimmed(resources.ItemDescriptions[k])
-			imgui.PopTextWrapPos()
-			imgui.EndTooltip()
+		if resources.IsPiece(k) {
+			// Gear and tools are listed piece by piece, each with its quality.
+			for _, s := range c.Stacks {
+				if s.Kind == k {
+					imgui.Text(fmt.Sprintf("  %s  q%d", resources.ItemNames[k], s.Quality))
+					itemTooltip(k)
+				}
+			}
+			continue
 		}
+		imgui.Text(fmt.Sprintf("  %s  %d  q%d", resources.ItemNames[k], c.Count(k), c.AverageQuality(k)))
+		itemTooltip(k)
 	}
+}
+
+// itemTooltip describes an item when the line just drawn is hovered.
+func itemTooltip(k resources.ItemKind) {
+	if !imgui.IsItemHovered() {
+		return
+	}
+	imgui.BeginTooltip()
+	imgui.PushTextWrapPosV(tooltipWidth)
+	imgui.Text(resources.ItemNames[k])
+	dimmed(resources.ItemDescriptions[k])
+	imgui.PopTextWrapPos()
+	imgui.EndTooltip()
 }
 
 func (inv *Inventory) Draw(screen *ebiten.Image) {

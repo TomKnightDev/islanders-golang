@@ -106,6 +106,12 @@ func TestForestsHaveTreesToChop(t *testing.T) {
 	if got := countKind(testIsland, resources.ObjectFletcher); got != villageCount {
 		t.Errorf("%d fletcher's huts, want one per village", got)
 	}
+	if got := countKind(testIsland, resources.ObjectInn); got != villageCount {
+		t.Errorf("%d inns, want one per village", got)
+	}
+	if got := countKind(testIsland, resources.ObjectStore); got != villageCount {
+		t.Errorf("%d stores, want one per village", got)
+	}
 }
 
 func TestIslandShape(t *testing.T) {

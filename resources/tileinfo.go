@@ -15,6 +15,8 @@ var ObjectInfo = map[int]TileInfo{
 	TileBlacksmith:       {"Blacksmith", "Smelts ore into bars, training Smithing. Add Smelt for this village in the Actions window."},
 	TileFletcher:         {"Fletcher's hut", "Turns logs into arrows, 10 per log, training Fletching. Add Fletch for this village in the Actions window."},
 	TileAnvil:            {"Anvil", "For crafting equipment from bars. Coming soon."},
+	TileStore:            {"General store", "Sells food, starter gear and basic materials (open the Shop), and buys anything of value. Add a Sell action to carry goods here; prices drop as a store buys more."},
+	TileInn:              {"Inn", "Tired characters relax here to recover stamina. They come here on their own when they're worn out, then go back to work."},
 	TileIronRockDepleted: {"Depleted rock", "Mined out. It refills with ore soon."},
 	TileFelledTree:       {"Felled tree", "Chopped down. It grows back soon."},
 	TileHarvested:        {"Harvested plot", "Picked clean. It grows back soon."},

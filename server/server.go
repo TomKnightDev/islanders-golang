@@ -29,6 +29,7 @@ func connect(w http.ResponseWriter, r *http.Request) {
 	sess := newSession(conn)
 
 	var p *player
+	var pending *resources.ConnectRequestContents // a new name waiting for its class
 	defer func() {
 		if p != nil {
 			world.Do(func(w *World) { w.disconnect(p, sess) })
@@ -54,18 +55,38 @@ func connect(w http.ResponseWriter, r *http.Request) {
 				log.Println("Bad connect request:", err)
 				return
 			}
-			reply := make(chan loginResult, 1)
-			world.Do(func(w *World) {
-				p, err := w.login(req.Username, req.Password, sess)
-				reply <- loginResult{p, err}
-			})
-			res := <-reply
-			if res.err != nil {
-				sess.push(resources.NewFailedToConnectMessage(res.err.Error()))
+			if req.Username == "" {
+				sess.push(resources.NewFailedToConnectMessage("Enter a name to play."))
 				return
 			}
-			p = res.p
-			log.Printf("%s connected", req.Username)
+			// A new name picks a class before the character exists.
+			known := make(chan bool, 1)
+			world.Do(func(w *World) { known <- w.exists(req.Username) })
+			if !<-known {
+				pending = &req
+				sess.push(resources.NewChooseClassMessage())
+				continue
+			}
+			if p = loginOrFail(sess, req, ""); p == nil {
+				return
+			}
+
+		case resources.CreateCharacterMessage:
+			if p != nil || pending == nil {
+				continue
+			}
+			var create resources.CreateCharacterContents
+			if err := resources.DecodeContents(message.Contents, &create); err != nil {
+				log.Println("Bad create character:", err)
+				continue
+			}
+			if _, ok := resources.FindClass(create.Class); !ok {
+				continue
+			}
+			if p = loginOrFail(sess, *pending, create.Class); p == nil {
+				return
+			}
+			pending = nil
 
 		case resources.ChatMessage:
 			text, ok := message.Contents.(string)
@@ -96,6 +117,27 @@ func connect(w http.ResponseWriter, r *http.Request) {
 			}
 			world.Do(func(w *World) { w.actionCommand(p, cmd) })
 
+		case resources.DevCommandMessage:
+			if p == nil {
+				continue
+			}
+			var cmd resources.DevCommandContents
+			if err := resources.DecodeContents(message.Contents, &cmd); err != nil {
+				continue
+			}
+			world.Do(func(w *World) { w.devCommand(cmd) })
+
+		case resources.ShopCommandMessage:
+			if p == nil {
+				continue
+			}
+			var cmd resources.ShopCommandContents
+			if err := resources.DecodeContents(message.Contents, &cmd); err != nil {
+				log.Println("Bad shop command:", err)
+				continue
+			}
+			world.Do(func(w *World) { w.shopCommand(p, cmd) })
+
 		case resources.EquipCommandMessage:
 			if p == nil {
 				continue
@@ -107,6 +149,17 @@ func connect(w http.ResponseWriter, r *http.Request) {
 			}
 			world.Do(func(w *World) { w.equipCommand(p, cmd) })
 
+		case resources.BankCommandMessage:
+			if p == nil {
+				continue
+			}
+			var cmd resources.BankCommandContents
+			if err := resources.DecodeContents(message.Contents, &cmd); err != nil {
+				log.Println("Bad bank command:", err)
+				continue
+			}
+			world.Do(func(w *World) { w.bankCommand(p, cmd) })
+
 		case resources.UpdateMessage:
 			// Older clients still send their own position. The server owns
 			// movement now, so these are ignored.
@@ -115,4 +168,25 @@ func connect(w http.ResponseWriter, r *http.Request) {
 			log.Printf("Message type: %s not handled", message.MessageType)
 		}
 	}
+}
+
+// loginOrFail logs a session in, first creating the character as class if
+// that's given and the name is still free. On failure it tells the client
+// and returns nil.
+func loginOrFail(sess *session, req resources.ConnectRequestContents, class resources.ClassID) *player {
+	reply := make(chan loginResult, 1)
+	world.Do(func(w *World) {
+		if c, ok := resources.FindClass(class); ok && !w.exists(req.Username) {
+			w.createCharacter(req.Username, req.Password, c)
+		}
+		p, err := w.login(req.Username, req.Password, sess)
+		reply <- loginResult{p, err}
+	})
+	res := <-reply
+	if res.err != nil {
+		sess.push(resources.NewFailedToConnectMessage(res.err.Error()))
+		return nil
+	}
+	log.Printf("%s connected", req.Username)
+	return res.p
 }
