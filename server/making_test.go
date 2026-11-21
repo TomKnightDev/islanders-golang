@@ -8,28 +8,40 @@ import (
 	"github.com/tomknightdev/islanders-golang/resources"
 )
 
-func makeAction(kind resources.ActionKind, item resources.ItemKind, n int) resources.ActionSpec {
-	return resources.ActionSpec{Kind: kind, Material: string(item), Place: testVillage, Amount: n}
+// atFletcher is next to the test village's fletcher's hut, at (8,2).
+var atFletcher = tile{8, 3}
+
+func makeGear(w *World, p *player, item resources.ItemKind, n int) {
+	w.stationCommand(p, resources.StationCommandContents{Op: resources.StationOpMake, Item: item, Count: n})
 }
 
-func TestSmithSwordsFromBars(t *testing.T) {
+// runStation ticks until the player stops working at the station.
+func runStation(t *testing.T, w *World, p *player, steps int) {
+	t.Helper()
+	runUntil(t, w, steps*4*ticks(smithTime), "done at the station", func() bool { return p.making == nil && p.improving == nil })
+}
+
+func TestMakeSwordsAtTheAnvil(t *testing.T) {
 	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{4, 5})
+	p := joinAt(t, w, "tom", atAnvil)
 	p.xp[resources.SkillSmithing] = resources.XPForLevel(40)
-	p.bank.AddStack(resources.Stack{Kind: resources.ItemCopperBar, Count: 7, Quality: 60})
+	p.backpack.AddStack(resources.Stack{Kind: resources.ItemCopperBar, Count: 7, Quality: 60})
 	before := p.xp[resources.SkillSmithing]
-	addAction(w, p, makeAction(resources.ActionSmith, resources.ItemCopperSword, 10))
-	runUntil(t, w, 3*ticks(time.Minute)*10, "out of bars", func() bool { return len(p.actions) == 0 })
+	makeGear(w, p, resources.ItemCopperSword, 10)
+	if p.making == nil {
+		t.Fatalf("making refused: %q", p.stationNote)
+	}
+	runStation(t, w, p, 10)
 
 	// 7 bars at 2 a sword: 3 swords, one bar left.
-	if got := p.bank.Count(resources.ItemCopperSword); got != 3 || p.bank.Count(resources.ItemCopperBar) != 1 {
-		t.Fatalf("swords %d, bars left %d", got, p.bank.Count(resources.ItemCopperBar))
+	if got := p.backpack.Count(resources.ItemCopperSword); got != 3 || p.backpack.Count(resources.ItemCopperBar) != 1 {
+		t.Fatalf("swords %d, bars left %d", got, p.backpack.Count(resources.ItemCopperBar))
 	}
-	if p.activity != activityNoBars || p.xp[resources.SkillSmithing] <= before {
-		t.Errorf("activity %q, xp %d -> %d", p.activity, before, p.xp[resources.SkillSmithing])
+	if !strings.Contains(p.stationNote, "Out of materials") || p.xp[resources.SkillSmithing] <= before {
+		t.Errorf("note %q, xp %d -> %d", p.stationNote, before, p.xp[resources.SkillSmithing])
 	}
 	ids := map[uint32]bool{}
-	for _, s := range p.bank.Stacks {
+	for _, s := range p.backpack.Stacks {
 		if s.Kind != resources.ItemCopperSword {
 			continue
 		}
@@ -41,26 +53,51 @@ func TestSmithSwordsFromBars(t *testing.T) {
 	}
 }
 
-func TestStavesNeedLogsAndABar(t *testing.T) {
+func TestMakeAStaffAtTheFletcher(t *testing.T) {
 	w := jobWorld(t)
-	p := joinAt(t, w, "tom", tile{4, 5})
+	p := joinAt(t, w, "tom", atFletcher)
 	p.xp[resources.SkillFletching] = resources.XPForLevel(20)
-	p.bank.AddStack(resources.Stack{Kind: resources.ItemOakLogs, Count: 6, Quality: 50})
-	p.bank.AddStack(resources.Stack{Kind: resources.ItemCopperBar, Count: 1, Quality: 50})
-	addAction(w, p, makeAction(resources.ActionFletch, resources.ItemApprenticeStaff, 10))
-	runUntil(t, w, 3*ticks(time.Minute)*5, "finished", func() bool { return len(p.actions) == 0 })
-	// Only one bar, so only one staff; the other four logs stay banked.
-	if p.bank.Count(resources.ItemApprenticeStaff) != 1 || p.bank.Count(resources.ItemOakLogs) != 4 {
-		t.Errorf("staves %d, logs left %d", p.bank.Count(resources.ItemApprenticeStaff), p.bank.Count(resources.ItemOakLogs))
+	p.backpack.AddStack(resources.Stack{Kind: resources.ItemOakLogs, Count: 6, Quality: 50})
+	p.backpack.AddStack(resources.Stack{Kind: resources.ItemCopperBar, Count: 1, Quality: 50})
+	makeGear(w, p, resources.ItemApprenticeStaff, 5)
+	runStation(t, w, p, 5)
+	// Only one bar, so only one staff; the other four logs are left.
+	if p.backpack.Count(resources.ItemApprenticeStaff) != 1 || p.backpack.Count(resources.ItemOakLogs) != 4 {
+		t.Errorf("staves %d, logs left %d", p.backpack.Count(resources.ItemApprenticeStaff), p.backpack.Count(resources.ItemOakLogs))
+	}
+	makeGear(w, p, resources.ItemCopperSword, 1)
+	if p.making != nil {
+		t.Error("swords are made at the anvil, not the fletcher")
 	}
 }
 
-func TestMakingNeedsTheLevel(t *testing.T) {
+func TestMakingNeedsTheLevelAndMaterials(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", atAnvil)
+	p.backpack.AddStack(resources.Stack{Kind: resources.ItemMithrilBar, Count: 2, Quality: 50})
+	makeGear(w, p, resources.ItemMithrilSword, 1)
+	if p.making != nil || !strings.Contains(p.stationNote, "level") {
+		t.Errorf("made a mithril sword at level 1: note %q", p.stationNote)
+	}
+	makeGear(w, p, resources.ToolItem("Copper", resources.SlotPickaxe), 1)
+	if p.making != nil || !strings.Contains(p.stationNote, "copper bar") {
+		t.Errorf("made a pickaxe with no copper bars: note %q", p.stationNote)
+	}
+	p.pos[0], p.pos[1] = tile{12, 12}.pixel()
+	p.backpack.AddStack(resources.Stack{Kind: resources.ItemCopperBar, Count: 1, Quality: 50})
+	makeGear(w, p, resources.ToolItem("Copper", resources.SlotPickaxe), 1)
+	if p.making != nil {
+		t.Error("made a pickaxe away from the anvil")
+	}
+}
+
+func TestGearIsntAListAction(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
-	addAction(w, p, makeAction(resources.ActionSmith, resources.ItemMithrilSword, 10))
+	addAction(w, p, resources.ActionSpec{Kind: "smith", Material: string(resources.ItemCopperSword), Place: testVillage, Amount: 10})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFletch, Material: string(resources.ItemOakShortbow), Place: testVillage, Amount: 10})
 	if len(p.actions) != 0 {
-		t.Errorf("accepted %d actions above the player's level", len(p.actions))
+		t.Errorf("gear made from the action list: %d actions", len(p.actions))
 	}
 }
 
@@ -83,7 +120,7 @@ func improver(t *testing.T, w *World, q, bars, barQ int) (*player, resources.Sta
 }
 
 func improve(w *World, p *player, id uint32) {
-	w.improveCommand(p, resources.ImproveCommandContents{Op: resources.ImproveOpStart, ID: id})
+	w.stationCommand(p, resources.StationCommandContents{Op: resources.StationOpImprove, ID: id})
 }
 
 func TestImproveAtTheAnvil(t *testing.T) {
@@ -92,7 +129,7 @@ func TestImproveAtTheAnvil(t *testing.T) {
 	before := p.xp[resources.SkillSmithing]
 	improve(w, p, sword.ID)
 	if p.improving == nil {
-		t.Fatalf("improving refused: %q", p.improveNote)
+		t.Fatalf("improving refused: %q", p.stationNote)
 	}
 	// 5 bars last 4 attempts each.
 	runUntil(t, w, 30*resources.ImproveUnitAttempts*5*ticks(improveTime), "stopped", func() bool { return p.improving == nil })
@@ -107,8 +144,8 @@ func TestImproveAtTheAnvil(t *testing.T) {
 	if p.equipment[resources.SlotHammer].Damage == 0 {
 		t.Error("improving should wear the hammer")
 	}
-	if !strings.Contains(p.improveNote, "better than quality") && !strings.Contains(p.improveNote, "can't get any better") {
-		t.Errorf("stop reason %q", p.improveNote)
+	if !strings.Contains(p.stationNote, "better than quality") && !strings.Contains(p.stationNote, "can't get any better") {
+		t.Errorf("stop reason %q", p.stationNote)
 	}
 }
 
@@ -116,8 +153,8 @@ func TestImproveNeedsBetterMaterial(t *testing.T) {
 	w := jobWorld(t)
 	p, sword := improver(t, w, 50, 5, 40)
 	improve(w, p, sword.ID)
-	if p.improving != nil || !strings.Contains(p.improveNote, "better than quality 50") {
-		t.Errorf("improving %v, note %q", p.improving, p.improveNote)
+	if p.improving != nil || !strings.Contains(p.stationNote, "better than quality 50") {
+		t.Errorf("improving %v, note %q", p.improving, p.stationNote)
 	}
 	if p.backpack.Count(resources.ItemCopperBar) != 5 {
 		t.Error("no bars should be used")
@@ -130,8 +167,8 @@ func TestImproveStopsWhenWalkingAway(t *testing.T) {
 	improve(w, p, sword.ID)
 	w.click(p, tile{12, 12})
 	w.tick()
-	if p.improving != nil || !strings.Contains(p.improveNote, "walked away") {
-		t.Errorf("improving %v, note %q", p.improving, p.improveNote)
+	if p.improving != nil || !strings.Contains(p.stationNote, "walked away") {
+		t.Errorf("improving %v, note %q", p.improving, p.stationNote)
 	}
 }
 
@@ -143,8 +180,8 @@ func TestImprovingCanBreakTheTool(t *testing.T) {
 	p.equipment[resources.SlotHammer] = hammer
 	improve(w, p, sword.ID)
 	runUntil(t, w, 2*ticks(improveTime), "stopped", func() bool { return p.improving == nil })
-	if _, ok := p.equipment[resources.SlotHammer]; ok || !strings.Contains(p.improveNote, "broke") {
-		t.Errorf("hammer %v, note %q", p.equipment[resources.SlotHammer], p.improveNote)
+	if _, ok := p.equipment[resources.SlotHammer]; ok || !strings.Contains(p.stationNote, "broke") {
+		t.Errorf("hammer %v, note %q", p.equipment[resources.SlotHammer], p.stationNote)
 	}
 	improve(w, p, sword.ID)
 	if p.improving != nil {

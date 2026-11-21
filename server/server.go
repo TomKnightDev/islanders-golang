@@ -149,16 +149,16 @@ func connect(w http.ResponseWriter, r *http.Request) {
 			}
 			world.Do(func(w *World) { w.equipCommand(p, cmd) })
 
-		case resources.ImproveCommandMessage:
+		case resources.StationCommandMessage:
 			if p == nil {
 				continue
 			}
-			var cmd resources.ImproveCommandContents
+			var cmd resources.StationCommandContents
 			if err := resources.DecodeContents(message.Contents, &cmd); err != nil {
-				log.Println("Bad improve command:", err)
+				log.Println("Bad station command:", err)
 				continue
 			}
-			world.Do(func(w *World) { w.improveCommand(p, cmd) })
+			world.Do(func(w *World) { w.stationCommand(p, cmd) })
 
 		case resources.BankCommandMessage:
 			if p == nil {

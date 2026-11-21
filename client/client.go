@@ -50,7 +50,7 @@ var FightPanel = &gui.FightPanel{}
 var ShopWindow = &gui.Shop{}
 var BankWindow = &gui.Bank{}
 var InnWindow = &gui.Inn{}
-var ImproveWindow = &gui.Improve{}
+var StationWindow = &gui.Station{}
 var DevWindow *gui.Dev
 var world *entities.World
 var client = &Client{}
@@ -248,10 +248,10 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	g.Gui = append(g.Gui, ShopWindow)
 	InnWindow = gui.NewInn(g.renderMgr)
 	g.Gui = append(g.Gui, InnWindow)
-	ImproveWindow = gui.NewImprove(g.renderMgr, func(c resources.ImproveCommandContents) {
-		go func() { client.SendChan <- resources.NewImproveCommandMessage(c) }()
+	StationWindow = gui.NewStation(g.renderMgr, func(c resources.StationCommandContents) {
+		go func() { client.SendChan <- resources.NewStationCommandMessage(c) }()
 	})
-	g.Gui = append(g.Gui, ImproveWindow)
+	g.Gui = append(g.Gui, StationWindow)
 
 	DevWindow = gui.NewDev(func(c resources.DevCommandContents) {
 		go func() { client.SendChan <- resources.NewDevCommandMessage(c) }()
@@ -436,7 +436,7 @@ func receiveInventoryMessage(message *resources.Message) {
 	EquipmentWindow.SetState(contents)
 	BankWindow.SetState(contents)
 	InnWindow.SetState(contents)
-	ImproveWindow.SetState(contents)
+	StationWindow.SetState(contents)
 	if client.Player != nil {
 		client.Player.Health, client.Player.MaxHealth = contents.Health, contents.MaxHealth
 		client.Player.Stamina, client.Player.MaxStamina = contents.Stamina, contents.MaxStamina

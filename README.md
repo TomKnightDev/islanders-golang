@@ -9,7 +9,7 @@ A small multiplayer, semi-idle, top-down 2D game written in Go. Explore an islan
 - **Skills.** Twelve skills, levels 1–99: Melee, Strength, Defence, Ranged, Magic, Hitpoints, Mining, Woodcutting, Farming, Smithing, Fletching and Stamina. Fight XP is only paid when the enemy dies.
 - **Stamina.** Work tires your character out; they rest at the nearest inn (or the free, slower stable if they can't pay) and then carry on.
 - **Items and quality.** Gear, tools and materials have a quality from 1 to 100. Better skill and better tools gather better materials, and better gear hits harder and sells for more. A tool belt holds a pickaxe, hatchet, sickle, hammer and knife.
-- **Villages.** Each village has a bank, a store, an inn, a blacksmith and a fletcher. Visit the bank to move items and equip gear (its contents are only visible there), the store to buy and sell, and the inn for rumours of places you haven't found.
+- **Villages.** Each village has a bank, a store, an inn, a blacksmith and a fletcher. Visit the bank to move items and equip gear (its contents are only visible there), the store to buy and sell, the inn for rumours of places you haven't found, and the anvil or fletcher to make and improve gear from what's in your backpack.
 - **Coins.** Earned from camp loot and selling to stores, spent at stores and inns. Store prices fall as they buy more of something and recover over time.
 
 The island is generated from a fixed seed, so it's the same every time the server starts. There's no persistence yet: characters live in server memory and are lost when it restarts.

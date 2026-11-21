@@ -69,21 +69,26 @@ func TestMaterialsAreConsistent(t *testing.T) {
 	}
 }
 
-func TestEveryGearPieceCanBeMadeAndImproved(t *testing.T) {
+func TestEveryGearPieceCanBeMade(t *testing.T) {
 	for k := range Equipment {
 		if !IsPiece(k) || k == ItemTrainingSword {
 			continue
 		}
-		kind, m, ok := ImproveRecipe(k)
+		r, ok := FindGearRecipe(k)
 		if !ok {
 			t.Errorf("no recipe makes %s", k)
 			continue
 		}
-		if m.Level > 99 || len(m.Inputs) == 0 || (kind != ActionSmith && kind != ActionFletch) {
-			t.Errorf("%s: recipe %s %+v", k, kind, m)
+		if r.Level > 99 || len(r.Inputs) == 0 || (r.At != BuildingAnvil && r.At != BuildingFletcher) || r.Tool == "" {
+			t.Errorf("%s: recipe %+v", k, r)
+		}
+		for _, in := range r.Inputs {
+			if _, ok := Items[in.Item]; !ok || in.Count < 1 {
+				t.Errorf("%s: bad ingredient %+v", k, in)
+			}
 		}
 	}
-	if _, _, ok := ImproveRecipe(ItemIronOre); ok {
-		t.Error("materials aren't improved")
+	if _, ok := FindGearRecipe(ItemIronOre); ok {
+		t.Error("materials aren't gear")
 	}
 }

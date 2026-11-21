@@ -7,14 +7,13 @@ const (
 	ActionChop   ActionKind = "chop"   // gather logs in a forest
 	ActionFarm   ActionKind = "farm"   // gather crops at a farm
 	ActionSmelt  ActionKind = "smelt"  // turn banked ore into bars at a village blacksmith
-	ActionFletch ActionKind = "fletch" // turn banked logs (and bars) into arrows, bows and staves at a village fletcher
-	ActionSmith  ActionKind = "smith"  // turn banked bars into weapons, armour and tools at a village anvil
+	ActionFletch ActionKind = "fletch" // turn banked logs into arrows at a village fletcher
 	ActionFight  ActionKind = "fight"  // fight enemies at a camp for loot
 	ActionVisit  ActionKind = "visit"  // walk to a village building and open its window
 )
 
 // ActionKinds lists the actions in the order the action window shows them.
-var ActionKinds = []ActionKind{ActionFight, ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionSmith, ActionFletch, ActionVisit}
+var ActionKinds = []ActionKind{ActionFight, ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionFletch, ActionVisit}
 
 // ActionNames is the verb for each action; with a material it reads
 // "Mine copper", "Fletch oak arrows".
@@ -24,7 +23,6 @@ var ActionNames = map[ActionKind]string{
 	ActionFarm:   "Farm",
 	ActionSmelt:  "Smelt",
 	ActionFletch: "Fletch",
-	ActionSmith:  "Smith",
 	ActionFight:  "Fight",
 	ActionVisit:  "Visit",
 }
@@ -36,7 +34,6 @@ var ActionPlaceKind = map[ActionKind]PlaceKind{
 	ActionFarm:   PlaceFarm,
 	ActionSmelt:  PlaceVillage,
 	ActionFletch: PlaceVillage,
-	ActionSmith:  PlaceVillage,
 	ActionFight:  PlaceCamp,
 	ActionVisit:  PlaceVillage,
 }
@@ -49,7 +46,6 @@ var ActionSkill = map[ActionKind]Skill{
 	ActionFarm:   SkillFarming,
 	ActionSmelt:  SkillSmithing,
 	ActionFletch: SkillFletching,
-	ActionSmith:  SkillSmithing,
 	ActionFight:  SkillMelee, // enemies aren't level-gated; combat skills train from the fight itself
 }
 
@@ -139,10 +135,10 @@ var ActionMaterials = map[ActionKind][]Material{
 		{ID: "mithril", Label: "mithril bars", Level: 45, XP: 90, Item: ItemMithrilBar, Inputs: []Ingredient{{ItemMithrilOre, 1}}},
 	},
 	ActionFletch: {
-		{ID: "oak", Label: "oak arrows", Tier: "Oak", Short: "arrows", Level: 1, XP: 12, Item: ItemOakArrows, Inputs: []Ingredient{{ItemOakLogs, 1}}, Makes: ArrowsPerLog},
-		{ID: "pine", Label: "pine arrows", Tier: "Pine", Short: "arrows", Level: 15, XP: 28, Item: ItemPineArrows, Inputs: []Ingredient{{ItemPineLogs, 1}}, Makes: ArrowsPerLog},
-		{ID: "maple", Label: "maple arrows", Tier: "Maple", Short: "arrows", Level: 30, XP: 50, Item: ItemMapleArrows, Inputs: []Ingredient{{ItemMapleLogs, 1}}, Makes: ArrowsPerLog},
-		{ID: "darkoak", Label: "dark oak arrows", Tier: "Dark oak", Short: "arrows", Level: 45, XP: 90, Item: ItemDarkOakArrows, Inputs: []Ingredient{{ItemDarkOakLogs, 1}}, Makes: ArrowsPerLog},
+		{ID: "oak", Label: "oak arrows", Level: 1, XP: 12, Item: ItemOakArrows, Inputs: []Ingredient{{ItemOakLogs, 1}}, Makes: ArrowsPerLog},
+		{ID: "pine", Label: "pine arrows", Level: 15, XP: 28, Item: ItemPineArrows, Inputs: []Ingredient{{ItemPineLogs, 1}}, Makes: ArrowsPerLog},
+		{ID: "maple", Label: "maple arrows", Level: 30, XP: 50, Item: ItemMapleArrows, Inputs: []Ingredient{{ItemMapleLogs, 1}}, Makes: ArrowsPerLog},
+		{ID: "darkoak", Label: "dark oak arrows", Level: 45, XP: 90, Item: ItemDarkOakArrows, Inputs: []Ingredient{{ItemDarkOakLogs, 1}}, Makes: ArrowsPerLog},
 	},
 }
 

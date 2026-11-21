@@ -1,10 +1,22 @@
 package resources
 
-// Making gear: the anvil's recipes (Smithing) and the fletcher's bows and
-// staves (Fletching), added to ActionMaterials. See docs/ECONOMY.md.
+// Making gear: at a village anvil (Smithing) or fletcher's hut
+// (Fletching), by hand from the backpack, in the station window. The same
+// recipes set how a piece is improved. See docs/DESIGN.md.
 
 // ArrowsPerLog is how many arrows one log makes.
 const ArrowsPerLog = 10
+
+// GearRecipe is a piece of gear or a tool made at a station.
+type GearRecipe struct {
+	Material           // Item, Inputs, Level, XP, and Tier/Short for laying out the window
+	At       Building  // BuildingAnvil or BuildingFletcher
+	Skill    Skill     // the skill it needs and trains
+	Tool     EquipSlot // the tool it's made and improved with
+}
+
+// GearRecipes lists every recipe, a tier at a time.
+var GearRecipes []GearRecipe
 
 // smithMetals are the four metals, with their bar, base level and XP per
 // bar.
@@ -36,16 +48,16 @@ var smithPieces = []struct {
 
 // fletchWoods are the four woods, with the bar a staff of that tier needs.
 var fletchWoods = []struct {
-	id, name  string
+	name      string
 	log, bar  ItemKind
 	level, xp int
 	bow       ItemKind
 	staves    []ItemKind // mage, then necromancer
 }{
-	{"oak", "oak", ItemOakLogs, ItemCopperBar, 1, 12, ItemOakShortbow, []ItemKind{ItemApprenticeStaff, ItemBoneStaff}},
-	{"pine", "pine", ItemPineLogs, ItemIronIngot, 15, 28, ItemPineShortbow, []ItemKind{ItemAdeptStaff, ItemGraveStaff}},
-	{"maple", "maple", ItemMapleLogs, ItemGoldBar, 30, 50, ItemMapleShortbow, []ItemKind{ItemBattleStaff, ItemWraithStaff}},
-	{"darkoak", "dark oak", ItemDarkOakLogs, ItemMithrilBar, 45, 90, ItemDarkOakShortbow, []ItemKind{ItemArchmageStaff, ItemLichStaff}},
+	{"oak", ItemOakLogs, ItemCopperBar, 1, 12, ItemOakShortbow, []ItemKind{ItemApprenticeStaff, ItemBoneStaff}},
+	{"pine", ItemPineLogs, ItemIronIngot, 15, 28, ItemPineShortbow, []ItemKind{ItemAdeptStaff, ItemGraveStaff}},
+	{"maple", ItemMapleLogs, ItemGoldBar, 30, 50, ItemMapleShortbow, []ItemKind{ItemBattleStaff, ItemWraithStaff}},
+	{"dark oak", ItemDarkOakLogs, ItemMithrilBar, 45, 90, ItemDarkOakShortbow, []ItemKind{ItemArchmageStaff, ItemLichStaff}},
 }
 
 func init() {
@@ -55,56 +67,48 @@ func init() {
 			if !ok {
 				item = ToolItem(upperFirst(m.name), piece.slot)
 			}
-			ActionMaterials[ActionSmith] = append(ActionMaterials[ActionSmith], Material{
-				ID: string(item), Label: m.name + " " + piece.name, Tier: upperFirst(m.name), Short: piece.name,
-				Level: m.level + piece.extra, XP: m.xp * piece.bars, Item: item,
-				Inputs: []Ingredient{{m.bar, piece.bars}},
+			GearRecipes = append(GearRecipes, GearRecipe{
+				Material: Material{
+					ID: string(item), Label: m.name + " " + piece.name, Tier: upperFirst(m.name), Short: piece.name,
+					Level: m.level + piece.extra, XP: m.xp * piece.bars, Item: item,
+					Inputs: []Ingredient{{m.bar, piece.bars}},
+				},
+				At: BuildingAnvil, Skill: SkillSmithing, Tool: SlotHammer,
 			})
 		}
 	}
 	for _, wd := range fletchWoods {
-		ActionMaterials[ActionFletch] = append(ActionMaterials[ActionFletch], Material{
-			ID: string(wd.bow), Label: wd.name + " shortbow", Tier: upperFirst(wd.name), Short: "shortbow",
-			Level: wd.level + 4, XP: wd.xp * 3, Item: wd.bow,
-			Inputs: []Ingredient{{wd.log, 3}},
+		GearRecipes = append(GearRecipes, GearRecipe{
+			Material: Material{
+				ID: string(wd.bow), Label: wd.name + " shortbow", Tier: upperFirst(wd.name), Short: "shortbow",
+				Level: wd.level + 4, XP: wd.xp * 3, Item: wd.bow,
+				Inputs: []Ingredient{{wd.log, 3}},
+			},
+			At: BuildingFletcher, Skill: SkillFletching, Tool: SlotKnife,
 		})
 		for _, staff := range wd.staves {
-			ActionMaterials[ActionFletch] = append(ActionMaterials[ActionFletch], Material{
-				ID: string(staff), Label: lowerFirst(Items[staff].Name), Tier: upperFirst(wd.name), Short: lowerFirst(Items[staff].Name),
-				Level: wd.level + 8, XP: wd.xp*2 + wd.xp, Item: staff,
-				Inputs: []Ingredient{{wd.log, 2}, {wd.bar, 1}},
+			GearRecipes = append(GearRecipes, GearRecipe{
+				Material: Material{
+					ID: string(staff), Label: lowerFirst(Items[staff].Name), Tier: upperFirst(wd.name), Short: lowerFirst(Items[staff].Name),
+					Level: wd.level + 8, XP: wd.xp * 3, Item: staff,
+					Inputs: []Ingredient{{wd.log, 2}, {wd.bar, 1}},
+				},
+				At: BuildingFletcher, Skill: SkillFletching, Tool: SlotKnife,
 			})
 		}
 	}
 }
 
-// ImproveRecipe is the recipe that makes an item, which sets how it's
-// improved: at that recipe's building (ImproveAt), with its skill and tool,
-// using its first ingredient.
-func ImproveRecipe(k ItemKind) (ActionKind, Material, bool) {
-	if !IsPiece(k) {
-		return "", Material{}, false
-	}
-	for _, kind := range []ActionKind{ActionSmith, ActionFletch} {
-		for _, m := range ActionMaterials[kind] {
-			if m.Item == k {
-				return kind, m, true
-			}
+// FindGearRecipe is the recipe that makes an item, which also sets how
+// it's improved: at the same station, with the same skill and tool, using
+// its first ingredient.
+func FindGearRecipe(k ItemKind) (GearRecipe, bool) {
+	for _, r := range GearRecipes {
+		if r.Item == k {
+			return r, true
 		}
 	}
-	return "", Material{}, false
-}
-
-// ImproveAt is the building where an item is improved, if it can be.
-func ImproveAt(k ItemKind) (Building, bool) {
-	switch kind, _, ok := ImproveRecipe(k); {
-	case !ok:
-		return "", false
-	case kind == ActionSmith:
-		return BuildingAnvil, true
-	default:
-		return BuildingFletcher, true
-	}
+	return GearRecipe{}, false
 }
 
 // ImproveUnitAttempts is how many improving attempts one unit of material
@@ -115,18 +119,21 @@ const ImproveUnitAttempts = 4
 // at 100 it breaks.
 const ImproveToolWear = 1
 
-// Improve window commands, sent by the client while at an anvil or the
-// fletcher's hut.
+// Station window commands, sent by the client while at an anvil or the
+// fletcher's hut: make Count of Item, or improve the piece with ID.
 const (
-	ImproveOpStart = "start"
-	ImproveOpStop  = "stop"
+	StationOpMake    = "make"
+	StationOpImprove = "improve"
+	StationOpStop    = "stop"
 )
 
-type ImproveCommandContents struct {
-	Op string `json:"op"`
-	ID uint32 `json:"id"` // start: the piece in the backpack
+type StationCommandContents struct {
+	Op    string   `json:"op"`
+	Item  ItemKind `json:"item"`  // make: the recipe's item
+	Count int      `json:"count"` // make: how many
+	ID    uint32   `json:"id"`    // improve: the piece in the backpack
 }
 
-func NewImproveCommandMessage(c ImproveCommandContents) *Message {
-	return &Message{MessageType: ImproveCommandMessage, Contents: c}
+func NewStationCommandMessage(c StationCommandContents) *Message {
+	return &Message{MessageType: StationCommandMessage, Contents: c}
 }

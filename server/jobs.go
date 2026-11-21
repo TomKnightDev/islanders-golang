@@ -16,8 +16,8 @@ const (
 	chopTime        = 12 * time.Second // per log
 	smeltTime       = 12 * time.Second // per bar
 	fletchTime      = 8 * time.Second  // per log (or other ingredient)
-	smithTime       = 10 * time.Second // per bar
-	improveTime     = 10 * time.Second // per attempt
+	smithTime       = 10 * time.Second // per bar, making gear at the anvil
+	improveTime     = 10 * time.Second // per improving attempt
 	rockRespawn     = 30 * time.Second
 	rockOreMin      = 5
 	rockOreMax      = 10
@@ -58,10 +58,6 @@ const (
 	activityToFletch = "Walking to the fletcher"
 	activityFletch   = "Fletching"
 	activityNoLogs   = "Nothing to fletch with"
-	activityToAnvil  = "Walking to the anvil"
-	activitySmithing = "Smithing"
-	activityNoBars   = "No bars to smith"
-	activityImprove  = "Improving"
 
 	activityBankFull = "Bank full"
 	activityNoPath   = "Can't get there"
@@ -114,10 +110,6 @@ var recipes = map[resources.ActionKind]*recipe{
 	resources.ActionFletch: {
 		step:    fletchTime,
 		station: resources.ObjectFletcher, working: activityFletch, walking: activityToFletch, noInput: activityNoLogs,
-	},
-	resources.ActionSmith: {
-		step:    smithTime,
-		station: resources.ObjectAnvil, working: activitySmithing, walking: activityToAnvil, noInput: activityNoBars,
 	},
 }
 
@@ -935,6 +927,7 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 	for i, a := range p.actions {
 		actions[i] = resources.QueuedAction{ActionSpec: a.spec, Done: a.count}
 	}
+	making, makeLeft := p.making.item()
 	// The bank's contents only go to a player standing at it.
 	bank := resources.Inventory{Slots: p.bank.Slots, Stacking: true}
 	if p.visit.at == resources.BuildingBank {
@@ -958,8 +951,10 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 		Coins:         p.coins,
 		MaxStamina:    p.maxStamina(),
 		Equipment:     p.equippedItems(),
+		Making:        making,
+		MakeLeft:      makeLeft,
 		Improving:     p.improving.piece(),
-		ImproveNote:   p.improveNote,
+		StationNote:   p.stationNote,
 	})
 }
 

@@ -153,13 +153,14 @@ A container is full for an item when every slot is used and every stack of that 
 Every village has a bank building, and every player has their own bank account, shared across all banks. Deposits and withdrawals only touch the player's own account, and capacity is per account.
 
 ### Making gear
-- **Smith** at a village anvil (Smithing) makes, from each metal's bars: the five tools (1 bar), helmets (2), swords (2), shields (3) and bodies (4). Copper needs level 1 plus 0–8 depending on the piece; iron, gold and mithril start at 15, 30 and 45.
-- **Fletch** at the fletcher's hut (Fletching) also makes shortbows (3 logs) and staves (2 logs and a bar of the matching tier: oak with copper, pine with iron, maple with gold, dark oak with mithril), at the wood's level plus 4 (bows) or 8 (staves).
-- A craft takes the recipe's step time for each ingredient (smithing 10 s a bar, fletching 8 s a log or bar), scaled by skill and tool. Trips work like smelting: take as many crafts' worth as fit in the backpack, craft until something runs out, bank, repeat.
+- Gear is made by hand at the station, not from the action list: **Visit** the village's **anvil** or **fletcher** (or walk up to it) and use the **Make** tab of its window. It lists the recipes made there that the player has the level for, a row per metal or wood; picking one shows the ingredients needed against what's in the backpack, and the tool. **Make 1**, **Make 5** or **Make all** then works through them, the pieces going into the backpack. Making stops when done, out of materials, too tired, or on walking away.
+- **Anvil** (Smithing, hammer), from each metal's bars: the five tools (1 bar), helmets (2), swords (2), shields (3) and bodies (4). Copper needs level 1 plus 0–8 depending on the piece; iron, gold and mithril start at 15, 30 and 45.
+- **Fletcher** (Fletching, knife): shortbows (3 logs) and staves (2 logs and a bar of the matching tier: oak with copper, pine with iron, maple with gold, dark oak with mithril), at the wood's level plus 4 (bows) or 8 (staves). Arrows are still a Fletch action.
+- A piece takes 10 s per bar at the anvil, or 8 s per log or bar at the fletcher, scaled by skill and tool; without the tool it's half speed.
 - **New gear comes out rough:** quality around half the maker's level (plus a tenth of their tool's quality; halved again with no tool), and never better than the ingredients.
 
 ### Improving
-- Improving happens at the station, not from the action list: **Visit** the village's **anvil** (metal gear and tools) or **fletcher** (bows and staves), or walk up to it. The **Improve** window lists the pieces in the backpack that can be improved there.
+- Improving also happens at the station: the **Improve** tab of the **anvil** (metal gear and tools) or **fletcher** (bows and staves) window lists the pieces in the backpack that can be improved there.
 - Picking a piece shows what it needs: the recipe's level, units of its main material (bars for metal, logs for bows and staves) **better than the piece's quality**, carried in the backpack, and the matching tool on the belt (hammer or knife). **Start improving** then works on it, an attempt every 10 s (scaled by skill and tool).
 - **Each attempt** uses a quarter of a unit (the cheapest one still better than the piece) and wears the tool by 1%; at 100% the tool breaks and is gone. Success raises the piece's quality by 1 or more, never past the material's quality. The chance is 85% up to the player's level and falls 2% for each quality point above it (never below 10%). A failure costs 1 quality.
 - Each attempt gives the recipe's XP per unit of ingredient, plus 5% for each quality point the piece is above the player's level.
