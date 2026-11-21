@@ -28,7 +28,7 @@ bank bars ──► craft equipment at the anvil ──► better equipment make
 ### Skills
 The game is meant to be played for hundreds of hours, so skills level slowly, with lots to unlock on the way.
 
-- **Five skills:** Mining, Woodcutting, Farming, Smithing (smelting), Fletching. Each action trains one.
+- **Gathering and crafting skills:** Mining, Woodcutting, Farming, Smithing (smelting), Fletching. Each action trains one. The five combat skills are under Combat.
 - **Levels 1–99.** The XP curve roughly doubles every seven levels: level 2 at 83 XP, level 50 at about 100,000, level 99 at about 13 million.
 - **XP** comes from every item gathered, and every input crafted. Higher tiers give more.
 - **Speed.** Each level takes 0.4% off that skill's step time, so level 99 works in about 61% of the base time.
@@ -232,9 +232,9 @@ Each phase is one PR and leaves the game playable.
 3. **Mining and inventory.** Action system with the rules above, the mining loop, rock claiming, depletion and respawn, backpack and per-player bank accounts, an inventory window, and new messages for inventory, action state and rock state. *(done)*
 4. **Smelting and the action window.** Found places, a 5-action list with amount or time goals, smelting trips. *(done)*
 5. **Skills, tiers and farms.** Five skills levelling 1–99, four material tiers each, farms with cabbages and cotton, a nearest-place action window, a skills window. *(done)*
-6. **Equipment, combat and health.** Five combat skills, health and food, an equipment window, four tiered camps with enemies and loot, the Fight action. Also half-speed actions and walking, a draggable camera, the route line, and a Windows build in CI. *(done)*
-7. **Crafting.** Anvil recipes from bars, weaving cloth from cotton, equipment stats.
-8. **Persistence.** Save characters, inventories and banks to disk on a Docker volume, and hash passwords. Until this lands, every deploy wipes progress.
+6. **Equipment, combat and health.** Five combat skills, health and food, an equipment window, four tiered camps with enemies and loot, the Fight action. Also half-speed actions and walking, a draggable camera, the route line, and a Windows build in CI. *(done; PR #14)*
+7. **Crafting.** Make the gear that camps drop: swords, helmets, platebodies and shields from bars at the anvil, bows at the fletcher; weave cotton into cloth and cloth armour; cook or prepare better food. Equipment stats already exist (`resources.Equipment`).
+8. **Persistence.** Save characters (skills, health, bank, equipment, action lists, found places) to disk on a Docker volume, and hash passwords. Until this lands, every deploy wipes progress, which hurts more now there's combat and gear; consider doing it before crafting.
 
 ## Decisions
 
