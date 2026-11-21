@@ -18,6 +18,7 @@ Game design, the planned gathering/crafting loop and the phase plan live in `doc
 make build          # builds bin/server and bin/client
 make run-server     # go run ./server/ -addr 0.0.0.0:8285 (override with SERVER_ADDR=...)
 make run-client     # go run ./client/
+make build-client-windows   # bin/windows/Islanders.exe; needs brew install mingw-w64
 go build ./server/  # what CI runs; the client is not built in CI
 go vet ./...
 go test ./server/ ./resources/   # what CI runs; client/client_test.go is commented out
