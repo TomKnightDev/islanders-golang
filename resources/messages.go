@@ -17,6 +17,8 @@ const (
 	InventoryMessage          MessageType = "inventoryMessage"
 	ObjectUpdateMessage       MessageType = "objectUpdateMessage"
 	ActionCommandMessage      MessageType = "actionCommandMessage"
+	EquipCommandMessage       MessageType = "equipCommandMessage"
+	PathMessage               MessageType = "pathMessage"
 )
 
 type Message struct {
@@ -78,6 +80,8 @@ type UpdateContents struct {
 	Tile         f64.Vec2 `json:"tile"`
 	Disconnected bool     `json:"disconnected"`
 	Username     string   `json:"username"`
+	Health       int      `json:"health"`
+	MaxHealth    int      `json:"maxHealth"`
 }
 
 func NewUpdateMessage(clientId uint16, contents UpdateContents) *Message {
@@ -91,10 +95,13 @@ func NewUpdateMessage(clientId uint16, contents UpdateContents) *Message {
 }
 
 type ServerEntityUpdateContents struct {
-	EntityId uint16   `json:"entityId"`
-	Pos      f64.Vec2 `json:"pos"`
-	Tile     f64.Vec2 `json:"tile"`
-	Username string   `json:"username"`
+	EntityId  uint16   `json:"entityId"`
+	Pos       f64.Vec2 `json:"pos"`
+	Tile      f64.Vec2 `json:"tile"`
+	Username  string   `json:"username"`
+	Health    int      `json:"health"`
+	MaxHealth int      `json:"maxHealth"`
+	Gone      bool     `json:"gone"` // removed from the map, e.g. a defeated enemy
 }
 
 func NewServerEntityUpdateMessage(contents []ServerEntityUpdateContents) *Message {
@@ -138,6 +145,10 @@ type InventoryContents struct {
 	Actions []QueuedAction `json:"actions"` // the action list; [0] runs first
 	Running bool           `json:"running"` // whether the list is being worked through
 	Skills  []SkillState   `json:"skills"`
+
+	Health    int            `json:"health"`
+	MaxHealth int            `json:"maxHealth"`
+	Equipment []EquippedItem `json:"equipment"`
 }
 
 func NewInventoryMessage(contents InventoryContents) *Message {
@@ -160,4 +171,14 @@ func NewObjectUpdateMessage(contents ObjectUpdateContents) *Message {
 		MessageType: ObjectUpdateMessage,
 		Contents:    contents,
 	}
+}
+
+// PathContents is the route a player is walking, sent only to that player so
+// their client can draw it. Tiles are in walking order; empty means stopped.
+type PathContents struct {
+	Tiles [][2]int `json:"tiles"`
+}
+
+func NewPathMessage(c PathContents) *Message {
+	return &Message{MessageType: PathMessage, Contents: c}
 }

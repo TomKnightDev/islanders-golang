@@ -39,13 +39,7 @@ func (s *Skills) Update() error {
 			frac = float32(st.XP-start) / float32(st.NextXP-start)
 			overlay = fmt.Sprintf("%d / %d XP", st.XP, st.NextXP)
 		}
-		// The bar's own overlay text follows the fill; draw it centred instead.
-		imgui.ProgressBarV(frac, imgui.Vec2{X: 360, Y: 0}, "")
-		lo, hi := imgui.ItemRectMin(), imgui.ItemRectMax()
-		size := imgui.CalcTextSize(overlay, false, 0)
-		imgui.WindowDrawList().AddText(
-			imgui.Vec2{X: (lo.X + hi.X - size.X) / 2, Y: (lo.Y + hi.Y - size.Y) / 2},
-			imgui.Packed(color.White), overlay)
+		centredBar(frac, 360, overlay)
 		if imgui.IsItemHovered() {
 			imgui.SetTooltip(fmt.Sprintf("%d XP to level %d", max(0, st.NextXP-st.XP), min(st.Level+1, resources.MaxLevel)))
 		}
@@ -57,4 +51,15 @@ func (s *Skills) Update() error {
 
 func (s *Skills) Draw(screen *ebiten.Image) {
 	s.mgr.Draw(screen)
+}
+
+// centredBar is a progress bar with its text centred on it; imgui's own
+// overlay text follows the fill instead.
+func centredBar(frac, width float32, text string) {
+	imgui.ProgressBarV(frac, imgui.Vec2{X: width, Y: 0}, "")
+	lo, hi := imgui.ItemRectMin(), imgui.ItemRectMax()
+	size := imgui.CalcTextSize(text, false, 0)
+	imgui.WindowDrawList().AddText(
+		imgui.Vec2{X: (lo.X + hi.X - size.X) / 2, Y: (lo.Y + hi.Y - size.Y) / 2},
+		imgui.Packed(color.White), text)
 }

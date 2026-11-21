@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/tomknightdev/islanders-golang/resources"
 )
@@ -121,9 +122,9 @@ func TestMineForTime(t *testing.T) {
 		t.Fatal("time up should send the miner to bank what's carried")
 	}
 	runUntil(t, w, 5000, "finished", func() bool { return len(p.actions) == 0 })
-	// One minute of 2-second swings is at most 30 ore, less the time spent
-	// walking to the bank when the backpack filled up.
-	if got := ore(p.bank); got < 24 || got > 30 || !p.backpack.Empty() {
+	// One minute of swings is at most 60s/swingTime ore.
+	maxOre := int(time.Minute / swingTime)
+	if got := ore(p.bank); got < maxOre-3 || got > maxOre || !p.backpack.Empty() {
 		t.Errorf("bank %d ore, backpack %v", got, p.backpack.Stacks)
 	}
 }
@@ -655,6 +656,7 @@ func TestFarming(t *testing.T) {
 	w.initNodes()
 	p := joinAt(t, w, "tom", tile{4, 13})
 	p.found["Test Farm"] = true
+	p.bank.Remove(resources.ItemCabbage, startingFood) // start without the starting kit's food
 
 	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFarm, Material: "cotton", Place: "Test Farm", Goal: resources.GoalAmount, Amount: 3})
 	if len(p.actions) != 0 {
@@ -668,5 +670,46 @@ func TestFarming(t *testing.T) {
 	}
 	if p.xp[resources.SkillFarming] == 0 {
 		t.Error("farming should train Farming")
+	}
+}
+
+func TestPathIsSentOnlyToItsPlayer(t *testing.T) {
+	w := jobWorld(t)
+	sa, sb := testSession(), testSession()
+	a, _ := w.login("a", "pw", sa)
+	w.login("b", "pw", sb)
+	a.pos[0], a.pos[1] = tile{5, 5}.pixel()
+	drain(sa)
+	drain(sb)
+
+	w.click(a, tile{9, 5})
+	w.tick()
+	var path *resources.PathContents
+	for _, m := range drain(sa) {
+		if m.MessageType == resources.PathMessage {
+			c := m.Contents.(resources.PathContents)
+			path = &c
+		}
+	}
+	if path == nil || len(path.Tiles) == 0 || path.Tiles[len(path.Tiles)-1] != [2]int{9, 5} {
+		t.Fatalf("walker should get their path to (9,5): %+v", path)
+	}
+	for _, m := range drain(sb) {
+		// b only ever hears about its own (empty) path.
+		if m.MessageType == resources.PathMessage && len(m.Contents.(resources.PathContents).Tiles) > 0 {
+			t.Fatal("another player was sent the path")
+		}
+	}
+	// Arriving clears it.
+	runUntil(t, w, 2000, "arrive", func() bool { return len(a.path) == 0 })
+	w.tick()
+	cleared := false
+	for _, m := range drain(sa) {
+		if m.MessageType == resources.PathMessage && len(m.Contents.(resources.PathContents).Tiles) == 0 {
+			cleared = true
+		}
+	}
+	if !cleared {
+		t.Error("arriving should send an empty path")
 	}
 }

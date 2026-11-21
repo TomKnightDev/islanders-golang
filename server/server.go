@@ -96,6 +96,17 @@ func connect(w http.ResponseWriter, r *http.Request) {
 			}
 			world.Do(func(w *World) { w.actionCommand(p, cmd) })
 
+		case resources.EquipCommandMessage:
+			if p == nil {
+				continue
+			}
+			var cmd resources.EquipCommandContents
+			if err := resources.DecodeContents(message.Contents, &cmd); err != nil {
+				log.Println("Bad equip command:", err)
+				continue
+			}
+			world.Do(func(w *World) { w.equipCommand(p, cmd) })
+
 		case resources.UpdateMessage:
 			// Older clients still send their own position. The server owns
 			// movement now, so these are ignored.

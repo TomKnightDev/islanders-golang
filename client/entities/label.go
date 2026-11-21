@@ -8,6 +8,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/examples/resources/fonts"
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
+	"github.com/hajimehoshi/ebiten/v2/vector"
 	camera "github.com/melonfunction/ebiten-camera"
 	"github.com/tomknightdev/islanders-golang/resources"
 	"golang.org/x/image/math/f64"
@@ -71,4 +72,28 @@ func drawPlaceLabel(screen *ebiten.Image, cam *camera.Camera, p resources.Place)
 	op.ColorScale.Reset()
 	op.ColorScale.ScaleWithColor(color.RGBA{R: 0xff, G: 0xf1, B: 0xc8, A: 0xff})
 	text.Draw(screen, p.Name, placeFace, op)
+}
+
+var (
+	healthBack = color.RGBA{R: 0x40, G: 0x10, B: 0x10, A: 0xe0}
+	healthFill = color.RGBA{R: 0x4c, G: 0xc8, B: 0x50, A: 0xff}
+	healthLow  = color.RGBA{R: 0xe0, G: 0x50, B: 0x40, A: 0xff}
+)
+
+// drawHealthBar draws a small bar above a sprite whose top-left is at pos,
+// only when it's hurt.
+func drawHealthBar(screen *ebiten.Image, cam *camera.Camera, pos f64.Vec2, health, maxHealth int) {
+	if cam == nil || maxHealth <= 0 || health >= maxHealth {
+		return
+	}
+	const w, h = 40, 5
+	x, y := cam.GetScreenCoords(pos[0]+resources.TileSize/2, pos[1])
+	frac := float32(max(health, 0)) / float32(maxHealth)
+	fill := healthFill
+	if frac < 0.3 {
+		fill = healthLow
+	}
+	left, top := float32(x)-w/2, float32(y)-30
+	vector.FillRect(screen, left, top, w, h, healthBack, false)
+	vector.FillRect(screen, left, top, w*frac, h, fill, false)
 }

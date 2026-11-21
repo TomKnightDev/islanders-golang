@@ -51,7 +51,7 @@ All three work the same way, from *nodes* of the chosen material at the action's
 | | Mining | Chopping | Farming |
 |---|---|---|---|
 | Where | a mine | a named forest | a farm |
-| Base speed | 1 ore per 2 s | 1 log per 3 s | 1 crop per 2.5 s |
+| Base speed | 1 ore per 4 s | 1 log per 6 s | 1 crop per 5 s |
 | A node holds | 5–10 ore | 1–4 logs | 2–5 crops |
 | When empty | depleted rock, 30 s | felled tree, 60 s | harvested plot, 45 s |
 
@@ -72,8 +72,29 @@ Both run in trips from the action's village:
 | | Smelting | Fletching |
 |---|---|---|
 | Station | blacksmith | fletcher's hut |
-| Makes | 1 bar from 1 ore, 3 s | 10 arrows from 1 log, 2 s |
+| Makes | 1 bar from 1 ore, 6 s | 10 arrows from 1 log, 4 s |
 | Ends early | "No ore to smelt" | "No logs to fletch" |
+
+### Combat
+- **Five combat skills**: Attack (melee accuracy), Strength (melee max hit), Defence (how often enemies hit you), Ranged (bow accuracy and max hit) and Hitpoints (max health). Hitpoints starts at level 10; max health is 10 × the Hitpoints level, so 100 to start.
+- **XP.** Each point of melee damage gives 2 Attack and 2 Strength XP; ranged damage gives 4 Ranged XP; all damage gives 1⅓ Hitpoints XP; each enemy attack you block gives 2 Defence XP.
+- **Formulas** are RuneScape-style, scaled 10× to match the health numbers: an attack roll `(level + 8) × (accuracy + 64)` against a defence roll `(level + 9) × (armour + 64)` sets the hit chance, and `(level + 8) × (strength + 64) / 64` is the max hit.
+- **Health** regenerates slowly out of combat and quickly while resting at a bank. **Food** heals when eaten: a cabbage restores 30.
+- **Defeat.** At 0 health you lose everything in the backpack (not your equipment), wake up in your spawn village at full health, and the action list stops.
+
+### Equipment
+- **Slots:** weapon, ammo, head, body, shield. The Equipment window shows them, your combat stats, and the gear in your bank; click to equip, Remove to put back. Gear above your level is greyed out with the level it needs.
+- **Weapons:** a training sword (everyone starts with one); copper, iron, gold and mithril swords (Attack 1/15/30/45); oak, pine, maple and dark oak shortbows (Ranged 1/15/30/45). Bows are two-handed, attack from up to 5 tiles, and use one arrow from the ammo slot per shot; equipping arrows moves all of that kind from the bank. Better arrows hit harder.
+- **Armour:** helmet, platebody and shield in each metal (Defence 1/15/30/45).
+- **Starting kit:** a training sword and 5 cabbages in the bank.
+- Gear comes from camp loot for now; crafting it at the anvil is a later phase.
+
+### Camps and fighting
+- **Four camps**, easiest nearest the spawn: Goblin Camp (goblins, level 3), Bandit Hideout (bandits, 12), Orc Warband (orc warriors, 28), Skeleton Ruins (skeletons, 45). Each is a dirt clearing with huts (ruins for the skeletons) and four enemies who wander near home, with health bars when hurt.
+- **Fight** is an action at a found camp, with a goal of N kills or a time. Each trip: deposit at the bank (resting first below 60% health until 90%), take up to 10 food, walk to the camp, then fight enemy after enemy. One player fights an enemy at a time; it respawns 30 s after it dies.
+- **In a fight** the character eats below half health, retreats to the bank to rest when below 30% with no food left, and banks the loot when the backpack is full. A bow user runs out of arrows and the list stops.
+- **Loot** per kill rolls each drop in the enemy's table: their tier's ore and bars, food, arrows, and small chances of each piece of their tier's gear.
+- Fights run on the fighter's clock, so an offline character's fights slow down with them.
 
 ### Items and stacking
 Backpacks and bank accounts are made of slots.
@@ -108,6 +129,9 @@ Every village has a bank building, and every player has their own bank account, 
 ### Screen layout
 Each time the game loads, the windows snap to their places: **Info** top left with **Skills** below it, **Actions** top right (the action picker opens beside it), **Inventory** bottom right, and **Chat** bottom left with its message box along the bottom (Enter sends). The progress bar sits bottom middle. Windows can be moved during a session.
 
+### Camera and route
+The camera eases after the character rather than snapping. Click and drag the map to look around; a plain click still walks there. While the camera is free, a **Follow my character** button at the top of the screen brings it back. Your own route is drawn as a line from your character to where they're heading; nobody else sees it.
+
 ### Hover information
 Pointing at a building, rock or tree on the map shows a tooltip with its name and what it's for, including where it is ("Saltmere's bank", "Iron rock at Old Quarry") and, for trees, whether they can be chopped. Items in the inventory window have tooltips too. The inventory window doesn't show the current activity; the progress bar does.
 
@@ -123,15 +147,19 @@ These are tuning values, kept in one place in the server code.
 
 | Value | Start |
 |---|---|
-| Walk speed | 4 tiles/s |
-| Mining swing | 2 s per ore |
+| Walk speed | 2 tiles/s |
+| Mining swing | 4 s per ore |
 | Ore per rock | 5–10, random |
 | Rock respawn | 30 s |
 | Backpack size | 20 slots |
 | Bank account size | 100 slots |
-| Smelting | 1 ore → 1 bar, 3 s |
-| Chopping | 1 log per 3 s; trees hold 1–4, regrow in 60 s |
-| Fletching | 1 log → 10 arrows, 2 s |
+| Smelting | 1 ore → 1 bar, 6 s |
+| Chopping | 1 log per 6 s; trees hold 1–4, regrow in 60 s |
+| Fletching | 1 log → 10 arrows, 4 s |
+| Farming | 1 crop per 5 s; plants hold 2–5, regrow in 45 s |
+| Your attack / enemy attack | every 4.8 s / every 6 s |
+| Enemy respawn | 30 s |
+| Health regeneration | 1 per 1.2 s, 1 per 0.25 s resting at the bank |
 | Offline speed | 10% |
 | Server tick | 25 ms |
 
@@ -204,7 +232,7 @@ Each phase is one PR and leaves the game playable.
 3. **Mining and inventory.** Action system with the rules above, the mining loop, rock claiming, depletion and respawn, backpack and per-player bank accounts, an inventory window, and new messages for inventory, action state and rock state. *(done)*
 4. **Smelting and the action window.** Found places, a 5-action list with amount or time goals, smelting trips. *(done)*
 5. **Skills, tiers and farms.** Five skills levelling 1–99, four material tiers each, farms with cabbages and cotton, a nearest-place action window, a skills window. *(done)*
-6. **Equipment, combat and health.** An equipment window, fighting skills, player health and healing (cabbages and other food), and camps on the map where fighting enemies for loot is an action.
+6. **Equipment, combat and health.** Five combat skills, health and food, an equipment window, four tiered camps with enemies and loot, the Fight action. Also half-speed actions and walking, an easing and draggable camera, the route line, and a Windows build in CI. *(done)*
 7. **Crafting.** Anvil recipes from bars, weaving cloth from cotton, equipment stats.
 8. **Persistence.** Save characters, inventories and banks to disk on a Docker volume, and hash passwords. Until this lands, every deploy wipes progress.
 

@@ -5,6 +5,11 @@ import "math"
 type Skill string
 
 const (
+	SkillAttack      Skill = "attack"    // melee accuracy
+	SkillStrength    Skill = "strength"  // melee max hit
+	SkillDefence     Skill = "defence"   // how often enemies hit you
+	SkillRanged      Skill = "ranged"    // bow accuracy and max hit
+	SkillHitpoints   Skill = "hitpoints" // max health
 	SkillMining      Skill = "mining"
 	SkillWoodcutting Skill = "woodcutting"
 	SkillFarming     Skill = "farming"
@@ -13,9 +18,17 @@ const (
 )
 
 // Skills lists every skill in the order the skills window shows them.
-var Skills = []Skill{SkillMining, SkillWoodcutting, SkillFarming, SkillSmithing, SkillFletching}
+var Skills = []Skill{
+	SkillAttack, SkillStrength, SkillDefence, SkillRanged, SkillHitpoints,
+	SkillMining, SkillWoodcutting, SkillFarming, SkillSmithing, SkillFletching,
+}
 
 var SkillNames = map[Skill]string{
+	SkillAttack:      "Attack",
+	SkillStrength:    "Strength",
+	SkillDefence:     "Defence",
+	SkillRanged:      "Ranged",
+	SkillHitpoints:   "Hitpoints",
 	SkillMining:      "Mining",
 	SkillWoodcutting: "Woodcutting",
 	SkillFarming:     "Farming",
@@ -24,6 +37,12 @@ var SkillNames = map[Skill]string{
 }
 
 const MaxLevel = 99
+
+// StartingHitpoints is the Hitpoints level every character starts at.
+const StartingHitpoints = 10
+
+// MaxHealth is a character's full health at a Hitpoints level.
+func MaxHealth(hitpointsLevel int) int { return 10 * hitpointsLevel }
 
 // levelXP[l] is the total XP needed to reach level l. The curve roughly
 // doubles every seven levels, so level 99 takes about 13 million XP: the

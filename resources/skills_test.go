@@ -33,6 +33,9 @@ func TestSpeedFactor(t *testing.T) {
 
 func TestMaterialsAreConsistent(t *testing.T) {
 	for _, k := range ActionKinds {
+		if IsCombat(k) {
+			continue // fighting's materials are enemy kinds; see TestEnemies
+		}
 		mats := ActionMaterials[k]
 		if len(mats) == 0 {
 			t.Fatalf("%s has no materials", k)

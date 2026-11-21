@@ -8,10 +8,11 @@ const (
 	ActionFarm   ActionKind = "farm"   // gather crops at a farm
 	ActionSmelt  ActionKind = "smelt"  // turn banked ore into bars at a village blacksmith
 	ActionFletch ActionKind = "fletch" // turn banked logs into arrows at a village fletcher
+	ActionFight  ActionKind = "fight"  // fight enemies at a camp for loot
 )
 
 // ActionKinds lists the actions in the order the action window shows them.
-var ActionKinds = []ActionKind{ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionFletch}
+var ActionKinds = []ActionKind{ActionFight, ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionFletch}
 
 // ActionNames is the verb for each action; with a material it reads
 // "Mine copper", "Fletch oak arrows".
@@ -21,6 +22,7 @@ var ActionNames = map[ActionKind]string{
 	ActionFarm:   "Farm",
 	ActionSmelt:  "Smelt",
 	ActionFletch: "Fletch",
+	ActionFight:  "Fight",
 }
 
 // ActionPlaceKind is the kind of place each action happens at.
@@ -30,6 +32,7 @@ var ActionPlaceKind = map[ActionKind]PlaceKind{
 	ActionFarm:   PlaceFarm,
 	ActionSmelt:  PlaceVillage,
 	ActionFletch: PlaceVillage,
+	ActionFight:  PlaceCamp,
 }
 
 // ActionSkill is the skill each action trains, and which sets its speed
@@ -40,11 +43,15 @@ var ActionSkill = map[ActionKind]Skill{
 	ActionFarm:   SkillFarming,
 	ActionSmelt:  SkillSmithing,
 	ActionFletch: SkillFletching,
+	ActionFight:  SkillAttack, // enemies aren't level-gated; combat skills train from the fight itself
 }
 
 // Gathering actions take materials from nodes at a place; crafting actions
 // turn one item from the bank into another.
 func IsGathering(k ActionKind) bool { return k == ActionMine || k == ActionChop || k == ActionFarm }
+
+// IsCombat reports whether an action is fighting, whose goal counts kills.
+func IsCombat(k ActionKind) bool { return k == ActionFight }
 
 // ActionDefaultAmounts is the bank total a new action aims for.
 var ActionDefaultAmounts = map[ActionKind]int{
@@ -53,6 +60,7 @@ var ActionDefaultAmounts = map[ActionKind]int{
 	ActionFarm:   100,
 	ActionSmelt:  50,
 	ActionFletch: 500,
+	ActionFight:  20, // kills
 }
 
 // Material is one tier an action can work with.
@@ -96,6 +104,15 @@ var ActionMaterials = map[ActionKind][]Material{
 		{ID: "maple", Label: "maple arrows", Level: 30, XP: 50, Item: ItemMapleArrows, Input: ItemMapleLogs},
 		{ID: "darkoak", Label: "dark oak arrows", Level: 45, XP: 90, Item: ItemDarkOakArrows, Input: ItemDarkOakLogs},
 	},
+}
+
+func init() {
+	// Fighting's "materials" are the enemy kinds.
+	for _, e := range Enemies {
+		ActionMaterials[ActionFight] = append(ActionMaterials[ActionFight], Material{
+			ID: e.ID, Label: e.Plural, Level: 1,
+		})
+	}
 }
 
 // FindMaterial looks up one of an action's materials.

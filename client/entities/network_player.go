@@ -16,6 +16,8 @@ type NetworkPlayer struct {
 	Tile      f64.Vec2
 	Cam       *camera.Camera
 	flipX     bool
+	Health    int
+	MaxHealth int
 }
 
 func (p *NetworkPlayer) SetPosition(pos f64.Vec2) {
@@ -64,4 +66,5 @@ func (p *NetworkPlayer) Draw(screen *ebiten.Image) {
 
 func (p *NetworkPlayer) DrawLabel(screen *ebiten.Image) {
 	drawNameLabel(screen, p.Cam, p.Username, p.Position)
+	drawHealthBar(screen, p.Cam, p.Position, p.Health, p.MaxHealth)
 }

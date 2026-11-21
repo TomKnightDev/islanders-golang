@@ -30,6 +30,7 @@ func (inv *Inventory) Update() error {
 	section("Backpack", inv.Contents.Backpack)
 	imgui.Separator()
 	section("Bank", inv.Contents.Bank)
+	inventoryTop = imgui.WindowPos().Y
 	imgui.End()
 
 	return nil
