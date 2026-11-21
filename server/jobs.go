@@ -816,9 +816,16 @@ func (p *player) skillTicks(base time.Duration, s resources.Skill) int {
 }
 
 // addXP awards XP and congratulates the player in chat on a new level.
+// xpRate scales every XP award, to tune how fast all skills level. The
+// awards in resources (material XP, combat XP per damage, stamina per point)
+// are multiplied by it; fractions carry over per skill.
+const xpRateNum, xpRateDen = 1, 2
+
 func (w *World) addXP(p *player, s resources.Skill, xp int) {
 	before := p.level(s)
-	p.xp[s] += xp
+	scaled := xp*xpRateNum + p.xpCarry[s]
+	p.xpCarry[s] = scaled % xpRateDen
+	p.xp[s] += scaled / xpRateDen
 	if after := p.level(s); after > before && p.sess != nil {
 		p.sess.push(resources.NewChatMessage(p.id,
 			fmt.Sprintf("Congratulations! Your %s level is now %d.", resources.SkillNames[s], after)))

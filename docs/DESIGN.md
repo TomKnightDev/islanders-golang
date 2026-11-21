@@ -30,7 +30,7 @@ The game is meant to be played for hundreds of hours, so skills level slowly, wi
 
 - **Gathering and crafting skills:** Mining, Woodcutting, Farming, Smithing (smelting), Fletching. Each action trains one. The six combat skills are under Combat, and Stamina under Stamina and inns.
 - **Levels 1–99.** The XP curve roughly doubles every seven levels: level 2 at 83 XP, level 50 at about 100,000, level 99 at about 13 million.
-- **XP** comes from every item gathered, and every input crafted. Higher tiers give more.
+- **XP** comes from every item gathered, and every input crafted. Higher tiers give more. Every award is then halved (`xpRateNum`/`xpRateDen` in `server/jobs.go`), so the tables below show XP before that.
 - **Speed.** Each level takes 0.4% off that skill's step time, so level 99 works in about 61% of the base time.
 - **Tiers.** Levels unlock materials:
 
@@ -171,7 +171,8 @@ These are tuning values, kept in one place in the server code.
 
 | Value | Start |
 |---|---|
-| Walk speed | 2 tiles/s |
+| Walk speed | 1.5 tiles/s |
+| XP rate | ½ of the listed XP values, applied to every award |
 | Mining swing | 8 s per ore |
 | Ore per rock | 5–10, random |
 | Rock respawn | 30 s |

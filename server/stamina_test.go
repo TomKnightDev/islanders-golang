@@ -69,9 +69,10 @@ func TestStaminaTrains(t *testing.T) {
 	if p.stamina != 100 || p.maxStamina() != 100 {
 		t.Fatalf("new characters start with 100 stamina, got %d/%d", p.stamina, p.maxStamina())
 	}
-	w.spendStamina(p, 83)
+	// Level 2 needs 83 XP; spending earns 1 XP per point before xpRate.
+	w.spendStamina(p, 83*xpRateDen/xpRateNum)
 	if p.level(resources.SkillStamina) != 2 || p.maxStamina() != 105 {
-		t.Errorf("83 stamina spent: level %d, max %d", p.level(resources.SkillStamina), p.maxStamina())
+		t.Errorf("level %d, max %d after reaching 83 XP", p.level(resources.SkillStamina), p.maxStamina())
 	}
 	if resources.MaxStamina(99) != 590 {
 		t.Errorf("level 99 max %d", resources.MaxStamina(99))

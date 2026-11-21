@@ -14,7 +14,7 @@ import (
 
 const (
 	tickInterval = 25 * time.Millisecond
-	walkSpeed    = 2.0 // tiles per second
+	walkSpeed    = 1.5 // tiles per second
 
 	// Pixels moved per tick.
 	walkStep = walkSpeed * resources.TileSize * float64(tickInterval) / float64(time.Second)
@@ -92,6 +92,7 @@ type player struct {
 	running  bool            // working through the action list
 	found    map[string]bool // places this player has found
 	xp       map[resources.Skill]int
+	xpCarry  map[resources.Skill]int // XP fractions left over from xpRate
 
 	sentDest *tile // the path destination last sent to the client; nil if stopped
 
@@ -208,6 +209,7 @@ func (w *World) createCharacter(username, password string, class resources.Class
 		activity: activityIdle,
 		found:    map[string]bool{},
 		xp:       map[resources.Skill]int{},
+		xpCarry:  map[resources.Skill]int{},
 	}
 	w.giveStartingKit(p, class)
 	// Everyone knows the village they start in.

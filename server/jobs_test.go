@@ -1,6 +1,7 @@
 package main
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -490,12 +491,13 @@ func TestActionTimingForProgressBar(t *testing.T) {
 	// Walking 7 tiles to stand beside the rock at (9,10) takes 7/walkSpeed seconds.
 	w.tick()
 	inv := lastInventory(t, s)
-	if inv.Activity != activityToRock || inv.ActionSeconds != 7/walkSpeed {
+	// Within a tick: speeds don't always divide evenly into ticks.
+	if inv.Activity != activityToRock || math.Abs(inv.ActionSeconds-7/walkSpeed) > tickInterval.Seconds() {
 		t.Fatalf("walk: %q for %vs, want %q for %vs", inv.Activity, inv.ActionSeconds, activityToRock, 7/walkSpeed)
 	}
 
 	// Each swing restarts the bar at 0 for swingTime.
-	runUntil(t, w, 500, "first ore", func() bool { return ore(p.backpack) == 1 })
+	runUntil(t, w, 2*ticks(swingTime)+walkTicks(p)+10, "first ore", func() bool { return ore(p.backpack) == 1 })
 	inv = lastInventory(t, s)
 	if inv.Activity != activityMining || inv.ActionSeconds != swingTime.Seconds() || inv.ActionElapsed != 0 {
 		t.Errorf("swing: %q %vs elapsed %vs", inv.Activity, inv.ActionSeconds, inv.ActionElapsed)
@@ -601,13 +603,13 @@ func TestGatheringEarnsXPAndLevelsUp(t *testing.T) {
 	p, _ := w.login("tom", "pw", s)
 	p.found[testMine] = true
 	p.pos[0], p.pos[1] = tile{9, 10}.pixel()
-	addAction(w, p, mineFor(9))
+	addAction(w, p, mineFor(18))
 	run(w, p)
-	runUntil(t, w, 20000, "mined", func() bool { return len(p.actions) == 0 })
+	runUntil(t, w, 40000, "mined", func() bool { return len(p.actions) == 0 })
 
 	copper, _ := resources.FindMaterial(resources.ActionMine, "copper")
-	if got := p.xp[resources.SkillMining]; got != 9*copper.XP {
-		t.Errorf("mining XP %d, want %d", got, 9*copper.XP)
+	if want := 18 * copper.XP * xpRateNum / xpRateDen; p.xp[resources.SkillMining] != want {
+		t.Errorf("mining XP %d, want %d", p.xp[resources.SkillMining], want)
 	}
 	if p.level(resources.SkillMining) != 2 {
 		t.Errorf("90 XP should be level 2, got %d", p.level(resources.SkillMining))
