@@ -123,7 +123,7 @@ A new name gets a **Create your character** screen before the character exists. 
 - **Weapons:** a training sword; copper, iron, gold and mithril swords (Melee 1/15/30/45); oak, pine, maple and dark oak shortbows (Ranged 1/15/30/45). Bows are two-handed, attack from up to 5 tiles, and use one arrow from the ammo slot per shot; equipping arrows moves all of that kind from the bank. Better arrows hit harder.
 - **Armour:** helmet, platebody and shield in each metal (Defence 1/15/30/45).
 - **Starting kit:** set by the character's class (see Classes), plus 5 cabbages in the bank.
-- Gear comes from camp loot for now; crafting it at the anvil is a later phase.
+- Gear comes from camp loot, stores, or making it (see Making gear).
 
 ### Camps and fighting
 - **Four camps**, easiest nearest the spawn: Goblin Camp (goblins, level 3), Bandit Hideout (bandits, 12), Orc Warband (orc warriors, 28), Skeleton Ruins (skeletons, 45). Each is a dirt clearing with huts (ruins for the skeletons) and four enemies who wander near home, with health bars when hurt.
@@ -152,16 +152,17 @@ A container is full for an item when every slot is used and every stack of that 
 ### Bank
 Every village has a bank building, and every player has their own bank account, shared across all banks. Deposits and withdrawals only touch the player's own account, and capacity is per account.
 
-### Crafting
-- The blacksmith's anvil opens a recipe list. Each recipe uses ingots from the bank and takes time at the anvil.
-- Equipment goes into slots on the character and changes job stats.
-- First recipes:
+### Making gear
+- **Smith** at a village anvil (Smithing) makes, from each metal's bars: the five tools (1 bar), helmets (2), swords (2), shields (3) and bodies (4). Copper needs level 1 plus 0–8 depending on the piece; iron, gold and mithril start at 15, 30 and 45.
+- **Fletch** at the fletcher's hut (Fletching) also makes shortbows (3 logs) and staves (2 logs and a bar of the matching tier: oak with copper, pine with iron, maple with gold, dark oak with mithril), at the wood's level plus 4 (bows) or 8 (staves).
+- A craft takes the recipe's step time for each ingredient (smithing 10 s a bar, fletching 8 s a log or bar), scaled by skill and tool. Trips work like smelting: take as many crafts' worth as fit in the backpack, craft until something runs out, bank, repeat.
+- **New gear comes out rough:** quality around half the maker's level (plus a tenth of their tool's quality; halved again with no tool), and never better than the ingredients.
 
-| Item | Cost | Effect |
-|---|---|---|
-| Iron pickaxe | 3 ingots | Mining is 25% faster |
-| Iron backpack straps | 5 ingots | Backpack holds +10 |
-| Iron helmet | 4 ingots | Cosmetic for now |
+### Improving
+- **Improve** is an action for a kind of gear at the village with its station (anvil for metal gear and tools, fletcher's hut for bows and staves). It takes the best piece of that kind from the bank, plus that recipe's main material (bars for metal, logs for bows and staves), and its goal is a number of attempts.
+- Each attempt uses one unit of material, which must be better quality than the piece; when it isn't, the action ends with "No better material to improve with".
+- Success raises the piece's quality by 1 or more, never past the material's quality. The chance is 85% up to the player's level and falls 2% for each quality point above it (never below 10%). A failure costs 1 quality.
+- Each attempt gives the recipe's XP per unit of ingredient, plus 5% for each quality point the piece is above the player's level.
 
 ### Screen layout
 Each time the game loads, the windows snap to their places: **Info** top left with **Skills** below it, **Actions** top right (the action picker opens beside it), **Inventory** bottom right, and **Chat** bottom left with its message box along the bottom (Enter sends). The progress bar sits bottom middle. Windows can be moved during a session.

@@ -48,6 +48,7 @@ var ActionTool = map[ActionKind]EquipSlot{
 	ActionFarm:   SlotSickle,
 	ActionSmelt:  SlotHammer,
 	ActionFletch: SlotKnife,
+	ActionSmith:  SlotHammer,
 }
 
 // EquipDef is what an item does when worn or wielded.

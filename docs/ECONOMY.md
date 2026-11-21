@@ -160,7 +160,7 @@ Each village posts a few orders that refresh every few hours, such as "Wanted: 4
 
 1. **Coins and merchants.** Coin balance, item values, coin drops, the inn fee and stable, general stores (buy window, sell action). A working economy early, before the bigger item rework. *(done: stores sell food, copper gear, starter materials and oak arrows; sell trips take 3 s at the counter; demand drops 2% per unit bought, never below 20%, and recovers 3% of the gap each minute)*
 2. **Item quality and tools.** Individual items, quality on stacks, tools and the tool slot, quality affecting gathering and gear. *(done, with a tool belt of one slot per tool instead of a single tool slot, so action lists don't need tool swaps. Gathered quality = 10 + 0.6 × level + tool metal bonus + 0.2 × tool quality, ±5; crafted quality is the input's, capped at 15 + 0.8 × level + tool quality / 10. Loot gear is quality 5–25, store and starting gear 15, starting tools 10. Stores pay for pieces by quality. Damage exists on items but nothing causes it until step 4.)*
-3. **Making and improving.** Anvil, loom and staff recipes, Tailoring, the make and improve actions.
+3. **Making and improving.** Anvil, loom and staff recipes, Tailoring, the make and improve actions. *(Making and improving done: Smith at the anvil, bows and staves at the fletcher, and an Improve action. New gear is quality ≈ level/2 capped by its materials; improving uses one better-quality unit of the recipe's main material per attempt. The loom and Tailoring wait: adding a building changes world generation, which moves everything on the island.)*
 4. **Wear and repair.** Damage, repair costs, breakage.
 5. **Player markets.** A trading post in each village; list, buy and collect.
 6. **Village orders.**

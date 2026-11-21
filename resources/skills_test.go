@@ -33,8 +33,8 @@ func TestSpeedFactor(t *testing.T) {
 
 func TestMaterialsAreConsistent(t *testing.T) {
 	for _, k := range ActionKinds {
-		if IsCombat(k) || IsVisit(k) {
-			continue // fighting's materials are enemy kinds, visiting's buildings
+		if IsCombat(k) || IsVisit(k) || IsImprove(k) {
+			continue // fighting's materials are enemy kinds, visiting's buildings, improving's any gear
 		}
 		mats := ActionMaterials[k]
 		if len(mats) == 0 {
@@ -47,10 +47,16 @@ func TestMaterialsAreConsistent(t *testing.T) {
 			if _, ok := Items[m.Item]; !ok {
 				t.Errorf("%s %s gives unknown item %q", k, m.ID, m.Item)
 			}
-			if IsGathering(k) != (m.Node != 0) || IsGathering(k) == (m.Input != "") {
+			if IsGathering(k) != (m.Node != 0) || IsGathering(k) == (len(m.Inputs) > 0) {
 				t.Errorf("%s %s: gathering needs a node, crafting an input", k, m.ID)
 			}
-			if i > 0 && (m.Level <= mats[i-1].Level || m.XP <= mats[i-1].XP) {
+			for _, in := range m.Inputs {
+				if _, ok := Items[in.Item]; !ok || in.Count < 1 {
+					t.Errorf("%s %s: bad ingredient %+v", k, m.ID, in)
+				}
+			}
+			// Tiers of materials get harder; gear recipes come several to a tier.
+			if i > 0 && !IsPiece(m.Item) && !IsPiece(mats[i-1].Item) && (m.Level <= mats[i-1].Level || m.XP <= mats[i-1].XP) {
 				t.Errorf("%s %s: higher tiers should need more and give more", k, m.ID)
 			}
 		}
@@ -60,5 +66,24 @@ func TestMaterialsAreConsistent(t *testing.T) {
 	}
 	if info, ok := NodeInfo(TilePine); !ok || info.Name != "Pine tree" {
 		t.Errorf("pine info %+v", info)
+	}
+}
+
+func TestEveryGearPieceCanBeMadeAndImproved(t *testing.T) {
+	for k := range Equipment {
+		if !IsPiece(k) || k == ItemTrainingSword {
+			continue
+		}
+		kind, m, ok := ImproveRecipe(k)
+		if !ok {
+			t.Errorf("no recipe makes %s", k)
+			continue
+		}
+		if m.Level > 99 || len(m.Inputs) == 0 || (kind != ActionSmith && kind != ActionFletch) {
+			t.Errorf("%s: recipe %s %+v", k, kind, m)
+		}
+	}
+	if _, _, ok := ImproveRecipe(ItemIronOre); ok {
+		t.Error("materials aren't improved")
 	}
 }

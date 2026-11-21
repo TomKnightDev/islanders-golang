@@ -38,6 +38,7 @@ func jobWorld(t *testing.T) *World {
 	add(5, resources.ObjectFletcher, 8, 2)
 	add(6, resources.ObjectInn, 7, 7)
 	add(7, resources.ObjectStore, 1, 6)
+	add(8, resources.ObjectAnvil, 3, 8)
 	for _, tr := range []tile{{15, 15}, {17, 15}, {16, 18}} {
 		wm.Layers[resources.LayerObject].Data[tr.y*wm.Width+tr.x] = resources.TileTree1
 	}

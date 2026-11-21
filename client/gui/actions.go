@@ -23,8 +23,9 @@ type Actions struct {
 	// Send queues a command for the server.
 	Send func(resources.ActionCommandContents)
 
-	state   resources.InventoryContents
-	picking bool // the "Add an action" window is open
+	state     resources.InventoryContents
+	picking   bool               // the "Add an action" window is open
+	improving resources.ItemKind // the item picked in the improve list
 }
 
 func NewActions(mgr *renderer.Manager, player *entities.Player, places []resources.Place) *Actions {
@@ -157,33 +158,119 @@ func (a *Actions) foundPlaces() {
 			continue
 		}
 
-		skill := resources.ActionSkill[kind]
-		lvl := a.level(skill)
-		first := true
+		if resources.IsImprove(kind) {
+			a.improveButtons(place, full)
+			continue
+		}
+		a.materialButtons(kind, place, full)
+	}
+	dimmed("Walk into a village, mine, forest, farm or camp to find it.")
+}
+
+// materialButtons offers a button per material of an action. Recipes with
+// tiers (metals, woods) get a row per tier with short labels. Materials the
+// player hasn't the level for are greyed out with the level they need.
+func (a *Actions) materialButtons(kind resources.ActionKind, place resources.Place, full bool) {
+	skill := resources.ActionSkill[kind]
+	lvl := a.level(skill)
+	// Rows by tier, in the order tiers first appear.
+	var mats []resources.Material
+	var tiers []string
+	for _, m := range resources.ActionMaterials[kind] {
+		if !slices.Contains(tiers, m.Tier) {
+			tiers = append(tiers, m.Tier)
+		}
+	}
+	for _, tr := range tiers {
 		for _, m := range resources.ActionMaterials[kind] {
-			if (resources.IsGathering(kind) || resources.IsCombat(kind)) && !slices.Contains(place.Materials, m.ID) {
-				continue
-			}
-			if !first {
-				imgui.SameLine()
-			}
-			first = false
-			label := strings.ToUpper(m.Label[:1]) + m.Label[1:]
-			if e, ok := resources.FindEnemy(m.ID); ok && resources.IsCombat(kind) {
-				label = fmt.Sprintf("%s (level %d)", label, e.Level)
-			}
-			if lvl < m.Level {
-				button(fmt.Sprintf("%s (%s %d)##%s%s", label, resources.SkillNames[skill], m.Level, kind, m.ID), false)
-				continue
-			}
-			if button(label+"##"+string(kind)+m.ID, !full) {
-				a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
-					Kind: kind, Material: m.ID, Place: place.Name, Amount: resources.GoalAmounts[0],
-				}})
+			if m.Tier == tr {
+				mats = append(mats, m)
 			}
 		}
 	}
-	dimmed("Walk into a village, mine, forest, farm or camp to find it.")
+	first, tier := true, ""
+	for _, m := range mats {
+		if (resources.IsGathering(kind) || resources.IsCombat(kind)) && !slices.Contains(place.Materials, m.ID) {
+			continue
+		}
+		label := strings.ToUpper(m.Label[:1]) + m.Label[1:]
+		switch {
+		case m.Tier != "" && m.Tier != tier:
+			tier = m.Tier
+			dimmed("  " + tier + ":")
+			imgui.SameLine()
+		case !first:
+			imgui.SameLine()
+		}
+		if m.Tier != "" {
+			label = m.Short
+		}
+		first = false
+		if e, ok := resources.FindEnemy(m.ID); ok && resources.IsCombat(kind) {
+			label = fmt.Sprintf("%s (level %d)", label, e.Level)
+		}
+		id := "##" + string(kind) + m.ID
+		if lvl < m.Level {
+			button(fmt.Sprintf("%s %d%s", label, m.Level, id), false)
+			if imgui.IsItemHovered() {
+				imgui.SetTooltip(fmt.Sprintf("%s needs %s level %d", m.Label, resources.SkillNames[skill], m.Level))
+			}
+			continue
+		}
+		if button(label+id, !full) {
+			a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
+				Kind: kind, Material: m.ID, Place: place.Name, Amount: resources.GoalAmounts[0],
+			}})
+		}
+		if imgui.IsItemHovered() && len(m.Inputs) > 0 {
+			imgui.SetTooltip(recipeTooltip(m))
+		}
+	}
+}
+
+// recipeTooltip says what a craft uses and makes.
+func recipeTooltip(m resources.Material) string {
+	var uses []string
+	for _, in := range m.Inputs {
+		uses = append(uses, fmt.Sprintf("%d %s", in.Count, resources.ItemUnits[in.Item]))
+	}
+	return fmt.Sprintf("%s: uses %s, makes %d", m.Label, strings.Join(uses, " and "), m.Output())
+}
+
+// improveButtons picks a kind of gear to improve. The best piece of that
+// kind in the bank is taken to its station; each attempt uses one unit of
+// its main material, which must be of better quality than the piece.
+func (a *Actions) improveButtons(place resources.Place, full bool) {
+	items := resources.Improvable()
+	if a.improving == "" {
+		a.improving = items[0]
+	}
+	label := func(k resources.ItemKind) string {
+		kind, m, _ := resources.ImproveRecipe(k)
+		return fmt.Sprintf("%s (%s %d)", resources.ItemNames[k], resources.SkillNames[resources.ActionSkill[kind]], m.Level)
+	}
+	imgui.PushItemWidth(320)
+	if imgui.BeginComboV("##improveitem", label(a.improving), 0) {
+		for _, k := range items {
+			if imgui.SelectableV(label(k), k == a.improving, 0, imgui.Vec2{}) {
+				a.improving = k
+			}
+		}
+		imgui.EndCombo()
+	}
+	imgui.PopItemWidth()
+	imgui.SameLine()
+	kind, m, _ := resources.ImproveRecipe(a.improving)
+	if button("Add##improve", !full && a.level(resources.ActionSkill[kind]) >= m.Level) {
+		a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
+			Kind: resources.ActionImprove, Material: string(a.improving), Place: place.Name, Amount: resources.GoalAmounts[0],
+		}})
+	}
+	if imgui.IsItemHovered() {
+		imgui.SetTooltip(fmt.Sprintf("Takes your best %s from the bank to the %s and works on it with better-quality %s.",
+			strings.ToLower(resources.ItemNames[a.improving]), map[resources.ActionKind]string{resources.ActionSmith: "anvil", resources.ActionFletch: "fletcher"}[kind],
+			resources.ItemUnits[m.Inputs[0].Item]))
+	}
 }
 
 // visitButtons offers each building in the village to walk to; its window
@@ -244,6 +331,8 @@ func (a *Actions) row(i int, q resources.QueuedAction) {
 	switch {
 	case resources.IsCombat(spec.Kind):
 		verb, unit = "Defeat", "enemies"
+	case resources.IsImprove(spec.Kind):
+		verb, unit = "Try", "times"
 	case resources.ActionSkill[spec.Kind] == resources.SkillSmithing || resources.ActionSkill[spec.Kind] == resources.SkillFletching:
 		verb = "Make"
 	}
