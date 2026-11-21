@@ -29,6 +29,7 @@ func NewInfo(screenWidth, screenHeight int, player *entities.Player, mgr *render
 }
 
 func (info *Info) Update() error {
+	placeWindow("Info", imgui.Vec2{X: windowMargin, Y: windowMargin}, imgui.Vec2{})
 	imgui.BeginV("Info", nil, imgui.WindowFlagsAlwaysAutoResize)
 	imgui.Text(fmt.Sprintf("Name: %s", info.player.Username))
 
@@ -51,6 +52,7 @@ func (info *Info) Update() error {
 		}
 		info.SendChat(msg)
 	}
+	infoBottom = imgui.WindowPos().Y + imgui.WindowSize().Y
 	imgui.End()
 
 	return nil

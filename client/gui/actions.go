@@ -60,16 +60,18 @@ func (a *Actions) send(c resources.ActionCommandContents) {
 }
 
 func (a *Actions) Update() error {
-	winW, _ := ebiten.WindowSize()
-	imgui.SetNextWindowPosV(imgui.Vec2{X: float32(winW) - 640, Y: 40}, imgui.ConditionFirstUseEver, imgui.Vec2{})
+	w, _ := screenSize()
+	placeWindow("Actions", imgui.Vec2{X: w - windowMargin, Y: windowMargin}, imgui.Vec2{X: 1, Y: 0})
 	imgui.BeginV("Actions", nil, imgui.WindowFlagsAlwaysAutoResize)
 	a.controls()
 	imgui.Separator()
 	a.list()
+	actionsLeft = imgui.WindowPos().X
 	imgui.End()
 
 	if a.picking {
-		imgui.SetNextWindowPosV(imgui.Vec2{X: float32(max(20, winW-1300)), Y: 40}, imgui.ConditionFirstUseEver, imgui.Vec2{})
+		// Opens beside the actions window each time.
+		imgui.SetNextWindowPosV(imgui.Vec2{X: actionsLeft - windowMargin, Y: windowMargin}, imgui.ConditionAppearing, imgui.Vec2{X: 1, Y: 0})
 		imgui.BeginV("Add an action", &a.picking, imgui.WindowFlagsAlwaysAutoResize)
 		a.foundPlaces()
 		imgui.End()

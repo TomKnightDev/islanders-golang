@@ -105,6 +105,9 @@ Every village has a bank building, and every player has their own bank account, 
 | Iron backpack straps | 5 ingots | Backpack holds +10 |
 | Iron helmet | 4 ingots | Cosmetic for now |
 
+### Screen layout
+Each time the game loads, the windows snap to their places: **Info** top left with **Skills** below it, **Actions** top right (the action picker opens beside it), **Inventory** bottom right, and **Chat** bottom left with its message box along the bottom (Enter sends). The progress bar sits bottom middle. Windows can be moved during a session.
+
 ### Hover information
 Pointing at a building, rock or tree on the map shows a tooltip with its name and what it's for, including where it is ("Saltmere's bank", "Iron rock at Old Quarry") and, for trees, whether they can be chopped. Items in the inventory window have tooltips too. The inventory window doesn't show the current activity; the progress bar does.
 

@@ -24,6 +24,8 @@ func NewInventory(mgr *renderer.Manager) *Inventory {
 }
 
 func (inv *Inventory) Update() error {
+	w, h := screenSize()
+	placeWindow("Inventory", imgui.Vec2{X: w - windowMargin, Y: h - windowMargin}, imgui.Vec2{X: 1, Y: 1})
 	imgui.BeginV("Inventory", nil, imgui.WindowFlagsAlwaysAutoResize)
 	section("Backpack", inv.Contents.Backpack)
 	imgui.Separator()

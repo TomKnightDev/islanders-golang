@@ -26,6 +26,7 @@ func (s *Skills) SetState(skills []resources.SkillState) {
 }
 
 func (s *Skills) Update() error {
+	placeWindow("Skills", imgui.Vec2{X: windowMargin, Y: infoBottom + windowMargin}, imgui.Vec2{})
 	imgui.BeginV("Skills", nil, imgui.WindowFlagsAlwaysAutoResize)
 	total := 0
 	for _, st := range s.skills {
