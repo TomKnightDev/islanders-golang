@@ -15,8 +15,9 @@ const (
 	swingTime       = 8 * time.Second  // per ore
 	chopTime        = 12 * time.Second // per log
 	smeltTime       = 12 * time.Second // per bar
-	fletchTime      = 8 * time.Second  // per log
-	arrowsPerLog    = 10
+	fletchTime      = 8 * time.Second  // per log (or other ingredient)
+	smithTime       = 10 * time.Second // per bar, making gear at the anvil
+	improveTime     = 10 * time.Second // per improving attempt
 	rockRespawn     = 30 * time.Second
 	rockOreMin      = 5
 	rockOreMax      = 10
@@ -56,7 +57,8 @@ const (
 	activityNoOre    = "No ore to smelt"
 	activityToFletch = "Walking to the fletcher"
 	activityFletch   = "Fletching"
-	activityNoLogs   = "No logs to fletch"
+	activityNoLogs   = "Nothing to fletch with"
+
 	activityBankFull = "Bank full"
 	activityNoPath   = "Can't get there"
 )
@@ -94,8 +96,7 @@ var gatherKinds = map[resources.ActionKind]*gatherKind{
 // output at a station in a village. Which input and output comes from the
 // action's material.
 type recipe struct {
-	perInput         int // outputs made from one input
-	step             time.Duration
+	step             time.Duration // per ingredient used
 	station          resources.ObjectKind
 	working, walking string
 	noInput          string
@@ -103,13 +104,41 @@ type recipe struct {
 
 var recipes = map[resources.ActionKind]*recipe{
 	resources.ActionSmelt: {
-		perInput: 1, step: smeltTime,
+		step:    smeltTime,
 		station: resources.ObjectBlacksmith, working: activitySmelting, walking: activityToSmith, noInput: activityNoOre,
 	},
 	resources.ActionFletch: {
-		perInput: arrowsPerLog, step: fletchTime,
+		step:    fletchTime,
 		station: resources.ObjectFletcher, working: activityFletch, walking: activityToFletch, noInput: activityNoLogs,
 	},
+}
+
+// craftTime is how long one craft takes: the recipe's step for each
+// ingredient used, before skill and tool.
+func (r *recipe) craftTime(m resources.Material) time.Duration {
+	units := 0
+	for _, in := range m.Inputs {
+		units += in.Count
+	}
+	return r.step * time.Duration(max(units, 1))
+}
+
+// startStep starts the next craft at the station.
+func (w *World) startStep(p *player) {
+	j := p.job
+	j.countdown = p.stepTicks(j.action.spec.Kind, p.skillTicks(j.recipe.craftTime(j.material), j.skill))
+	w.startAction(p, j.recipe.working, j.countdown)
+}
+
+// canCraft reports whether an inventory holds every ingredient for one
+// craft.
+func canCraft(inv *resources.Inventory, m resources.Material) bool {
+	for _, in := range m.Inputs {
+		if inv.Count(in.Item) < in.Count {
+			return false
+		}
+	}
+	return len(m.Inputs) > 0
 }
 
 // node is something to gather from: a rock, a tree or a crop.
@@ -212,7 +241,7 @@ func (w *World) initNodes() {
 			if pl := w.placeAt(t, resources.PlaceVillage); pl != nil {
 				w.stores[pl.Name] = &store{village: pl.Name, t: t, demand: map[resources.ItemKind]float64{}}
 			}
-		case resources.ObjectBlacksmith, resources.ObjectFletcher:
+		case resources.ObjectBlacksmith, resources.ObjectFletcher, resources.ObjectAnvil:
 			if pl := w.placeAt(t, resources.PlaceVillage); pl != nil {
 				if w.stations[o.Kind] == nil {
 					w.stations[o.Kind] = map[string]tile{}
@@ -292,6 +321,7 @@ func (w *World) click(p *player, t tile) {
 	if p.running {
 		return
 	}
+	p.visitPrefer = t // if it's a building, open that one on arrival
 	if w.moveTo(p, t) {
 		w.startAction(p, activityWalking, walkTicks(p))
 	} else {
@@ -445,6 +475,7 @@ func (w *World) startNextAction(p *player) {
 		b := resources.Building(a.spec.Material)
 		t, _ := w.buildingTile(b, a.spec.Place)
 		p.job = &job{action: a, station: t, state: stateWalkToVisit}
+		p.visitPrefer = t
 		if !w.moveTo(p, t) {
 			w.failAction(p, activityNoPath)
 			return
@@ -615,25 +646,39 @@ func (w *World) atBank(p *player) {
 
 // --- crafting ---
 
-// collectInput takes a crafting trip's input from the bank: as much as the
-// backpack holds, but no more than the goal still needs.
+// collectInput takes a crafting trip's ingredients from the bank: as many
+// crafts' worth as the backpack holds, but no more than the goal still
+// needs.
 func (w *World) collectInput(p *player) {
 	j := p.job
-	r, in := j.recipe, j.material.Input
+	r, m := j.recipe, j.material
 	need := j.action.spec.Amount - j.action.count
-	n := min(p.backpack.FreeSlots(), p.bank.Count(in), (need+r.perInput-1)/r.perInput)
-	if n <= 0 {
+	crafts, units := (need+m.Output()-1)/m.Output(), 0
+	for _, in := range m.Inputs {
+		crafts = min(crafts, p.bank.Count(in.Item)/in.Count)
+		units += in.Count
+	}
+	crafts = min(crafts, p.backpack.FreeSlots()/max(units, 1))
+	if crafts <= 0 {
 		w.finishAction(p, r.noInput)
 		return
 	}
-	moveItems(&p.bank, &p.backpack, in, n)
+	for _, in := range m.Inputs {
+		moveItems(&p.bank, &p.backpack, in.Item, crafts*in.Count)
+	}
 	p.invDirty = true
+	w.walkToStation(p)
+}
+
+// walkToStation sends a crafting job to its station.
+func (w *World) walkToStation(p *player) {
+	j := p.job
 	j.state = stateWalkToStation
 	if !w.moveTo(p, j.station) {
 		w.failAction(p, activityNoPath)
 		return
 	}
-	w.startAction(p, r.walking, walkTicks(p))
+	w.startAction(p, j.recipe.walking, walkTicks(p))
 }
 
 // --- the tick ---
@@ -753,31 +798,41 @@ func (w *World) tickJob(p *player) {
 			return
 		}
 		j.state = stateCrafting
-		j.countdown = p.stepTicks(j.action.spec.Kind, p.skillTicks(j.recipe.step, j.skill))
-		w.startAction(p, j.recipe.working, j.countdown)
+		w.startStep(p)
 
 	case stateCrafting:
 		j.countdown--
 		if j.countdown > 0 {
 			return
 		}
-		r := j.recipe
-		in := p.backpack.Take(j.material.Input, 1)
-		q := resources.CraftedQuality(in[0].Quality, p.level(j.skill), p.tool(j.action.spec.Kind), w.rng)
-		p.backpack.AddStack(resources.Stack{Kind: j.material.Item, Count: r.perInput, Quality: q}) // the input's slot is free, so this fits
-		j.action.count += r.perInput
-		w.addXP(p, j.skill, j.material.XP)
+		m := j.material
+		qsum, n := 0, 0
+		for _, in := range m.Inputs {
+			for _, part := range p.backpack.Take(in.Item, in.Count) {
+				qsum += part.Quality * part.Count
+				n += part.Count
+			}
+		}
+		inQ := qsum / max(n, 1)
+		level, tool := p.level(j.skill), p.tool(j.action.spec.Kind)
+		// The ingredients' slots are free, so this fits.
+		if resources.IsPiece(m.Item) {
+			w.give(&p.backpack, m.Item, 1, resources.MadeQuality(inQ, level, tool, w.rng))
+		} else {
+			p.backpack.AddStack(resources.Stack{Kind: m.Item, Count: m.Output(), Quality: resources.CraftedQuality(inQ, level, tool, w.rng)})
+		}
+		j.action.count += m.Output()
+		w.addXP(p, j.skill, m.XP)
 		w.spendStamina(p, staminaPerStep)
 		p.invDirty = true
-		if p.backpack.Count(j.material.Input) == 0 {
+		if !canCraft(&p.backpack, m) || amountMet(p, j.action) {
 			w.goBank(p)
 			return
 		}
 		if w.exhausted(p) {
 			return
 		}
-		j.countdown = p.stepTicks(j.action.spec.Kind, p.skillTicks(r.step, j.skill))
-		w.startAction(p, r.working, j.countdown)
+		w.startStep(p)
 	}
 }
 
@@ -872,6 +927,7 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 	for i, a := range p.actions {
 		actions[i] = resources.QueuedAction{ActionSpec: a.spec, Done: a.count}
 	}
+	making, makeLeft := p.making.item()
 	// The bank's contents only go to a player standing at it.
 	bank := resources.Inventory{Slots: p.bank.Slots, Stacking: true}
 	if p.visit.at == resources.BuildingBank {
@@ -895,6 +951,10 @@ func (w *World) inventoryMessage(p *player) *resources.Message {
 		Coins:         p.coins,
 		MaxStamina:    p.maxStamina(),
 		Equipment:     p.equippedItems(),
+		Making:        making,
+		MakeLeft:      makeLeft,
+		Improving:     p.improving.piece(),
+		StationNote:   p.stationNote,
 	})
 }
 

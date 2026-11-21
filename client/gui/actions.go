@@ -17,6 +17,7 @@ var dimText = imgui.Vec4{X: 0.7, Y: 0.75, Z: 0.7, W: 1}
 // Actions is the action window: places the player has found and what can be
 // done there, and the action list the character works through.
 type Actions struct {
+	Open   bool // shown; the menu bar toggles it
 	mgr    *renderer.Manager
 	player *entities.Player
 	places map[string]resources.Place
@@ -28,7 +29,7 @@ type Actions struct {
 }
 
 func NewActions(mgr *renderer.Manager, player *entities.Player, places []resources.Place) *Actions {
-	a := &Actions{mgr: mgr, player: player, places: map[string]resources.Place{}}
+	a := &Actions{Open: true, mgr: mgr, player: player, places: map[string]resources.Place{}}
 	for _, p := range places {
 		a.places[p.Name] = p
 	}
@@ -46,8 +47,11 @@ func (a *Actions) send(c resources.ActionCommandContents) {
 
 func (a *Actions) Update() error {
 	w, _ := screenSize()
-	placeWindow("Actions", imgui.Vec2{X: w - windowMargin, Y: windowMargin}, imgui.Vec2{X: 1, Y: 0})
-	imgui.BeginV("Actions", nil, imgui.WindowFlagsAlwaysAutoResize)
+	if !a.Open {
+		return nil
+	}
+	placeWindow("Actions", imgui.Vec2{X: w - windowMargin, Y: topMargin()}, imgui.Vec2{X: 1, Y: 0})
+	imgui.BeginV("Actions", &a.Open, imgui.WindowFlagsAlwaysAutoResize)
 	a.controls()
 	imgui.Separator()
 	a.list()
@@ -56,7 +60,7 @@ func (a *Actions) Update() error {
 
 	if a.picking {
 		// Opens beside the actions window each time.
-		imgui.SetNextWindowPosV(imgui.Vec2{X: actionsLeft - windowMargin, Y: windowMargin}, imgui.ConditionAppearing, imgui.Vec2{X: 1, Y: 0})
+		imgui.SetNextWindowPosV(imgui.Vec2{X: actionsLeft - windowMargin, Y: topMargin()}, imgui.ConditionAppearing, imgui.Vec2{X: 1, Y: 0})
 		imgui.BeginV("Add an action", &a.picking, imgui.WindowFlagsAlwaysAutoResize)
 		a.foundPlaces()
 		imgui.End()
@@ -123,17 +127,9 @@ func (a *Actions) nearestFound(kind resources.PlaceKind) (resources.Place, int, 
 	return best, bestDist, ok
 }
 
-var placeHints = map[resources.PlaceKind]string{
-	resources.PlaceMine:    "find a mine first",
-	resources.PlaceForest:  "find a named forest first",
-	resources.PlaceFarm:    "find a farm first",
-	resources.PlaceVillage: "find a village first",
-	resources.PlaceCamp:    "find a camp first",
-}
-
 // foundPlaces offers each action once, at the nearest place found for it,
-// with a button per material. Tiers the player hasn't the level for are
-// shown greyed out with the level they need.
+// with a button per material. Actions with no place found, and materials
+// the player hasn't the level for, aren't shown.
 func (a *Actions) foundPlaces() {
 	full := len(a.state.Actions) >= resources.MaxActions
 	if full {
@@ -141,49 +137,93 @@ func (a *Actions) foundPlaces() {
 	} else {
 		dimmed("Click to add to the end of the list.")
 	}
+	// Only what the player can do now: places they've found and materials
+	// they have the level for.
 	for _, kind := range resources.ActionKinds {
-		verb := resources.ActionNames[kind]
 		place, dist, ok := a.nearestFound(resources.ActionPlaceKind[kind])
 		if !ok {
-			dimmed(verb + ": " + placeHints[resources.ActionPlaceKind[kind]])
 			continue
 		}
-		imgui.Text(fmt.Sprintf("%s at %s", verb, place.Name))
+		mats := a.doable(kind, place)
+		if !resources.IsVisit(kind) && len(mats) == 0 {
+			continue
+		}
+		imgui.Text(fmt.Sprintf("%s at %s", resources.ActionNames[kind], place.Name))
 		imgui.SameLine()
 		dimmed(fmt.Sprintf("%d tiles away", dist))
-
 		if resources.IsVisit(kind) {
 			a.visitButtons(place, full)
-			continue
+		} else {
+			a.materialButtons(kind, place, mats, full)
 		}
+	}
+	dimmed("Walk into a village, mine, forest, farm or camp to find more.")
+}
 
-		skill := resources.ActionSkill[kind]
-		lvl := a.level(skill)
-		first := true
+// doable is the materials of an action the player can use at a place, with
+// recipes grouped into rows by tier, in the order tiers first appear.
+func (a *Actions) doable(kind resources.ActionKind, place resources.Place) []resources.Material {
+	lvl := a.level(resources.ActionSkill[kind])
+	var tiers []string
+	for _, m := range resources.ActionMaterials[kind] {
+		if !slices.Contains(tiers, m.Tier) {
+			tiers = append(tiers, m.Tier)
+		}
+	}
+	var mats []resources.Material
+	for _, tr := range tiers {
 		for _, m := range resources.ActionMaterials[kind] {
+			if m.Tier != tr || lvl < m.Level {
+				continue
+			}
 			if (resources.IsGathering(kind) || resources.IsCombat(kind)) && !slices.Contains(place.Materials, m.ID) {
 				continue
 			}
-			if !first {
-				imgui.SameLine()
-			}
-			first = false
-			label := strings.ToUpper(m.Label[:1]) + m.Label[1:]
-			if e, ok := resources.FindEnemy(m.ID); ok && resources.IsCombat(kind) {
-				label = fmt.Sprintf("%s (level %d)", label, e.Level)
-			}
-			if lvl < m.Level {
-				button(fmt.Sprintf("%s (%s %d)##%s%s", label, resources.SkillNames[skill], m.Level, kind, m.ID), false)
-				continue
-			}
-			if button(label+"##"+string(kind)+m.ID, !full) {
-				a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
-					Kind: kind, Material: m.ID, Place: place.Name, Amount: resources.GoalAmounts[0],
-				}})
-			}
+			mats = append(mats, m)
 		}
 	}
-	dimmed("Walk into a village, mine, forest, farm or camp to find it.")
+	return mats
+}
+
+// materialButtons offers a button per material. Recipes with tiers (metals,
+// woods) get a row per tier with short labels.
+func (a *Actions) materialButtons(kind resources.ActionKind, place resources.Place, mats []resources.Material, full bool) {
+	first, tier := true, ""
+	for _, m := range mats {
+		label := strings.ToUpper(m.Label[:1]) + m.Label[1:]
+		switch {
+		case m.Tier != "" && m.Tier != tier:
+			tier = m.Tier
+			dimmed("  " + tier + ":")
+			imgui.SameLine()
+		case !first:
+			imgui.SameLine()
+		}
+		if m.Tier != "" {
+			label = m.Short
+		}
+		first = false
+		if e, ok := resources.FindEnemy(m.ID); ok && resources.IsCombat(kind) {
+			label = fmt.Sprintf("%s (level %d)", label, e.Level)
+		}
+		if button(label+"##"+string(kind)+m.ID, !full) {
+			a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
+				Kind: kind, Material: m.ID, Place: place.Name, Amount: resources.GoalAmounts[0],
+			}})
+		}
+		if imgui.IsItemHovered() && len(m.Inputs) > 0 {
+			imgui.SetTooltip(recipeTooltip(m))
+		}
+	}
+}
+
+// recipeTooltip says what a craft uses and makes.
+func recipeTooltip(m resources.Material) string {
+	var uses []string
+	for _, in := range m.Inputs {
+		uses = append(uses, fmt.Sprintf("%d %s", in.Count, resources.ItemUnits[in.Item]))
+	}
+	return fmt.Sprintf("%s: uses %s, makes %d", m.Label, strings.Join(uses, " and "), m.Output())
 }
 
 // visitButtons offers each building in the village to walk to; its window

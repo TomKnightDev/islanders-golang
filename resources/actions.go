@@ -65,18 +65,22 @@ func IsVisit(k ActionKind) bool { return k == ActionVisit }
 type Building string
 
 const (
-	BuildingBank  Building = "bank"
-	BuildingStore Building = "store"
-	BuildingInn   Building = "inn"
+	BuildingBank     Building = "bank"
+	BuildingStore    Building = "store"
+	BuildingInn      Building = "inn"
+	BuildingAnvil    Building = "anvil"    // improving metal gear and tools
+	BuildingFletcher Building = "fletcher" // improving bows and staves
 )
 
 // Buildings lists them in the order the action window offers them.
-var Buildings = []Building{BuildingBank, BuildingStore, BuildingInn}
+var Buildings = []Building{BuildingBank, BuildingStore, BuildingInn, BuildingAnvil, BuildingFletcher}
 
 var BuildingNames = map[Building]string{
-	BuildingBank:  "bank",
-	BuildingStore: "store",
-	BuildingInn:   "inn",
+	BuildingBank:     "bank",
+	BuildingStore:    "store",
+	BuildingInn:      "inn",
+	BuildingAnvil:    "anvil",
+	BuildingFletcher: "fletcher",
 }
 
 // GoalAmounts are the amounts the action window offers: how many to gather,
@@ -85,14 +89,26 @@ var GoalAmounts = []int{10, 20, 50, 100}
 
 // Material is one tier an action can work with.
 type Material struct {
-	ID    string   // unique within the action, e.g. "copper"
-	Label string   // as it reads after the action's verb: "copper", "oak arrows"
-	Level int      // skill level needed
-	XP    int      // XP per item gathered, or per input crafted
-	Item  ItemKind // what it gives: ore, logs, crops, bars, arrows
-	Input ItemKind // crafting only: what it uses from the bank
-	Node  int      // gathering only: the object sprite it's gathered from
+	ID     string       // unique within the action, e.g. "copper"
+	Label  string       // as it reads after the action's verb: "copper", "oak arrows"
+	Tier   string       // optional row in the action picker, e.g. "Copper"; Short is the label within it
+	Short  string       // optional shorter label for the action picker, within its tier's row
+	Level  int          // skill level needed
+	XP     int          // XP per item gathered, or per craft
+	Item   ItemKind     // what it gives: ore, logs, crops, bars, arrows, gear
+	Inputs []Ingredient // crafting only: what one craft uses from the bank
+	Makes  int          // crafting only: how many one craft makes (0 means 1)
+	Node   int          // gathering only: the object sprite it's gathered from
 }
+
+// Ingredient is Count of an item used by one craft.
+type Ingredient struct {
+	Item  ItemKind
+	Count int
+}
+
+// Output is how many one craft makes.
+func (m Material) Output() int { return max(m.Makes, 1) }
 
 // ActionMaterials lists each action's tiers, lowest first.
 var ActionMaterials = map[ActionKind][]Material{
@@ -113,16 +129,16 @@ var ActionMaterials = map[ActionKind][]Material{
 		{ID: "cotton", Label: "cotton", Level: 10, XP: 18, Item: ItemCotton, Node: TileCotton},
 	},
 	ActionSmelt: {
-		{ID: "copper", Label: "copper bars", Level: 1, XP: 12, Item: ItemCopperBar, Input: ItemCopperOre},
-		{ID: "iron", Label: "iron bars", Level: 15, XP: 28, Item: ItemIronIngot, Input: ItemIronOre},
-		{ID: "gold", Label: "gold bars", Level: 30, XP: 50, Item: ItemGoldBar, Input: ItemGoldOre},
-		{ID: "mithril", Label: "mithril bars", Level: 45, XP: 90, Item: ItemMithrilBar, Input: ItemMithrilOre},
+		{ID: "copper", Label: "copper bars", Level: 1, XP: 12, Item: ItemCopperBar, Inputs: []Ingredient{{ItemCopperOre, 1}}},
+		{ID: "iron", Label: "iron bars", Level: 15, XP: 28, Item: ItemIronIngot, Inputs: []Ingredient{{ItemIronOre, 1}}},
+		{ID: "gold", Label: "gold bars", Level: 30, XP: 50, Item: ItemGoldBar, Inputs: []Ingredient{{ItemGoldOre, 1}}},
+		{ID: "mithril", Label: "mithril bars", Level: 45, XP: 90, Item: ItemMithrilBar, Inputs: []Ingredient{{ItemMithrilOre, 1}}},
 	},
 	ActionFletch: {
-		{ID: "oak", Label: "oak arrows", Level: 1, XP: 12, Item: ItemOakArrows, Input: ItemOakLogs},
-		{ID: "pine", Label: "pine arrows", Level: 15, XP: 28, Item: ItemPineArrows, Input: ItemPineLogs},
-		{ID: "maple", Label: "maple arrows", Level: 30, XP: 50, Item: ItemMapleArrows, Input: ItemMapleLogs},
-		{ID: "darkoak", Label: "dark oak arrows", Level: 45, XP: 90, Item: ItemDarkOakArrows, Input: ItemDarkOakLogs},
+		{ID: "oak", Label: "oak arrows", Level: 1, XP: 12, Item: ItemOakArrows, Inputs: []Ingredient{{ItemOakLogs, 1}}, Makes: ArrowsPerLog},
+		{ID: "pine", Label: "pine arrows", Level: 15, XP: 28, Item: ItemPineArrows, Inputs: []Ingredient{{ItemPineLogs, 1}}, Makes: ArrowsPerLog},
+		{ID: "maple", Label: "maple arrows", Level: 30, XP: 50, Item: ItemMapleArrows, Inputs: []Ingredient{{ItemMapleLogs, 1}}, Makes: ArrowsPerLog},
+		{ID: "darkoak", Label: "dark oak arrows", Level: 45, XP: 90, Item: ItemDarkOakArrows, Inputs: []Ingredient{{ItemDarkOakLogs, 1}}, Makes: ArrowsPerLog},
 	},
 }
 

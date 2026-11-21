@@ -13,13 +13,14 @@ import (
 // and the gear in the backpack they can equip. Gear in the bank is equipped
 // from the bank window.
 type Equipment struct {
+	Open  bool // shown; the menu bar toggles it
 	mgr   *renderer.Manager
 	send  func(resources.EquipCommandContents)
 	state resources.InventoryContents
 }
 
 func NewEquipment(mgr *renderer.Manager, send func(resources.EquipCommandContents)) *Equipment {
-	return &Equipment{mgr: mgr, send: send}
+	return &Equipment{Open: true, mgr: mgr, send: send}
 }
 
 func (e *Equipment) SetState(c resources.InventoryContents) { e.state = c }
@@ -34,9 +35,12 @@ func (e *Equipment) level(s resources.Skill) int {
 }
 
 func (e *Equipment) Update() error {
+	if !e.Open {
+		return nil
+	}
 	w, _ := screenSize()
 	placeWindow("Equipment", imgui.Vec2{X: w - windowMargin, Y: inventoryTop - windowMargin}, imgui.Vec2{X: 1, Y: 1})
-	imgui.BeginV("Equipment", nil, imgui.WindowFlagsAlwaysAutoResize)
+	imgui.BeginV("Equipment", &e.Open, imgui.WindowFlagsAlwaysAutoResize)
 
 	worn := map[resources.EquipSlot]resources.Stack{}
 	for _, it := range e.state.Equipment {
@@ -103,7 +107,7 @@ func (e *Equipment) slots(worn map[resources.EquipSlot]resources.Stack, slots []
 		imgui.Text(fmt.Sprintf("%-8s", resources.SlotNames[slot]))
 		imgui.SameLine()
 		if s, ok := worn[slot]; ok {
-			name := fmt.Sprintf("%s q%d", resources.ItemNames[s.Kind], s.Quality)
+			name := fmt.Sprintf("%s q%d%s", resources.ItemNames[s.Kind], s.Quality, wornText(s))
 			if slot == resources.SlotAmmo {
 				name = fmt.Sprintf("%s x%d q%d", resources.ItemNames[s.Kind], s.Count, s.Quality)
 			}
@@ -115,6 +119,7 @@ func (e *Equipment) slots(worn map[resources.EquipSlot]resources.Stack, slots []
 			if imgui.Button("Remove") {
 				e.send(resources.EquipCommandContents{Op: resources.EquipOpUnequip, Slot: slot})
 			}
+			repairButton(s, e.state.Skills, resources.RepairCommandContents{Slot: slot})
 		} else if resources.ActionToolSlot(slot) {
 			dimmed("Empty: that work goes at half speed")
 		} else {

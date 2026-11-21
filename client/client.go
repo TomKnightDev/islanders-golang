@@ -35,6 +35,7 @@ var addr string //= flag.String("addr", "localhost:8000", "http service address"
 type Client struct {
 	SendChan       chan *resources.Message
 	RecvChan       chan *resources.Message
+	done           chan struct{} // closed on logging out, ending this connection's goroutines
 	NetworkPlayers map[uint16]*entities.NetworkPlayer
 	Player         *entities.Player
 }
@@ -50,6 +51,8 @@ var FightPanel = &gui.FightPanel{}
 var ShopWindow = &gui.Shop{}
 var BankWindow = &gui.Bank{}
 var InnWindow = &gui.Inn{}
+var StationWindow = &gui.Station{}
+var GuideWindow *gui.Guide
 var DevWindow *gui.Dev
 var world *entities.World
 var client = &Client{}
@@ -74,8 +77,12 @@ func init() {
 func connectToServer(g *Game) error {
 	fmt.Println("Client starting...")
 
-	client.SendChan = make(chan *resources.Message)
-	client.RecvChan = make(chan *resources.Message, 1024)
+	// This connection's channels. Its goroutines hold on to these, so after
+	// logging out nothing from the old connection reaches a new one.
+	send := make(chan *resources.Message)
+	recv := make(chan *resources.Message, 1024)
+	done := make(chan struct{})
+	client.SendChan, client.RecvChan, client.done = send, recv, done
 
 	addr = g.serverAddr
 
@@ -104,24 +111,37 @@ func connectToServer(g *Game) error {
 			message := &resources.Message{}
 			err := conn.ReadJSON(message)
 			if err != nil {
-				log.Println("Read error:", err)
+				select {
+				case <-done: // logged out
+				default:
+					log.Println("Read error:", err)
+				}
 				return
 			}
 
 			if message.MessageType == resources.FailedToConnectMessage {
 				messageContents := message.Contents.(string)
 				g.ConnectFailedMessage <- messageContents
-				client.SendChan <- resources.NewFailedToConnectMessage(messageContents)
+				send <- resources.NewFailedToConnectMessage(messageContents)
 				log.Printf("failed to connect: %s", messageContents)
 				return
 			}
-			client.RecvChan <- message
+			select {
+			case recv <- message:
+			case <-done:
+				return
+			}
 		}
 	}()
 
-	// Send
+	// Send, until logging out closes the connection.
 	for {
-		message := <-client.SendChan
+		var message *resources.Message
+		select {
+		case message = <-send:
+		case <-done:
+			return nil
+		}
 		if message.MessageType == resources.FailedToConnectMessage {
 			return fmt.Errorf("failed to connect: %v", message)
 		}
@@ -209,12 +229,17 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	client.Player.Cam = cam
 	client.Player.WorldMap = worldMap
 
-	go func(client *Client) {
+	done, send, player := client.done, client.SendChan, client.Player
+	go func() {
 		for {
-			move := <-client.Player.SendChan
-			client.SendChan <- resources.NewMoveRequestMessage(client.Player.Id, move)
+			select {
+			case move := <-player.SendChan:
+				send <- resources.NewMoveRequestMessage(player.Id, move)
+			case <-done:
+				return
+			}
 		}
-	}(client)
+	}()
 
 	g.Player = client.Player
 
@@ -247,6 +272,16 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	g.Gui = append(g.Gui, ShopWindow)
 	InnWindow = gui.NewInn(g.renderMgr)
 	g.Gui = append(g.Gui, InnWindow)
+	StationWindow = gui.NewStation(g.renderMgr, func(c resources.StationCommandContents) {
+		go func() { client.SendChan <- resources.NewStationCommandMessage(c) }()
+	})
+	g.Gui = append(g.Gui, StationWindow)
+	gui.SendRepair = func(c resources.RepairCommandContents) {
+		go func() { client.SendChan <- resources.NewRepairCommandMessage(c) }()
+	}
+	GuideWindow = gui.NewGuide(g.renderMgr)
+	InfoWindow.OpenGuide = func() { GuideWindow.Open = true }
+	g.Gui = append(g.Gui, GuideWindow)
 
 	DevWindow = gui.NewDev(func(c resources.DevCommandContents) {
 		go func() { client.SendChan <- resources.NewDevCommandMessage(c) }()
@@ -268,8 +303,13 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	// order the player made them.
 	actionOut := make(chan resources.ActionCommandContents, 32)
 	go func() {
-		for c := range actionOut {
-			client.SendChan <- resources.NewActionCommandMessage(c)
+		for {
+			select {
+			case c := <-actionOut:
+				send <- resources.NewActionCommandMessage(c)
+			case <-done:
+				return
+			}
 		}
 	}()
 	ActionsWindow = gui.NewActions(g.renderMgr, client.Player, worldMap.Places)
@@ -290,12 +330,28 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 	}))
 
 	// Messages from chat send channel will be forwarded to the client send channel
-	go func(client *Client, chat *gui.Chat) {
+	go func(chat *gui.Chat) {
 		for {
-			message := <-chat.SendChan
-			client.SendChan <- resources.NewChatMessage(client.Player.Id, message)
+			select {
+			case message := <-chat.SendChan:
+				send <- resources.NewChatMessage(player.Id, message)
+			case <-done:
+				return
+			}
 		}
-	}(client, ChatWindow)
+	}(ChatWindow)
+
+	// The bar along the top: a link per window, and Log out.
+	bar := gui.NewMenuBar()
+	bar.Add("Info", &InfoWindow.Open)
+	bar.Add("Skills", &SkillsWindow.Open)
+	bar.Add("Actions", &ActionsWindow.Open)
+	bar.Add("Inventory", &InventoryWindow.Open)
+	bar.Add("Equipment", &EquipmentWindow.Open)
+	bar.Add("Chat", &ChatWindow.Open)
+	bar.Add("Guide", &GuideWindow.Open)
+	bar.Logout = func() { logout(g) }
+	g.Gui = append(g.Gui, bar)
 
 }
 
@@ -431,6 +487,7 @@ func receiveInventoryMessage(message *resources.Message) {
 	EquipmentWindow.SetState(contents)
 	BankWindow.SetState(contents)
 	InnWindow.SetState(contents)
+	StationWindow.SetState(contents)
 	if client.Player != nil {
 		client.Player.Health, client.Player.MaxHealth = contents.Health, contents.MaxHealth
 		client.Player.Stamina, client.Player.MaxStamina = contents.Stamina, contents.MaxStamina
@@ -446,4 +503,25 @@ func receiveObjectUpdateMessage(message *resources.Message) {
 	if world != nil {
 		world.SetTile(u.X, u.Y, resources.LayerObject, u.Tile)
 	}
+}
+
+// logout closes the connection and goes back to the login screen. The
+// character stays in the world, as it does whenever a player disconnects.
+func logout(g *Game) {
+	if client.done != nil {
+		close(client.done)
+		client.done = nil
+	}
+	client.RecvChan = make(chan *resources.Message, 1024) // drop anything still queued
+	client.Player = nil
+	client.NetworkPlayers = map[uint16]*entities.NetworkPlayer{}
+	cam, world = nil, nil
+	g.Player = nil
+	g.Environment = nil
+	g.Entities = map[uint16]Entity{}
+	gui.ResetLayout()
+
+	g.menu.Connected = false
+	g.menu.FailedToConnect = nil
+	g.Gui = []Entity{g.menu}
 }

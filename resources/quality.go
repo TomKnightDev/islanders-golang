@@ -58,6 +58,19 @@ func CraftedQuality(inputQuality, level int, tool *Stack, r *rand.Rand) int {
 	return clampQuality(min(inputQuality, cap) - 2 + r.Intn(5))
 }
 
+// MadeQuality is the quality of a new piece of gear or a tool: rough, at
+// around half the maker's skill (plus a little for their tool), and never
+// better than its materials. Improving is how pieces get good.
+func MadeQuality(inputQuality, level int, tool *Stack, r *rand.Rand) int {
+	q := level / 2
+	if tool != nil {
+		q += EffectiveQuality(tool.Quality, tool.Damage) / 10
+	} else {
+		q /= 2
+	}
+	return clampQuality(min(inputQuality, q-3+r.Intn(7)))
+}
+
 func clampQuality(q int) int { return min(max(q, 1), MaxQuality) }
 
 // IsPiece reports whether an item is an individual piece with its own

@@ -15,7 +15,7 @@ bank bars ──► craft equipment at the anvil ──► better equipment make
 
 ### The action window
 - **Finding places.** A village, mine, named forest or farm is *found* once the player walks into it (within its radius plus 2 tiles). Everyone starts having found their spawn village.
-- **Adding actions.** The Actions window holds just the list and its buttons: **Add action**, **Start**/**Stop**. **Add action** opens a separate picker window, which stays open while you add several. It shows one row per action (Mine, Chop, Farm, Smelt, Fletch), at the **nearest found place** for it, with its distance and a button per material. Materials the player doesn't have the level for are greyed out with the level needed. Actions with no place found yet say what to look for.
+- **Adding actions.** The Actions window holds just the list and its buttons: **Add action**, **Start**/**Stop**. **Add action** opens a separate picker window, which stays open while you add several. It shows one row per action (Mine, Chop, Farm, Smelt, Fletch), at the **nearest found place** for it, with its distance and a button per material. Only what the player can do now is shown: actions with no place found yet, and materials above the player's level, are left out.
 - **The action list** holds up to 5 actions. Clicking an action adds it to the end. Adding one to an empty list starts the list straight away. Entries can be moved up or down or removed.
 - **Goals.** Each action has an amount: gather, make or defeat **10, 20, 50 or 100**, picked with buttons and changeable at any time. New actions start at 10. Only what the action itself does counts, not what's already in the bank.
 - **Running the list.** **Start** works through the list from the top. When an action's goal is met, the character first banks anything it's carrying, then moves on. When the list is empty the character goes idle.
@@ -27,6 +27,7 @@ bank bars ──► craft equipment at the anvil ──► better equipment make
 The game is meant to be played for hundreds of hours, so skills level slowly, with lots to unlock on the way.
 
 - **Gathering and crafting skills:** Mining, Woodcutting, Farming, Smithing (smelting), Fletching. Each action trains one. The six combat skills are under Combat, and Stamina under Stamina and inns.
+- **Repair** trains by repairing worn gear and tools (see Repairing).
 - **Levels 1–99.** The XP curve roughly doubles every seven levels: level 2 at 83 XP, level 50 at about 100,000, level 99 at about 13 million.
 - **XP** comes from every item gathered, every input crafted and every enemy defeated. Higher tiers give more. Every award is then halved (`xpRateNum`/`xpRateDen` in `server/jobs.go`), so the tables below show XP before that.
 - **Speed.** Each level takes 0.4% off that skill's step time, so level 99 works in about 61% of the base time.
@@ -56,7 +57,7 @@ All three work the same way, from *nodes* of the chosen material at the action's
 Mines are ranked by distance from the spawn: the nearest has copper and iron, the next iron and gold, the farthest gold and mithril. Forests have whichever trees grew there. Every farm has rows of cabbages and cotton. Only trees inside a named forest can be chopped; scattered trees are scenery. A node with no walkable tile beside it is skipped.
 
 ### Visiting buildings
-- **Visit** is an action for a village's **bank**, **store** or **inn**. The character walks there, the action finishes, and the list stops so the building's window opens; **Start** carries on with the rest of the list. Walking up to a building by clicking does the same.
+- **Visit** is an action for a village's **bank**, **store**, **inn**, **anvil** or **fletcher**. The character walks there, the action finishes, and the list stops so the building's window opens; **Start** carries on with the rest of the list. Walking up to a building by clicking does the same.
 - **Store:** buy into the backpack and sell from it. Prices are in `docs/ECONOMY.md`.
 - **Inn:** a Quests and Rumours window. There are no quests yet. Rumours give directions from the inn to the three nearest places the player hasn't found ("Travellers speak of a mine called Greyrock, about 40 tiles north-east of here, where copper ore is mined.").
 
@@ -123,7 +124,7 @@ A new name gets a **Create your character** screen before the character exists. 
 - **Weapons:** a training sword; copper, iron, gold and mithril swords (Melee 1/15/30/45); oak, pine, maple and dark oak shortbows (Ranged 1/15/30/45). Bows are two-handed, attack from up to 5 tiles, and use one arrow from the ammo slot per shot; equipping arrows moves all of that kind from the bank. Better arrows hit harder.
 - **Armour:** helmet, platebody and shield in each metal (Defence 1/15/30/45).
 - **Starting kit:** set by the character's class (see Classes), plus 5 cabbages in the bank.
-- Gear comes from camp loot for now; crafting it at the anvil is a later phase.
+- Gear comes from camp loot, stores, or making it (see Making gear).
 
 ### Camps and fighting
 - **Four camps**, easiest nearest the spawn: Goblin Camp (goblins, level 3), Bandit Hideout (bandits, 12), Orc Warband (orc warriors, 28), Skeleton Ruins (skeletons, 45). Each is a dirt clearing with huts (ruins for the skeletons) and four enemies who wander near home, with health bars when hurt.
@@ -152,19 +153,27 @@ A container is full for an item when every slot is used and every stack of that 
 ### Bank
 Every village has a bank building, and every player has their own bank account, shared across all banks. Deposits and withdrawals only touch the player's own account, and capacity is per account.
 
-### Crafting
-- The blacksmith's anvil opens a recipe list. Each recipe uses ingots from the bank and takes time at the anvil.
-- Equipment goes into slots on the character and changes job stats.
-- First recipes:
+### Making gear
+- Gear is made by hand at the station, not from the action list: **Visit** the village's **anvil** or **fletcher** (or walk up to it) and use the **Make** tab of its window. It lists the recipes made there that the player has the level for, a row per metal or wood; picking one shows the ingredients needed against what's in the backpack, and the tool. **Make 1**, **Make 5** or **Make all** then works through them, the pieces going into the backpack. Making stops when done, out of materials, too tired, or on walking away.
+- **Anvil** (Smithing, hammer), from each metal's bars: the five tools (1 bar), helmets (2), swords (2), shields (3) and bodies (4). Copper needs level 1 plus 0–8 depending on the piece; iron, gold and mithril start at 15, 30 and 45.
+- **Fletcher** (Fletching, knife): shortbows (3 logs) and staves (2 logs and a bar of the matching tier: oak with copper, pine with iron, maple with gold, dark oak with mithril), at the wood's level plus 4 (bows) or 8 (staves). Arrows are still a Fletch action.
+- A piece takes 10 s per bar at the anvil, or 8 s per log or bar at the fletcher, scaled by skill and tool; without the tool it's half speed.
+- **New gear comes out rough:** quality around half the maker's level (plus a tenth of their tool's quality; halved again with no tool), and never better than the ingredients.
 
-| Item | Cost | Effect |
-|---|---|---|
-| Iron pickaxe | 3 ingots | Mining is 25% faster |
-| Iron backpack straps | 5 ingots | Backpack holds +10 |
-| Iron helmet | 4 ingots | Cosmetic for now |
+### Repairing
+- Any worn piece (wear shows as "40% worn") can be repaired anywhere with its **Repair** button: in the Equipment window for what's worn, the Inventory window for the backpack, and the Bank window at a bank.
+- Repairing takes the wear back to 0% but costs quality: about 1 for every 20% of wear at Repair level 1, down to a third of that at level 99, and always at least 1.
+- Each repair gives Repair XP: half a point per 1% of wear mended (before the XP rate), so it rises slowly.
+
+### Improving
+- Improving also happens at the station: the **Improve** tab of the **anvil** (metal gear and tools) or **fletcher** (bows and staves) window lists the pieces in the backpack that can be improved there.
+- Picking a piece shows what it needs: the recipe's level, units of its main material (bars for metal, logs for bows and staves) **better than the piece's quality**, carried in the backpack, and the matching tool on the belt (hammer or knife). **Start improving** then works on it, an attempt every 10 s (scaled by skill and tool).
+- **Each attempt** uses a quarter of a unit (the cheapest one still better than the piece) and wears the tool by 1%; at 100% the tool breaks and is gone. Success raises the piece's quality by 1 or more, never past the material's quality. The chance is 85% up to the player's level and falls 2% for each quality point above it (never below 10%). A failure costs 1 quality.
+- Each attempt gives the recipe's XP per unit of ingredient, plus 5% for each quality point the piece is above the player's level.
+- Improving stops on **Stop**, on walking away, when no carried material is better than the piece, when the tool breaks, or when the player is too tired.
 
 ### Screen layout
-Each time the game loads, the windows snap to their places: **Info** top left with **Skills** below it, **Actions** top right (the action picker opens beside it), **Inventory** bottom right, and **Chat** bottom left with its message box along the bottom (Enter sends). The progress bar sits bottom middle. Windows can be moved during a session.
+The **Guide** (the Info window's Guide button, or F1) explains the game page by page: getting started, the action list, skills, stamina, banks and stores, quality and tools, making gear (with every recipe and its level), improving and fighting. A **bar along the top** has a link for each window (Info, Skills, Actions, Inventory, Equipment, Chat, Guide) that opens or closes it, and **Log out**, which goes back to the login screen; the character stays in the world. Each time the game loads, the windows snap to their places: **Info** top left with **Skills** below it, **Actions** top right (the action picker opens beside it), **Inventory** bottom right, and **Chat** bottom left with its message box along the bottom (Enter sends). The progress bar sits bottom middle. Windows can be moved during a session.
 
 ### Camera and route
 The camera follows the character. Click and drag the map to look around; a plain click still walks there. While the camera is free, a **Follow my character** button at the top of the screen brings it back. Your own route is drawn as a line from your character to where they're heading; nobody else sees it.

@@ -13,12 +13,13 @@ import (
 // Skills lists the player's skills with their level and progress towards
 // the next one.
 type Skills struct {
+	Open   bool // shown; the menu bar toggles it
 	mgr    *renderer.Manager
 	skills []resources.SkillState
 }
 
 func NewSkills(mgr *renderer.Manager) *Skills {
-	return &Skills{mgr: mgr}
+	return &Skills{Open: true, mgr: mgr}
 }
 
 func (s *Skills) SetState(skills []resources.SkillState) {
@@ -26,8 +27,11 @@ func (s *Skills) SetState(skills []resources.SkillState) {
 }
 
 func (s *Skills) Update() error {
+	if !s.Open {
+		return nil
+	}
 	placeWindow("Skills", imgui.Vec2{X: windowMargin, Y: infoBottom + windowMargin}, imgui.Vec2{})
-	imgui.BeginV("Skills", nil, imgui.WindowFlagsAlwaysAutoResize)
+	imgui.BeginV("Skills", &s.Open, imgui.WindowFlagsAlwaysAutoResize)
 	total := 0
 	for _, st := range s.skills {
 		total += st.Level

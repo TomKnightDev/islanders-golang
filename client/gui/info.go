@@ -12,15 +12,19 @@ import (
 )
 
 type Info struct {
+	Open   bool // shown; the menu bar toggles it
 	mgr    *renderer.Manager
 	player *entities.Player
 	// SendChat posts a chat message; used by "Share location".
 	SendChat func(string)
+	// OpenGuide shows the player guide.
+	OpenGuide func()
 }
 
 func NewInfo(screenWidth, screenHeight int, player *entities.Player, mgr *renderer.Manager) *Info {
 
 	info := Info{
+		Open:   true,
 		mgr:    mgr,
 		player: player,
 	}
@@ -29,8 +33,12 @@ func NewInfo(screenWidth, screenHeight int, player *entities.Player, mgr *render
 }
 
 func (info *Info) Update() error {
-	placeWindow("Info", imgui.Vec2{X: windowMargin, Y: windowMargin}, imgui.Vec2{})
-	imgui.BeginV("Info", nil, imgui.WindowFlagsAlwaysAutoResize)
+	if !info.Open {
+		infoBottom = topMargin()
+		return nil
+	}
+	placeWindow("Info", imgui.Vec2{X: windowMargin, Y: topMargin()}, imgui.Vec2{})
+	imgui.BeginV("Info", &info.Open, imgui.WindowFlagsAlwaysAutoResize)
 	imgui.Text(fmt.Sprintf("Name: %s", info.player.Username))
 	if mh := info.player.MaxHealth; mh > 0 {
 		imgui.Text("Health")
@@ -64,6 +72,12 @@ func (info *Info) Update() error {
 			msg += ", " + where
 		}
 		info.SendChat(msg)
+	}
+	if info.OpenGuide != nil {
+		imgui.SameLine()
+		if imgui.Button("Guide (F1)") {
+			info.OpenGuide()
+		}
 	}
 	infoBottom = imgui.WindowPos().Y + imgui.WindowSize().Y
 	imgui.End()

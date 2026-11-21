@@ -25,8 +25,20 @@ func (w *World) buildingTiles(b resources.Building) []tile {
 			out = append(out, s.t)
 		}
 		return out
+	case resources.BuildingAnvil:
+		return stationTiles(w.stations[resources.ObjectAnvil])
+	case resources.BuildingFletcher:
+		return stationTiles(w.stations[resources.ObjectFletcher])
 	}
 	return nil
+}
+
+func stationTiles(byVillage map[string]tile) []tile {
+	var out []tile
+	for _, t := range byVillage {
+		out = append(out, t)
+	}
+	return out
 }
 
 // buildingTile is a village's building of a kind.
@@ -41,20 +53,30 @@ func (w *World) buildingTile(b resources.Building, village string) (tile, bool) 
 
 // visiting is the building p is standing at, if any. Buildings only open to
 // a player who's stopped there with the action list stopped; jobs bank and
-// rest on their own.
+// rest on their own. Where several are in reach, the one the player clicked
+// or visited wins, then the nearest.
 func (w *World) visiting(p *player) visit {
 	if p.running || len(p.path) > 0 {
 		return visit{}
 	}
 	at := p.currentTile()
+	var best visit
+	bestDist, found := 0, false
 	for _, b := range resources.Buildings {
 		for _, t := range w.buildingTiles(b) {
-			if max(abs(t.x-at.x), abs(t.y-at.y)) <= buildingReach {
-				return visit{b, w.villageAt(t)}
+			if max(abs(t.x-at.x), abs(t.y-at.y)) > buildingReach {
+				continue
+			}
+			d := abs(t.x-at.x) + abs(t.y-at.y)
+			if t == p.visitPrefer {
+				d = -1
+			}
+			if !found || d < bestDist {
+				best, bestDist, found = visit{b, w.villageAt(t)}, d, true
 			}
 		}
 	}
-	return visit{}
+	return best
 }
 
 // bankOpen is the village whose bank p is standing at, if any.

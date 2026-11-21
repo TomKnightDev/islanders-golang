@@ -36,6 +36,7 @@ type Game struct {
 	ConnectFailedMessage chan string
 	renderMgr            *renderer.Manager
 	uiFont               imgui.Font
+	menu                 *gui.MainMenu // the login screen, shown again on logging out
 }
 
 func (g *Game) Update() error {
@@ -44,6 +45,10 @@ func (g *Game) Update() error {
 	// F12 opens the dev window (game speed, for testing).
 	if inpututil.IsKeyJustPressed(ebiten.KeyF12) && DevWindow != nil {
 		DevWindow.Open = !DevWindow.Open
+	}
+	// F1 opens the player guide.
+	if inpututil.IsKeyJustPressed(ebiten.KeyF1) && GuideWindow != nil {
+		GuideWindow.Open = !GuideWindow.Open
 	}
 
 	if g.Player != nil {
@@ -135,6 +140,7 @@ func main() {
 	game.renderMgr.Cache.ResetFontAtlasCache(ebiten.FilterNearest)
 
 	mm := gui.NewMainMenu(game.screenWidth, game.screenHeight, game.renderMgr)
+	game.menu = mm
 
 	go func() {
 		for {
@@ -148,11 +154,10 @@ func main() {
 			game.serverAddr = <-mm.Connect
 			game.username = <-mm.Connect
 			game.password = <-mm.Connect
-			err := connectToServer(game)
-			if err != nil {
+			// Returns when the connection fails or the player logs out; then
+			// the login screen is back, waiting for the next try.
+			if err := connectToServer(game); err != nil {
 				log.Printf("Failed to connect %s to server: %s", game.username, err)
-			} else {
-				return
 			}
 		}
 	}()

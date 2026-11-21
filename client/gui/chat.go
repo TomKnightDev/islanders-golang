@@ -7,6 +7,7 @@ import (
 )
 
 type Chat struct {
+	Open         bool // shown; the menu bar toggles it
 	mgr          *renderer.Manager
 	message      string
 	SendChan     chan string
@@ -16,6 +17,7 @@ type Chat struct {
 func NewChat(screenWidth, screenHeight int, mgr *renderer.Manager) *Chat {
 
 	chat := Chat{
+		Open:     true,
 		mgr:      mgr,
 		SendChan: make(chan string),
 	}
@@ -24,10 +26,13 @@ func NewChat(screenWidth, screenHeight int, mgr *renderer.Manager) *Chat {
 }
 
 func (chat *Chat) Update() error {
+	if !chat.Open {
+		return nil
+	}
 	_, h := screenSize()
 	placeWindow("Chat", imgui.Vec2{X: windowMargin, Y: h - windowMargin}, imgui.Vec2{X: 0, Y: 1})
 	imgui.SetNextWindowSizeV(imgui.Vec2{X: 560, Y: 260}, imgui.ConditionFirstUseEver)
-	imgui.Begin("Chat")
+	imgui.BeginV("Chat", &chat.Open, 0)
 
 	// Messages fill the window above the input line and stay scrolled to
 	// the newest one unless the player has scrolled up to read back.
