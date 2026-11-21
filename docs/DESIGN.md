@@ -78,7 +78,7 @@ Both run in trips from the action's village:
 ### Combat
 - **Five combat skills**: Attack (melee accuracy), Strength (melee max hit), Defence (how often enemies hit you), Ranged (bow accuracy and max hit) and Hitpoints (max health). Hitpoints starts at level 10; max health is 10 × the Hitpoints level, so 100 to start.
 - **XP.** Each point of melee damage gives 2 Attack and 2 Strength XP; ranged damage gives 4 Ranged XP; all damage gives 1⅓ Hitpoints XP; each enemy attack you block gives 2 Defence XP.
-- **Formulas** are RuneScape-style, scaled 10× to match the health numbers: an attack roll `(level + 8) × (accuracy + 64)` against a defence roll `(level + 9) × (armour + 64)` sets the hit chance, and `(level + 8) × (strength + 64) / 64` is the max hit.
+- **Formulas**, scaled 10× to match the health numbers: an attack roll `(level + 8) × (accuracy + 64)` against a defence roll `(level + 9) × (armour + 64)` sets the hit chance, and `(level + 8) × (strength + 64) / 64` is the max hit.
 - **Health** regenerates slowly out of combat and quickly while resting at a bank. **Food** heals when eaten: a cabbage restores 30.
 - **Defeat.** At 0 health you lose everything in the backpack (not your equipment), wake up in your spawn village at full health, and the action list stops.
 
@@ -233,7 +233,7 @@ Each phase is one PR and leaves the game playable.
 4. **Smelting and the action window.** Found places, a 5-action list with amount or time goals, smelting trips. *(done)*
 5. **Skills, tiers and farms.** Five skills levelling 1–99, four material tiers each, farms with cabbages and cotton, a nearest-place action window, a skills window. *(done)*
 6. **Equipment, combat and health.** Five combat skills, health and food, an equipment window, four tiered camps with enemies and loot, the Fight action. Also half-speed actions and walking, a draggable camera, the route line, and a Windows build in CI. *(done; PR #14)*
-7. **Crafting.** Make the gear that camps drop: swords, helmets, platebodies and shields from bars at the anvil, bows at the fletcher; weave cotton into cloth and cloth armour; cook or prepare better food. Equipment stats already exist (`resources.Equipment`).
+7. **Crafting.** Make the gear that camps drop: swords, helmets, platebodies and shields from bars at the anvil, bows at the fletcher; weave cotton into cloth and cloth armour; cook or prepare better food. Equipment stats already exist (`resources.Equipment`). An item quality and improving system is proposed in `docs/CRAFTING-QUALITY.md`.
 8. **Persistence.** Save characters (skills, health, bank, equipment, action lists, found places) to disk on a Docker volume, and hash passwords. Until this lands, every deploy wipes progress, which hurts more now there's combat and gear; consider doing it before crafting.
 
 ## Decisions
