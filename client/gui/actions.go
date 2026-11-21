@@ -123,17 +123,9 @@ func (a *Actions) nearestFound(kind resources.PlaceKind) (resources.Place, int, 
 	return best, bestDist, ok
 }
 
-var placeHints = map[resources.PlaceKind]string{
-	resources.PlaceMine:    "find a mine first",
-	resources.PlaceForest:  "find a named forest first",
-	resources.PlaceFarm:    "find a farm first",
-	resources.PlaceVillage: "find a village first",
-	resources.PlaceCamp:    "find a camp first",
-}
-
 // foundPlaces offers each action once, at the nearest place found for it,
-// with a button per material. Tiers the player hasn't the level for are
-// shown greyed out with the level they need.
+// with a button per material. Actions with no place found, and materials
+// the player hasn't the level for, aren't shown.
 func (a *Actions) foundPlaces() {
 	full := len(a.state.Actions) >= resources.MaxActions
 	if full {
@@ -141,53 +133,59 @@ func (a *Actions) foundPlaces() {
 	} else {
 		dimmed("Click to add to the end of the list.")
 	}
+	// Only what the player can do now: places they've found and materials
+	// they have the level for.
 	for _, kind := range resources.ActionKinds {
-		verb := resources.ActionNames[kind]
 		place, dist, ok := a.nearestFound(resources.ActionPlaceKind[kind])
 		if !ok {
-			dimmed(verb + ": " + placeHints[resources.ActionPlaceKind[kind]])
 			continue
 		}
-		imgui.Text(fmt.Sprintf("%s at %s", verb, place.Name))
+		mats := a.doable(kind, place)
+		if !resources.IsVisit(kind) && len(mats) == 0 {
+			continue
+		}
+		imgui.Text(fmt.Sprintf("%s at %s", resources.ActionNames[kind], place.Name))
 		imgui.SameLine()
 		dimmed(fmt.Sprintf("%d tiles away", dist))
-
 		if resources.IsVisit(kind) {
 			a.visitButtons(place, full)
-			continue
+		} else {
+			a.materialButtons(kind, place, mats, full)
 		}
-
-		a.materialButtons(kind, place, full)
 	}
-	dimmed("Walk into a village, mine, forest, farm or camp to find it.")
+	dimmed("Walk into a village, mine, forest, farm or camp to find more.")
 }
 
-// materialButtons offers a button per material of an action. Recipes with
-// tiers (metals, woods) get a row per tier with short labels. Materials the
-// player hasn't the level for are greyed out with the level they need.
-func (a *Actions) materialButtons(kind resources.ActionKind, place resources.Place, full bool) {
-	skill := resources.ActionSkill[kind]
-	lvl := a.level(skill)
-	// Rows by tier, in the order tiers first appear.
-	var mats []resources.Material
+// doable is the materials of an action the player can use at a place, with
+// recipes grouped into rows by tier, in the order tiers first appear.
+func (a *Actions) doable(kind resources.ActionKind, place resources.Place) []resources.Material {
+	lvl := a.level(resources.ActionSkill[kind])
 	var tiers []string
 	for _, m := range resources.ActionMaterials[kind] {
 		if !slices.Contains(tiers, m.Tier) {
 			tiers = append(tiers, m.Tier)
 		}
 	}
+	var mats []resources.Material
 	for _, tr := range tiers {
 		for _, m := range resources.ActionMaterials[kind] {
-			if m.Tier == tr {
-				mats = append(mats, m)
+			if m.Tier != tr || lvl < m.Level {
+				continue
 			}
+			if (resources.IsGathering(kind) || resources.IsCombat(kind)) && !slices.Contains(place.Materials, m.ID) {
+				continue
+			}
+			mats = append(mats, m)
 		}
 	}
+	return mats
+}
+
+// materialButtons offers a button per material. Recipes with tiers (metals,
+// woods) get a row per tier with short labels.
+func (a *Actions) materialButtons(kind resources.ActionKind, place resources.Place, mats []resources.Material, full bool) {
 	first, tier := true, ""
 	for _, m := range mats {
-		if (resources.IsGathering(kind) || resources.IsCombat(kind)) && !slices.Contains(place.Materials, m.ID) {
-			continue
-		}
 		label := strings.ToUpper(m.Label[:1]) + m.Label[1:]
 		switch {
 		case m.Tier != "" && m.Tier != tier:
@@ -204,15 +202,7 @@ func (a *Actions) materialButtons(kind resources.ActionKind, place resources.Pla
 		if e, ok := resources.FindEnemy(m.ID); ok && resources.IsCombat(kind) {
 			label = fmt.Sprintf("%s (level %d)", label, e.Level)
 		}
-		id := "##" + string(kind) + m.ID
-		if lvl < m.Level {
-			button(fmt.Sprintf("%s %d%s", label, m.Level, id), false)
-			if imgui.IsItemHovered() {
-				imgui.SetTooltip(fmt.Sprintf("%s needs %s level %d", m.Label, resources.SkillNames[skill], m.Level))
-			}
-			continue
-		}
-		if button(label+id, !full) {
+		if button(label+"##"+string(kind)+m.ID, !full) {
 			a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
 				Kind: kind, Material: m.ID, Place: place.Name, Amount: resources.GoalAmounts[0],
 			}})
