@@ -26,16 +26,17 @@ func TestMaxHit(t *testing.T) {
 }
 
 func TestEquipmentBonuses(t *testing.T) {
+	// Quality 50 gives exactly the listed bonuses.
 	b := EquipmentBonuses(map[EquipSlot]Stack{
-		SlotWeapon: {ItemOakShortbow, 1},
-		SlotAmmo:   {ItemPineArrows, 40},
-		SlotHead:   {ItemCopperHelmet, 1},
+		SlotWeapon: {Kind: ItemOakShortbow, Count: 1, Quality: 50},
+		SlotAmmo:   {Kind: ItemPineArrows, Count: 40, Quality: 50},
+		SlotHead:   {Kind: ItemCopperHelmet, Count: 1, Quality: 50},
 	})
 	if !b.Ranged || b.Accuracy != 8 || b.Strength != 14 || b.Defence != 4 {
 		t.Errorf("bow + pine arrows + helmet: %+v", b)
 	}
 	// Arrows don't add strength to a sword.
-	b = EquipmentBonuses(map[EquipSlot]Stack{SlotWeapon: {ItemCopperSword, 1}, SlotAmmo: {ItemOakArrows, 10}})
+	b = EquipmentBonuses(map[EquipSlot]Stack{SlotWeapon: {Kind: ItemCopperSword, Count: 1, Quality: 50}, SlotAmmo: {Kind: ItemOakArrows, Count: 10, Quality: 50}})
 	if b.Ranged || b.Strength != 6 {
 		t.Errorf("sword with arrows: %+v", b)
 	}

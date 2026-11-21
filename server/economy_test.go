@@ -24,7 +24,7 @@ func TestSellTripPaysAndPricesFall(t *testing.T) {
 	p := joinAt(t, w, "tom", tile{4, 5})
 	p.bank.Add(resources.ItemIronOre, 30)
 	st := w.storeIn(testVillage)
-	fullPrice := st.pays(resources.ItemIronOre)
+	fullPrice := st.pays(resources.ItemIronOre, resources.DefaultQuality)
 	addAction(w, p, sellIron(30))
 	if len(p.actions) != 1 {
 		t.Fatal("sell action refused")

@@ -8,17 +8,46 @@ const (
 	SlotHead   EquipSlot = "head"
 	SlotBody   EquipSlot = "body"
 	SlotShield EquipSlot = "shield"
+
+	// The tool belt: one slot per tool, so the action list can move from
+	// mining to chopping without swapping anything.
+	SlotPickaxe EquipSlot = "pickaxe"
+	SlotHatchet EquipSlot = "hatchet"
+	SlotSickle  EquipSlot = "sickle"
+	SlotHammer  EquipSlot = "hammer"
+	SlotKnife   EquipSlot = "knife"
 )
 
-// EquipSlots lists the slots in the order the equipment window shows them.
-var EquipSlots = []EquipSlot{SlotWeapon, SlotAmmo, SlotHead, SlotBody, SlotShield}
+// EquipSlots lists the combat slots in the order the equipment window shows
+// them; ToolSlots the tool belt.
+var (
+	EquipSlots = []EquipSlot{SlotWeapon, SlotAmmo, SlotHead, SlotBody, SlotShield}
+	ToolSlots  = []EquipSlot{SlotPickaxe, SlotHatchet, SlotSickle, SlotHammer, SlotKnife}
+)
+
+// AllSlots is every slot, combat then tools.
+var AllSlots = append(append([]EquipSlot(nil), EquipSlots...), ToolSlots...)
 
 var SlotNames = map[EquipSlot]string{
-	SlotWeapon: "Weapon",
-	SlotAmmo:   "Ammo",
-	SlotHead:   "Head",
-	SlotBody:   "Body",
-	SlotShield: "Shield",
+	SlotWeapon:  "Weapon",
+	SlotAmmo:    "Ammo",
+	SlotHead:    "Head",
+	SlotBody:    "Body",
+	SlotShield:  "Shield",
+	SlotPickaxe: "Pickaxe",
+	SlotHatchet: "Hatchet",
+	SlotSickle:  "Sickle",
+	SlotHammer:  "Hammer",
+	SlotKnife:   "Knife",
+}
+
+// ActionTool is the tool each action uses.
+var ActionTool = map[ActionKind]EquipSlot{
+	ActionMine:   SlotPickaxe,
+	ActionChop:   SlotHatchet,
+	ActionFarm:   SlotSickle,
+	ActionSmelt:  SlotHammer,
+	ActionFletch: SlotKnife,
 }
 
 // EquipDef is what an item does when worn or wielded.
@@ -33,6 +62,7 @@ type EquipDef struct {
 	Magic     bool // a staff: casts from range using Magic, no ammo
 	Drain     int  // percent of damage dealt that heals the wielder
 	TwoHanded bool // can't be used with a shield
+	TierBonus int  // tools: percent faster for the metal (copper 0 … mithril 15)
 }
 
 // Equipment items.
@@ -74,6 +104,58 @@ const (
 // necromancerDrain is how much of the damage a necromancer staff deals comes
 // back as health.
 const necromancerDrain = 25
+
+// toolMetals are the four metals tools come in, with the level each needs
+// and its speed bonus.
+var toolMetals = []struct {
+	name  string
+	level int
+	bonus int
+	value int
+}{{"Copper", 1, 0, 30}, {"Iron", 15, 5, 90}, {"Gold", 30, 10, 260}, {"Mithril", 45, 15, 750}}
+
+// toolKinds are the five tools, with the slot and skill each belongs to.
+var toolKinds = []struct {
+	name  string
+	slot  EquipSlot
+	skill Skill
+}{
+	{"pickaxe", SlotPickaxe, SkillMining},
+	{"hatchet", SlotHatchet, SkillWoodcutting},
+	{"sickle", SlotSickle, SkillFarming},
+	{"hammer", SlotHammer, SkillSmithing},
+	{"knife", SlotKnife, SkillFletching},
+}
+
+// ToolItem is the item kind for a tool of a metal, e.g. "copperPickaxe".
+func ToolItem(metal string, slot EquipSlot) ItemKind {
+	for _, k := range toolKinds {
+		if k.slot == slot {
+			return ItemKind(lowerFirst(metal) + upperFirst(k.name))
+		}
+	}
+	return ""
+}
+
+func lowerFirst(s string) string { return string(s[0]|0x20) + s[1:] }
+func upperFirst(s string) string { return string(s[0]&^0x20) + s[1:] }
+
+func init() {
+	for _, m := range toolMetals {
+		for _, k := range toolKinds {
+			item := ToolItem(m.name, k.slot)
+			Equipment[item] = EquipDef{Slot: k.slot, Skill: k.skill, Level: m.level, TierBonus: m.bonus}
+			name := m.name + " " + k.name
+			desc := "A tool for the belt in the Equipment window. Better metal and higher quality work faster and gather better materials."
+			Items[item] = ItemDef{Name: name, Unit: name, Desc: desc, Stack: 1}
+			StackLimits[item] = 1
+			ItemNames[item] = name
+			ItemUnits[item] = name
+			ItemDescriptions[item] = desc
+			Values[item] = m.value
+		}
+	}
+}
 
 var Equipment = map[ItemKind]EquipDef{
 	ItemTrainingSword: {Slot: SlotWeapon, Skill: SkillAttack, Level: 1, Accuracy: 0, Strength: 2},
@@ -185,18 +267,21 @@ func (b Bonuses) Skills() (accuracy, strength Skill) {
 // EquipmentBonuses adds up the bonuses of equipped items.
 func EquipmentBonuses(equipped map[EquipSlot]Stack) Bonuses {
 	var b Bonuses
+	scaled := func(bonus int, s Stack) int {
+		return int(float64(bonus)*GearFactor(EffectiveQuality(s.Quality, s.Damage)) + 0.5)
+	}
 	for slot, s := range equipped {
 		d, ok := Equipment[s.Kind]
 		if !ok || s.Count == 0 {
 			continue
 		}
-		b.Defence += d.Defence
+		b.Defence += scaled(d.Defence, s)
 		switch slot {
 		case SlotWeapon:
-			b.Accuracy += d.Accuracy
+			b.Accuracy += scaled(d.Accuracy, s)
 			b.Ranged, b.Magic, b.Drain = d.Ranged, d.Magic, d.Drain
 			if !d.Ranged {
-				b.Strength += d.Strength
+				b.Strength += scaled(d.Strength, s)
 			}
 		case SlotAmmo:
 			// Arrows only count when shot from a bow; added below.
@@ -204,7 +289,7 @@ func EquipmentBonuses(equipped map[EquipSlot]Stack) Bonuses {
 	}
 	if b.Ranged {
 		if ammo, ok := equipped[SlotAmmo]; ok && ammo.Count > 0 {
-			b.Strength += Equipment[ammo.Kind].Strength
+			b.Strength += scaled(Equipment[ammo.Kind].Strength, ammo)
 		}
 	}
 	return b
@@ -218,7 +303,8 @@ const (
 
 type EquipCommandContents struct {
 	Op   string    `json:"op"`
-	Item ItemKind  `json:"item"` // for equip
+	Item ItemKind  `json:"item"` // for equip: the kind, used when ID is 0 (the best of that kind is equipped)
+	ID   uint32    `json:"id"`   // for equip: the exact piece from the bank
 	Slot EquipSlot `json:"slot"` // for unequip
 }
 
@@ -228,7 +314,19 @@ func NewEquipCommandMessage(c EquipCommandContents) *Message {
 
 // EquippedItem is one filled slot as the server reports it.
 type EquippedItem struct {
-	Slot  EquipSlot `json:"slot"`
-	Item  ItemKind  `json:"item"`
-	Count int       `json:"count"`
+	Slot    EquipSlot `json:"slot"`
+	Item    ItemKind  `json:"item"`
+	Count   int       `json:"count"`
+	Quality int       `json:"quality"`
+	Damage  int       `json:"damage"`
+}
+
+// ActionToolSlot reports whether a slot is on the tool belt.
+func ActionToolSlot(slot EquipSlot) bool {
+	for _, s := range ToolSlots {
+		if s == slot {
+			return true
+		}
+	}
+	return false
 }

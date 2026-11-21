@@ -168,7 +168,12 @@ func TestEndToEndCharacterCreation(t *testing.T) {
 		}
 		var inv resources.InventoryContents
 		resources.DecodeContents(m.Contents, &inv)
-		return len(inv.Equipment) == 1 && inv.Equipment[0].Item == resources.ItemApprenticeStaff
+		for _, e := range inv.Equipment {
+			if e.Slot == resources.SlotWeapon {
+				return e.Item == resources.ItemApprenticeStaff
+			}
+		}
+		return false
 	})
 	conn.Close()
 

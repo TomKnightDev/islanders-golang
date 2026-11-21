@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"math/rand"
 	"sync"
 	"time"
 
@@ -142,24 +143,27 @@ type command func(w *World)
 // World owns all game state. Only its Run goroutine touches it; connection
 // handlers send it commands with Do.
 type World struct {
-	wm       resources.WorldMap
-	players  map[uint16]*player
-	byName   map[string]*player
-	nextID   uint16
-	nodes    map[tile]*node // rocks and trees to gather from
-	banks    []tile
-	inns     []tile
-	stores   map[string]*store                        // village name -> its general store
-	stations map[resources.ObjectKind]map[string]tile // crafting stations by kind, then village
-	mobs     []*mob
-	ticks    int
-	dev      bool // started with -dev: dev tools such as game speed are allowed
-	speed    int  // world ticks per real tick; 1 is normal
-	cmds     chan command
+	wm         resources.WorldMap
+	players    map[uint16]*player
+	byName     map[string]*player
+	nextID     uint16
+	nodes      map[tile]*node // rocks and trees to gather from
+	banks      []tile
+	inns       []tile
+	stores     map[string]*store                        // village name -> its general store
+	stations   map[resources.ObjectKind]map[string]tile // crafting stations by kind, then village
+	mobs       []*mob
+	ticks      int
+	nextItemID uint32 // for giving every piece of gear and tool its own ID
+	rng        *rand.Rand
+	dev        bool // started with -dev: dev tools such as game speed are allowed
+	speed      int  // world ticks per real tick; 1 is normal
+	cmds       chan command
 }
 
 func NewWorld(wm resources.WorldMap) *World {
 	w := &World{
+		rng:     rand.New(rand.NewSource(time.Now().UnixNano())),
 		wm:      wm,
 		players: make(map[uint16]*player),
 		byName:  make(map[string]*player),

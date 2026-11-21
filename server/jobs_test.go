@@ -171,7 +171,8 @@ func TestSmeltTiming(t *testing.T) {
 	addAction(w, p, smeltFor(3))
 	run(w, p)
 	runUntil(t, w, 2000, "smelting", func() bool { return p.job != nil && p.job.state == stateCrafting })
-	for i := 0; i < ticks(smeltTime)-1; i++ {
+	step := p.stepTicks(resources.ActionSmelt, p.skillTicks(smeltTime, resources.SkillSmithing))
+	for i := 0; i < step-1; i++ {
 		w.tick()
 	}
 	if bars(p.backpack) != 0 {
@@ -501,7 +502,8 @@ func TestActionTimingForProgressBar(t *testing.T) {
 	// Each swing restarts the bar at 0 for swingTime.
 	runUntil(t, w, 2*ticks(swingTime)+walkTicks(p)+10, "first ore", func() bool { return ore(p.backpack) == 1 })
 	inv = lastInventory(t, s)
-	if inv.Activity != activityMining || inv.ActionSeconds != swingTime.Seconds() || inv.ActionElapsed != 0 {
+	swing := float64(p.stepTicks(resources.ActionMine, p.skillTicks(swingTime, resources.SkillMining))) * tickInterval.Seconds()
+	if inv.Activity != activityMining || inv.ActionSeconds != swing || inv.ActionElapsed != 0 {
 		t.Errorf("swing: %q %vs elapsed %vs", inv.Activity, inv.ActionSeconds, inv.ActionElapsed)
 	}
 }

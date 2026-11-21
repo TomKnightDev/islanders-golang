@@ -62,16 +62,32 @@ func section(title string, c resources.Inventory) {
 		}
 	}
 	for _, k := range kinds {
-		imgui.Text(fmt.Sprintf("  %s  %d", resources.ItemNames[k], c.Count(k)))
-		if imgui.IsItemHovered() {
-			imgui.BeginTooltip()
-			imgui.PushTextWrapPosV(tooltipWidth)
-			imgui.Text(resources.ItemNames[k])
-			dimmed(resources.ItemDescriptions[k])
-			imgui.PopTextWrapPos()
-			imgui.EndTooltip()
+		if resources.IsPiece(k) {
+			// Gear and tools are listed piece by piece, each with its quality.
+			for _, s := range c.Stacks {
+				if s.Kind == k {
+					imgui.Text(fmt.Sprintf("  %s  q%d", resources.ItemNames[k], s.Quality))
+					itemTooltip(k)
+				}
+			}
+			continue
 		}
+		imgui.Text(fmt.Sprintf("  %s  %d  q%d", resources.ItemNames[k], c.Count(k), c.AverageQuality(k)))
+		itemTooltip(k)
 	}
+}
+
+// itemTooltip describes an item when the line just drawn is hovered.
+func itemTooltip(k resources.ItemKind) {
+	if !imgui.IsItemHovered() {
+		return
+	}
+	imgui.BeginTooltip()
+	imgui.PushTextWrapPosV(tooltipWidth)
+	imgui.Text(resources.ItemNames[k])
+	dimmed(resources.ItemDescriptions[k])
+	imgui.PopTextWrapPos()
+	imgui.EndTooltip()
 }
 
 func (inv *Inventory) Draw(screen *ebiten.Image) {

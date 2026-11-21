@@ -46,6 +46,13 @@ var StoreStock = []StoreItem{
 	{ItemCopperHelmet, 1.5}, {ItemCopperBody, 1.5}, {ItemCopperShield, 1.5},
 }
 
+func init() {
+	// Copper tools too, so a lost or outgrown tool can always be replaced.
+	for _, slot := range ToolSlots {
+		StoreStock = append(StoreStock, StoreItem{ToolItem("Copper", slot), 1.5})
+	}
+}
+
 // StorePrice is what a store charges for an item.
 func StorePrice(s StoreItem) int {
 	return max(1, int(float64(Values[s.Item])*s.Markup+0.5))

@@ -47,6 +47,12 @@ const (
 // their class's gear.
 const startingFood = 5
 
+// Loot quality: gear drops rough so crafted gear is worth more.
+const (
+	lootGearQuality     = 5  // to 25
+	lootMaterialQuality = 10 // to 30
+)
+
 // defaultClass is what a character gets if they're created without a
 // choice (tests use World.login directly).
 const defaultClass = resources.ClassWarrior
@@ -180,11 +186,17 @@ func (w *World) giveStartingKit(p *player, class resources.Class) {
 	p.coins = resources.StartingCoins
 	p.equipment = map[resources.EquipSlot]resources.Stack{}
 	for _, g := range class.Gear {
-		if slices.Contains(class.Equipped, g.Kind) {
-			p.equipment[resources.Equipment[g.Kind].Slot] = g
-		} else {
-			p.bank.Add(g.Kind, g.Count)
+		switch {
+		case !slices.Contains(class.Equipped, g.Kind):
+			w.give(&p.bank, g.Kind, g.Count, resources.StarterQuality)
+		case resources.IsPiece(g.Kind):
+			p.equipment[resources.Equipment[g.Kind].Slot] = w.newPiece(g.Kind, resources.StarterQuality)
+		default: // arrows
+			p.equipment[resources.Equipment[g.Kind].Slot] = resources.Stack{Kind: g.Kind, Count: g.Count, Quality: resources.StarterQuality}
 		}
+	}
+	for _, slot := range resources.ToolSlots {
+		p.equipment[slot] = w.newPiece(resources.ToolItem("Copper", slot), resources.ToolStartQuality)
 	}
 	p.bank.Add(resources.ItemCabbage, startingFood)
 }
@@ -256,8 +268,7 @@ func (w *World) atBankForFight(p *player) {
 func (w *World) collectFood(p *player) {
 	n := min(foodPerTrip, p.backpack.FreeSlots(), p.bank.Count(resources.ItemCabbage))
 	if n > 0 {
-		p.bank.Remove(resources.ItemCabbage, n)
-		p.backpack.Add(resources.ItemCabbage, n)
+		moveItems(&p.bank, &p.backpack, resources.ItemCabbage, n)
 		p.invDirty = true
 	}
 	pl := w.place(p.job.action.spec.Place)
@@ -477,7 +488,16 @@ func (w *World) afterKill(p *player) {
 	w.dropCoins(p, kind)
 	for _, drop := range kind.Loot {
 		if rand.Float64() < drop.Chance {
-			p.backpack.Add(drop.Item, drop.Min+rand.Intn(drop.Max-drop.Min+1)) // whatever doesn't fit is left behind
+			// Gear drops rough, quality 5–25; materials 10–30. Whatever doesn't
+			// fit is left behind.
+			n := drop.Min + rand.Intn(drop.Max-drop.Min+1)
+			if resources.IsPiece(drop.Item) {
+				for i := 0; i < n; i++ {
+					w.give(&p.backpack, drop.Item, 1, lootGearQuality+rand.Intn(21))
+				}
+			} else {
+				w.give(&p.backpack, drop.Item, n, lootMaterialQuality+rand.Intn(21))
+			}
 		}
 	}
 	p.invDirty = true
@@ -519,8 +539,17 @@ func (w *World) equipCommand(p *player, c resources.EquipCommandContents) {
 	case resources.EquipOpUnequip:
 		w.unequip(p, c.Slot)
 	case resources.EquipOpEquip:
-		def, ok := resources.Equipment[c.Item]
-		if !ok || p.bank.Count(c.Item) == 0 || p.level(def.Skill) < def.Level {
+		kind := c.Item
+		if c.ID != 0 {
+			kind = ""
+			for _, s := range p.bank.Stacks {
+				if s.ID == c.ID {
+					kind = s.Kind
+				}
+			}
+		}
+		def, ok := resources.Equipment[kind]
+		if !ok || p.bank.Count(kind) == 0 || p.level(def.Skill) < def.Level {
 			return
 		}
 		// Two hands or a shield, not both.
@@ -532,22 +561,48 @@ func (w *World) equipCommand(p *player, c resources.EquipCommandContents) {
 				return
 			}
 		}
-		count := 1
 		if def.Slot == resources.SlotAmmo {
-			count = p.bank.Count(c.Item) // all of that kind
-			if cur, ok := p.equipment[resources.SlotAmmo]; ok && cur.Kind == c.Item {
-				p.bank.Remove(c.Item, count)
-				cur.Count += count
-				p.equipment[resources.SlotAmmo] = cur
-				return
-			}
-		}
-		p.bank.Remove(c.Item, count)
-		if !w.unequip(p, def.Slot) {
-			p.bank.Add(c.Item, count) // no room to put the old one away
+			w.equipAmmo(p, kind)
 			return
 		}
-		p.equipment[def.Slot] = resources.Stack{Kind: c.Item, Count: count}
+		var piece resources.Stack
+		if c.ID != 0 {
+			piece, ok = p.bank.TakeID(c.ID)
+		} else {
+			piece, ok = takeBest(&p.bank, kind)
+		}
+		if !ok {
+			return
+		}
+		if !w.unequip(p, def.Slot) {
+			p.bank.AddStack(piece) // no room to put the old one away
+			return
+		}
+		p.equipment[def.Slot] = piece
+	}
+}
+
+// equipAmmo moves every arrow of a kind from the bank to the ammo slot, the
+// stack taking their average quality. The ammo slot has no size limit.
+func (w *World) equipAmmo(p *player, kind resources.ItemKind) {
+	cur, ok := p.equipment[resources.SlotAmmo]
+	if ok && cur.Kind != kind {
+		if !w.unequip(p, resources.SlotAmmo) {
+			return
+		}
+		cur, ok = resources.Stack{}, false
+	}
+	if !ok {
+		cur = resources.Stack{Kind: kind}
+	}
+	quality := cur.Quality * cur.Count
+	for _, part := range p.bank.Take(kind, p.bank.Count(kind)) {
+		quality += part.Quality * part.Count
+		cur.Count += part.Count
+	}
+	if cur.Count > 0 {
+		cur.Quality = quality / cur.Count
+		p.equipment[resources.SlotAmmo] = cur
 	}
 }
 
@@ -558,7 +613,7 @@ func (w *World) unequip(p *player, slot resources.EquipSlot) bool {
 	if !ok {
 		return true
 	}
-	if added := p.bank.Add(cur.Kind, cur.Count); added < cur.Count {
+	if added := p.bank.AddStack(cur); added < cur.Count {
 		p.bank.Remove(cur.Kind, added)
 		return false
 	}
@@ -568,9 +623,9 @@ func (w *World) unequip(p *player, slot resources.EquipSlot) bool {
 
 func (p *player) equippedItems() []resources.EquippedItem {
 	var out []resources.EquippedItem
-	for _, slot := range resources.EquipSlots {
+	for _, slot := range resources.AllSlots {
 		if s, ok := p.equipment[slot]; ok {
-			out = append(out, resources.EquippedItem{Slot: slot, Item: s.Kind, Count: s.Count})
+			out = append(out, resources.EquippedItem{Slot: slot, Item: s.Kind, Count: s.Count, Quality: s.Quality, Damage: s.Damage})
 		}
 	}
 	return out

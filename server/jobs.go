@@ -640,8 +640,7 @@ func (w *World) collectInput(p *player) {
 		w.finishAction(p, r.noInput)
 		return
 	}
-	p.bank.Remove(in, n)
-	p.backpack.Add(in, n)
+	moveItems(&p.bank, &p.backpack, in, n)
 	p.invDirty = true
 	j.state = stateWalkToStation
 	if !w.moveTo(p, j.station) {
@@ -690,7 +689,7 @@ func (w *World) tickJob(p *player) {
 			return
 		}
 		j.state = stateGathering
-		j.countdown = p.skillTicks(j.gather.swing, j.skill)
+		j.countdown = p.stepTicks(j.action.spec.Kind, p.skillTicks(j.gather.swing, j.skill))
 		w.startAction(p, j.gather.working, j.countdown)
 
 	case stateGathering:
@@ -700,7 +699,8 @@ func (w *World) tickJob(p *player) {
 		}
 		n, item := j.node, j.material.Item
 		n.amount--
-		p.backpack.Add(item, 1)
+		q := resources.GatheredQuality(p.level(j.skill), p.tool(j.action.spec.Kind), w.rng)
+		p.backpack.AddStack(resources.Stack{Kind: item, Count: 1, Quality: q})
 		w.addXP(p, j.skill, j.material.XP)
 		w.spendStamina(p, staminaPerStep)
 		p.invDirty = true
@@ -716,7 +716,7 @@ func (w *World) tickJob(p *player) {
 			w.gatherNext(p)
 		case w.exhausted(p):
 		default:
-			j.countdown = p.skillTicks(j.gather.swing, j.skill)
+			j.countdown = p.stepTicks(j.action.spec.Kind, p.skillTicks(j.gather.swing, j.skill))
 			w.startAction(p, j.gather.working, j.countdown)
 		}
 
@@ -780,7 +780,7 @@ func (w *World) tickJob(p *player) {
 			return
 		}
 		j.state = stateCrafting
-		j.countdown = p.skillTicks(j.recipe.step, j.skill)
+		j.countdown = p.stepTicks(j.action.spec.Kind, p.skillTicks(j.recipe.step, j.skill))
 		w.startAction(p, j.recipe.working, j.countdown)
 
 	case stateCrafting:
@@ -789,8 +789,9 @@ func (w *World) tickJob(p *player) {
 			return
 		}
 		r := j.recipe
-		p.backpack.Remove(j.material.Input, 1)
-		p.backpack.Add(j.material.Item, r.perInput) // the input's slot is free, so this fits
+		in := p.backpack.Take(j.material.Input, 1)
+		q := resources.CraftedQuality(in[0].Quality, p.level(j.skill), p.tool(j.action.spec.Kind), w.rng)
+		p.backpack.AddStack(resources.Stack{Kind: j.material.Item, Count: r.perInput, Quality: q}) // the input's slot is free, so this fits
 		w.addXP(p, j.skill, j.material.XP)
 		w.spendStamina(p, staminaPerStep)
 		p.invDirty = true
@@ -801,7 +802,7 @@ func (w *World) tickJob(p *player) {
 		if w.exhausted(p) {
 			return
 		}
-		j.countdown = p.skillTicks(r.step, j.skill)
+		j.countdown = p.stepTicks(j.action.spec.Kind, p.skillTicks(r.step, j.skill))
 		w.startAction(p, r.working, j.countdown)
 	}
 }

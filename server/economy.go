@@ -38,14 +38,16 @@ func (s *store) demandFor(k resources.ItemKind) float64 {
 	return 1
 }
 
-// pays is what the store gives for one of an item right now.
-func (s *store) pays(k resources.ItemKind) int {
-	return max(1, int(float64(resources.Values[k])*resources.StoreBuysAt*s.demandFor(k)))
+// pays is what the store gives for one of an item of a quality right now.
+// Higher-quality gear and tools fetch more; materials pay the same at any
+// quality.
+func (s *store) pays(k resources.ItemKind, quality int) int {
+	return max(1, int(float64(resources.QualityValue(k, quality))*resources.StoreBuysAt*s.demandFor(k)))
 }
 
 // buy pays for one item and lowers the store's demand for it.
-func (s *store) buy(k resources.ItemKind) int {
-	price := s.pays(k)
+func (s *store) buy(k resources.ItemKind, quality int) int {
+	price := s.pays(k, quality)
 	s.demand[k] = max(demandFloor, s.demandFor(k)*demandDropPerUnit)
 	return price
 }
@@ -81,8 +83,7 @@ func (w *World) collectForSale(p *player) {
 	if j.action.spec.Goal == resources.GoalAmount {
 		want = min(want, j.action.spec.Amount-j.action.count)
 	}
-	added := p.backpack.Add(k, want)
-	p.bank.Remove(k, added)
+	added := moveItems(&p.bank, &p.backpack, k, want)
 	if added == 0 {
 		w.finishAction(p, activityNoGoods)
 		return
@@ -102,12 +103,13 @@ func (w *World) sellCarried(p *player) {
 	j := p.job
 	k := resources.ItemKind(j.action.spec.Material)
 	st := w.storeIn(j.action.spec.Place)
-	n := p.backpack.Count(k)
-	total := 0
-	for i := 0; i < n; i++ {
-		total += st.buy(k)
+	n, total := 0, 0
+	for _, part := range p.backpack.Take(k, p.backpack.Count(k)) {
+		for i := 0; i < part.Count; i++ {
+			total += st.buy(k, part.Quality)
+		}
+		n += part.Count
 	}
-	p.backpack.Remove(k, n)
 	p.coins += total
 	j.action.count += n
 	p.invDirty = true
@@ -147,7 +149,11 @@ func (w *World) shopBuy(p *player, k resources.ItemKind, count int) {
 	}
 	price := resources.StorePrice(*stocked)
 	count = min(count, p.coins/price)
-	added := p.bank.Add(k, count)
+	quality := resources.DefaultQuality
+	if resources.IsPiece(k) {
+		quality = resources.StarterQuality
+	}
+	added := w.give(&p.bank, k, count, quality)
 	p.coins -= added * price
 	p.invDirty = true
 }
@@ -159,12 +165,16 @@ func (w *World) storeContents(p *player, st *store) resources.StoreContents {
 	seen := map[resources.ItemKind]bool{}
 	for _, s := range resources.StoreStock {
 		seen[s.Item] = true
-		c.Prices = append(c.Prices, resources.StorePrices{Item: s.Item, Buy: resources.StorePrice(s), Pays: st.pays(s.Item)})
+		q := p.bank.AverageQuality(s.Item)
+		if q == 0 {
+			q = resources.StarterQuality
+		}
+		c.Prices = append(c.Prices, resources.StorePrices{Item: s.Item, Buy: resources.StorePrice(s), Pays: st.pays(s.Item, q)})
 	}
 	for _, s := range p.bank.Stacks {
 		if !seen[s.Kind] && resources.Sellable(s.Kind) {
 			seen[s.Kind] = true
-			c.Prices = append(c.Prices, resources.StorePrices{Item: s.Kind, Pays: st.pays(s.Kind)})
+			c.Prices = append(c.Prices, resources.StorePrices{Item: s.Kind, Pays: st.pays(s.Kind, p.bank.AverageQuality(s.Kind))})
 		}
 	}
 	return c

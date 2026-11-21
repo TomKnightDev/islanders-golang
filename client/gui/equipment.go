@@ -39,27 +39,12 @@ func (e *Equipment) Update() error {
 
 	worn := map[resources.EquipSlot]resources.Stack{}
 	for _, it := range e.state.Equipment {
-		worn[it.Slot] = resources.Stack{Kind: it.Item, Count: it.Count}
+		worn[it.Slot] = resources.Stack{Kind: it.Item, Count: it.Count, Quality: it.Quality, Damage: it.Damage}
 	}
-	for _, slot := range resources.EquipSlots {
-		imgui.PushID(string(slot))
-		imgui.Text(fmt.Sprintf("%-7s", resources.SlotNames[slot]))
-		imgui.SameLine()
-		if s, ok := worn[slot]; ok {
-			name := resources.ItemNames[s.Kind]
-			if slot == resources.SlotAmmo {
-				name = fmt.Sprintf("%s x%d", name, s.Count)
-			}
-			imgui.Text(name)
-			imgui.SameLine()
-			if imgui.Button("Remove") {
-				e.send(resources.EquipCommandContents{Op: resources.EquipOpUnequip, Slot: slot})
-			}
-		} else {
-			dimmed("Empty")
-		}
-		imgui.PopID()
-	}
+	e.slots(worn, resources.EquipSlots)
+	imgui.Separator()
+	imgui.Text("Tool belt")
+	e.slots(worn, resources.ToolSlots)
 
 	// Combat stats from levels and gear.
 	b := resources.EquipmentBonuses(worn)
@@ -69,40 +54,79 @@ func (e *Equipment) Update() error {
 	imgui.Text(fmt.Sprintf("%s  ·  accuracy +%d  ·  max hit %d  ·  armour +%d",
 		style, b.Accuracy, resources.MaxHit(e.level(strengthSkill), b.Strength), b.Defence))
 
-	// Gear waiting in the bank.
+	// Gear and tools waiting in the bank, piece by piece; arrows by kind.
 	imgui.Separator()
 	imgui.Text("Equip from the bank")
 	any := false
-	seen := map[resources.ItemKind]bool{}
-	for _, s := range e.state.Bank.Stacks {
+	seenAmmo := map[resources.ItemKind]bool{}
+	for i, s := range e.state.Bank.Stacks {
 		def, ok := resources.Equipment[s.Kind]
-		if !ok || seen[s.Kind] {
+		if !ok || seenAmmo[s.Kind] {
 			continue
 		}
-		seen[s.Kind] = true
 		any = true
-		label := resources.ItemNames[s.Kind]
+		label := fmt.Sprintf("%s q%d", resources.ItemNames[s.Kind], s.Quality)
+		cmd := resources.EquipCommandContents{Op: resources.EquipOpEquip, Item: s.Kind, ID: s.ID}
 		if def.Slot == resources.SlotAmmo {
-			label = fmt.Sprintf("%s x%d", label, e.state.Bank.Count(s.Kind))
+			seenAmmo[s.Kind] = true
+			label = fmt.Sprintf("%s x%d q%d", resources.ItemNames[s.Kind], e.state.Bank.Count(s.Kind), e.state.Bank.AverageQuality(s.Kind))
+			cmd.ID = 0
 		}
+		id := fmt.Sprintf("##bank%d", i)
 		if have := e.level(def.Skill); have < def.Level {
-			button(fmt.Sprintf("%s (%s %d)##%s", label, resources.SkillNames[def.Skill], def.Level, s.Kind), false)
-		} else if button(label+"##"+string(s.Kind), true) {
-			e.send(resources.EquipCommandContents{Op: resources.EquipOpEquip, Item: s.Kind})
+			button(fmt.Sprintf("%s (%s %d)%s", label, resources.SkillNames[def.Skill], def.Level, id), false)
+		} else if button(label+id, true) {
+			e.send(cmd)
 		}
 		if imgui.IsItemHovered() {
-			imgui.SetTooltip(gearTooltip(def))
+			imgui.SetTooltip(gearTooltip(def, s))
 		}
 	}
 	if !any {
-		dimmed("No gear in the bank. Camps drop it.")
+		dimmed("No gear in the bank. Camps drop it and stores sell copper gear.")
 	}
 	imgui.End()
 	return nil
 }
 
-func gearTooltip(d resources.EquipDef) string {
+// slots draws a list of slots, each with what's in it and a Remove button.
+func (e *Equipment) slots(worn map[resources.EquipSlot]resources.Stack, slots []resources.EquipSlot) {
+	for _, slot := range slots {
+		imgui.PushID(string(slot))
+		imgui.Text(fmt.Sprintf("%-8s", resources.SlotNames[slot]))
+		imgui.SameLine()
+		if s, ok := worn[slot]; ok {
+			name := fmt.Sprintf("%s q%d", resources.ItemNames[s.Kind], s.Quality)
+			if slot == resources.SlotAmmo {
+				name = fmt.Sprintf("%s x%d q%d", resources.ItemNames[s.Kind], s.Count, s.Quality)
+			}
+			imgui.Text(name)
+			if imgui.IsItemHovered() {
+				imgui.SetTooltip(gearTooltip(resources.Equipment[s.Kind], s))
+			}
+			imgui.SameLine()
+			if imgui.Button("Remove") {
+				e.send(resources.EquipCommandContents{Op: resources.EquipOpUnequip, Slot: slot})
+			}
+		} else if resources.ActionToolSlot(slot) {
+			dimmed("Empty: that work goes at half speed")
+		} else {
+			dimmed("Empty")
+		}
+		imgui.PopID()
+	}
+}
+
+// gearTooltip describes a piece at its quality: bonuses after quality and
+// damage, or a tool's speed.
+func gearTooltip(d resources.EquipDef, s resources.Stack) string {
+	f := resources.GearFactor(resources.EffectiveQuality(s.Quality, s.Damage))
+	scaled := func(v int) int { return int(float64(v)*f + 0.5) }
+	d.Accuracy, d.Strength, d.Defence = scaled(d.Accuracy), scaled(d.Strength), scaled(d.Defence)
 	switch {
+	case resources.ActionToolSlot(d.Slot):
+		return fmt.Sprintf("Tool, quality %d: each step takes %d%% of the usual time (200%% with no tool). Better tools also gather better materials.",
+			s.Quality, int(resources.ToolSpeed(&s)*100+0.5))
 	case d.Slot == resources.SlotAmmo:
 		return fmt.Sprintf("Ranged strength +%d", d.Strength)
 	case d.Drain > 0:
