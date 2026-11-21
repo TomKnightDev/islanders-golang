@@ -13,9 +13,10 @@ type TileInfo struct {
 var ObjectInfo = map[int]TileInfo{
 	TileBank:             {"Bank", "Deposits what you carry into your account. Every village's bank opens the same account."},
 	TileBlacksmith:       {"Blacksmith", "Smelts ore into bars, training Smithing. Add Smelt for this village in the Actions window."},
-	TileFletcher:         {"Fletcher's hut", "Turns logs into arrows, 10 per log, training Fletching. Add Fletch for this village in the Actions window."},
-	TileAnvil:            {"Anvil", "For crafting equipment from bars. Coming soon."},
-	TileStore:            {"General store", "Sells food, starter gear and basic materials (open the Shop), and buys anything of value. Add a Sell action to carry goods here; prices drop as a store buys more."},
+	TileFletcher:         {"Fletcher's hut", "Turns logs into arrows with the Fletch action. Visit it to make and improve bows and staves, training Fletching."},
+	TileAnvil:            {"Anvil", "Visit it to make and improve metal weapons, armour and tools from what's in your backpack, training Smithing."},
+	TileStore:            {"General store", "Visit it to buy food, starter gear and basic materials, and to sell what you carry. Prices drop as a store buys more."},
+	TileTailor:           {"Tailor", "Weaves cotton into cloth with the Weave action. Visit it to make and improve leather and cloth armour, training Tailoring."},
 	TileInn:              {"Inn", "Tired characters relax here to recover stamina. They come here on their own when they're worn out, then go back to work."},
 	TileIronRockDepleted: {"Depleted rock", "Mined out. It refills with ore soon."},
 	TileFelledTree:       {"Felled tree", "Chopped down. It grows back soon."},

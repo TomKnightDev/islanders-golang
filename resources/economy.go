@@ -18,7 +18,7 @@ var Values = map[ItemKind]int{
 	ItemCopperBar: 6, ItemIronIngot: 15, ItemGoldBar: 36, ItemMithrilBar: 90,
 	ItemOakLogs: 2, ItemPineLogs: 5, ItemMapleLogs: 12, ItemDarkOakLogs: 30,
 	ItemOakArrows: 1, ItemPineArrows: 2, ItemMapleArrows: 4, ItemDarkOakArrows: 8,
-	ItemCabbage: 3, ItemCotton: 4,
+	ItemCabbage: 3, ItemCotton: 4, ItemCloth: 12, ItemLeather: 10, ItemVenison: 4,
 
 	ItemTrainingSword: 10,
 	ItemCopperSword:   40, ItemIronSword: 120, ItemGoldSword: 350, ItemMithrilSword: 1000,
@@ -40,10 +40,11 @@ type StoreItem struct {
 // other players should usually be the cheaper source.
 var StoreStock = []StoreItem{
 	{ItemCabbage, 1.5},
-	{ItemCopperOre, 2}, {ItemOakLogs, 2}, {ItemCopperBar, 2},
+	{ItemCopperOre, 2}, {ItemOakLogs, 2}, {ItemCopperBar, 2}, {ItemCotton, 2}, {ItemLeather, 2},
 	{ItemOakArrows, 1.5},
 	{ItemCopperSword, 1.5}, {ItemOakShortbow, 1.5}, {ItemApprenticeStaff, 1.5}, {ItemBoneStaff, 1.5},
 	{ItemCopperHelmet, 1.5}, {ItemCopperBody, 1.5}, {ItemCopperShield, 1.5},
+	{ItemLeatherCap, 1.5}, {ItemLeatherBody, 1.5}, {ItemClothHood, 1.5}, {ItemClothRobe, 1.5},
 }
 
 func init() {

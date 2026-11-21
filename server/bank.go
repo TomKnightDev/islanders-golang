@@ -29,6 +29,8 @@ func (w *World) buildingTiles(b resources.Building) []tile {
 		return stationTiles(w.stations[resources.ObjectAnvil])
 	case resources.BuildingFletcher:
 		return stationTiles(w.stations[resources.ObjectFletcher])
+	case resources.BuildingTailor:
+		return stationTiles(w.stations[resources.ObjectTailor])
 	}
 	return nil
 }

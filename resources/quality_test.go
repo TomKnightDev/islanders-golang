@@ -84,3 +84,22 @@ func TestRepairLoss(t *testing.T) {
 		t.Errorf("60%% wear: %d at level 1, %d at 99", RepairLoss(60, 1), RepairLoss(60, 99))
 	}
 }
+
+func TestArmourIsLockedToClasses(t *testing.T) {
+	want := map[ClassID]ItemKind{ClassWarrior: ItemCopperBody, ClassArcher: ItemLeatherBody, ClassMage: ItemClothRobe, ClassNecromancer: ItemClothRobe}
+	for _, c := range Classes {
+		for _, body := range []ItemKind{ItemCopperBody, ItemLeatherBody, ItemClothRobe} {
+			if c.CanWear(body) != (body == want[c.ID]) {
+				t.Errorf("%s wearing %s: %v", c.ID, body, c.CanWear(body))
+			}
+		}
+		if !c.CanWear(ItemOakShortbow) || !c.CanWear(ToolItem("Copper", SlotNeedle)) {
+			t.Errorf("%s: weapons and tools aren't armour", c.ID)
+		}
+		for _, g := range c.Gear {
+			if !c.CanWear(g.Kind) {
+				t.Errorf("%s starts with %s it can't wear", c.ID, g.Kind)
+			}
+		}
+	}
+}

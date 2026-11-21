@@ -20,6 +20,7 @@ const (
 	TileFletcher         = 125
 	TileInn              = 210
 	TileStore            = 215
+	TileTailor           = 126
 	TileRiver            = 115 // rivers and lakes; lighter than the sea
 	TileRoad             = 191 // dirt road
 	TileBridge           = 13  // wooden planks over a river
@@ -71,6 +72,7 @@ const (
 	ObjectFletcher   ObjectKind = "fletcher"
 	ObjectInn        ObjectKind = "inn"
 	ObjectStore      ObjectKind = "store"
+	ObjectTailor     ObjectKind = "tailor"
 	ObjectSpawn      ObjectKind = "spawn" // where an enemy lives; not drawn
 )
 
@@ -83,6 +85,7 @@ var ObjectTiles = map[ObjectKind]int{
 	ObjectFletcher:   TileFletcher,
 	ObjectInn:        TileInn,
 	ObjectStore:      TileStore,
+	ObjectTailor:     TileTailor,
 }
 
 // WorldObject is something on the object layer a player can interact with.

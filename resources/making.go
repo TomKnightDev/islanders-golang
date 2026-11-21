@@ -10,7 +10,7 @@ const ArrowsPerLog = 10
 // GearRecipe is a piece of gear or a tool made at a station.
 type GearRecipe struct {
 	Material           // Item, Inputs, Level, XP, and Tier/Short for laying out the window
-	At       Building  // BuildingAnvil or BuildingFletcher
+	At       Building  // BuildingAnvil, BuildingFletcher or BuildingTailor
 	Skill    Skill     // the skill it needs and trains
 	Tool     EquipSlot // the tool it's made and improved with
 }
@@ -42,7 +42,7 @@ var smithPieces = []struct {
 	extra int
 }{
 	{SlotPickaxe, "pickaxe", 1, 0}, {SlotHatchet, "hatchet", 1, 0}, {SlotSickle, "sickle", 1, 0},
-	{SlotHammer, "hammer", 1, 0}, {SlotKnife, "knife", 1, 0},
+	{SlotHammer, "hammer", 1, 0}, {SlotKnife, "knife", 1, 0}, {SlotNeedle, "needle", 1, 0},
 	{SlotHead, "helmet", 2, 2}, {SlotWeapon, "sword", 2, 4}, {SlotShield, "shield", 3, 6}, {SlotBody, "body", 4, 8},
 }
 

@@ -16,13 +16,14 @@ const (
 	SlotSickle  EquipSlot = "sickle"
 	SlotHammer  EquipSlot = "hammer"
 	SlotKnife   EquipSlot = "knife"
+	SlotNeedle  EquipSlot = "needle"
 )
 
 // EquipSlots lists the combat slots in the order the equipment window shows
 // them; ToolSlots the tool belt.
 var (
 	EquipSlots = []EquipSlot{SlotWeapon, SlotAmmo, SlotHead, SlotBody, SlotShield}
-	ToolSlots  = []EquipSlot{SlotPickaxe, SlotHatchet, SlotSickle, SlotHammer, SlotKnife}
+	ToolSlots  = []EquipSlot{SlotPickaxe, SlotHatchet, SlotSickle, SlotHammer, SlotKnife, SlotNeedle}
 )
 
 // AllSlots is every slot, combat then tools.
@@ -39,6 +40,7 @@ var SlotNames = map[EquipSlot]string{
 	SlotSickle:  "Sickle",
 	SlotHammer:  "Hammer",
 	SlotKnife:   "Knife",
+	SlotNeedle:  "Needle",
 }
 
 // ActionTool is the tool each action uses.
@@ -48,21 +50,35 @@ var ActionTool = map[ActionKind]EquipSlot{
 	ActionFarm:   SlotSickle,
 	ActionSmelt:  SlotHammer,
 	ActionFletch: SlotKnife,
+	ActionWeave:  SlotNeedle,
 }
+
+// ArmourType is what a piece of armour is made of. Each class can only
+// wear its own type (Class.Armour).
+type ArmourType string
+
+const (
+	ArmourMetal   ArmourType = "metal"   // warriors
+	ArmourLeather ArmourType = "leather" // archers
+	ArmourCloth   ArmourType = "cloth"   // mages and necromancers
+)
+
+var ArmourNames = map[ArmourType]string{ArmourMetal: "Metal", ArmourLeather: "Leather", ArmourCloth: "Cloth"}
 
 // EquipDef is what an item does when worn or wielded.
 type EquipDef struct {
 	Slot      EquipSlot
 	Skill     Skill // skill whose level it needs
 	Level     int
-	Accuracy  int  // attack bonus (melee weapons, bows)
-	Strength  int  // melee strength, or ranged strength for arrows
-	Defence   int  // armour bonus
-	Ranged    bool // a bow: attacks from range and uses arrows
-	Magic     bool // a staff: casts from range using Magic, no ammo
-	Drain     int  // percent of damage dealt that heals the wielder
-	TwoHanded bool // can't be used with a shield
-	TierBonus int  // tools: percent faster for the metal (copper 0 … mithril 15)
+	Accuracy  int        // attack bonus (melee weapons, bows)
+	Strength  int        // melee strength, or ranged strength for arrows
+	Defence   int        // armour bonus
+	Ranged    bool       // a bow: attacks from range and uses arrows
+	Magic     bool       // a staff: casts from range using Magic, no ammo
+	Drain     int        // percent of damage dealt that heals the wielder
+	TwoHanded bool       // can't be used with a shield
+	TierBonus int        // tools: percent faster for the metal (copper 0 … mithril 15)
+	Armour    ArmourType // armour: what it's made of, which decides who can wear it
 }
 
 // Equipment items.
@@ -125,6 +141,7 @@ var toolKinds = []struct {
 	{"sickle", SlotSickle, SkillFarming},
 	{"hammer", SlotHammer, SkillSmithing},
 	{"knife", SlotKnife, SkillFletching},
+	{"needle", SlotNeedle, SkillTailoring},
 }
 
 // ToolItem is the item kind for a tool of a metal, e.g. "copperPickaxe".
@@ -183,18 +200,18 @@ var Equipment = map[ItemKind]EquipDef{
 	ItemWraithStaff:     {Slot: SlotWeapon, Skill: SkillMagic, Level: 30, Accuracy: 24, Strength: 18, Magic: true, Drain: necromancerDrain, TwoHanded: true},
 	ItemLichStaff:       {Slot: SlotWeapon, Skill: SkillMagic, Level: 45, Accuracy: 36, Strength: 28, Magic: true, Drain: necromancerDrain, TwoHanded: true},
 
-	ItemCopperHelmet:  {Slot: SlotHead, Skill: SkillDefence, Level: 1, Defence: 4},
-	ItemIronHelmet:    {Slot: SlotHead, Skill: SkillDefence, Level: 15, Defence: 9},
-	ItemGoldHelmet:    {Slot: SlotHead, Skill: SkillDefence, Level: 30, Defence: 15},
-	ItemMithrilHelmet: {Slot: SlotHead, Skill: SkillDefence, Level: 45, Defence: 22},
-	ItemCopperBody:    {Slot: SlotBody, Skill: SkillDefence, Level: 1, Defence: 10},
-	ItemIronBody:      {Slot: SlotBody, Skill: SkillDefence, Level: 15, Defence: 22},
-	ItemGoldBody:      {Slot: SlotBody, Skill: SkillDefence, Level: 30, Defence: 36},
-	ItemMithrilBody:   {Slot: SlotBody, Skill: SkillDefence, Level: 45, Defence: 52},
-	ItemCopperShield:  {Slot: SlotShield, Skill: SkillDefence, Level: 1, Defence: 6},
-	ItemIronShield:    {Slot: SlotShield, Skill: SkillDefence, Level: 15, Defence: 13},
-	ItemGoldShield:    {Slot: SlotShield, Skill: SkillDefence, Level: 30, Defence: 21},
-	ItemMithrilShield: {Slot: SlotShield, Skill: SkillDefence, Level: 45, Defence: 31},
+	ItemCopperHelmet:  {Slot: SlotHead, Skill: SkillDefence, Level: 1, Defence: 4, Armour: ArmourMetal},
+	ItemIronHelmet:    {Slot: SlotHead, Skill: SkillDefence, Level: 15, Defence: 9, Armour: ArmourMetal},
+	ItemGoldHelmet:    {Slot: SlotHead, Skill: SkillDefence, Level: 30, Defence: 15, Armour: ArmourMetal},
+	ItemMithrilHelmet: {Slot: SlotHead, Skill: SkillDefence, Level: 45, Defence: 22, Armour: ArmourMetal},
+	ItemCopperBody:    {Slot: SlotBody, Skill: SkillDefence, Level: 1, Defence: 10, Armour: ArmourMetal},
+	ItemIronBody:      {Slot: SlotBody, Skill: SkillDefence, Level: 15, Defence: 22, Armour: ArmourMetal},
+	ItemGoldBody:      {Slot: SlotBody, Skill: SkillDefence, Level: 30, Defence: 36, Armour: ArmourMetal},
+	ItemMithrilBody:   {Slot: SlotBody, Skill: SkillDefence, Level: 45, Defence: 52, Armour: ArmourMetal},
+	ItemCopperShield:  {Slot: SlotShield, Skill: SkillDefence, Level: 1, Defence: 6, Armour: ArmourMetal},
+	ItemIronShield:    {Slot: SlotShield, Skill: SkillDefence, Level: 15, Defence: 13, Armour: ArmourMetal},
+	ItemGoldShield:    {Slot: SlotShield, Skill: SkillDefence, Level: 30, Defence: 21, Armour: ArmourMetal},
+	ItemMithrilShield: {Slot: SlotShield, Skill: SkillDefence, Level: 45, Defence: 31, Armour: ArmourMetal},
 }
 
 func init() {

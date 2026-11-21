@@ -33,8 +33,8 @@ func TestSpeedFactor(t *testing.T) {
 
 func TestMaterialsAreConsistent(t *testing.T) {
 	for _, k := range ActionKinds {
-		if IsCombat(k) || IsVisit(k) {
-			continue // fighting's materials are enemy kinds, visiting's buildings
+		if IsCombat(k) || IsVisit(k) || IsHunting(k) {
+			continue // fighting's and hunting's materials are creatures, visiting's buildings
 		}
 		mats := ActionMaterials[k]
 		if len(mats) == 0 {
@@ -79,7 +79,7 @@ func TestEveryGearPieceCanBeMade(t *testing.T) {
 			t.Errorf("no recipe makes %s", k)
 			continue
 		}
-		if r.Level > 99 || len(r.Inputs) == 0 || (r.At != BuildingAnvil && r.At != BuildingFletcher) || r.Tool == "" {
+		if r.Level > 99 || len(r.Inputs) == 0 || (r.At != BuildingAnvil && r.At != BuildingFletcher && r.At != BuildingTailor) || r.Tool == "" {
 			t.Errorf("%s: recipe %+v", k, r)
 		}
 		for _, in := range r.Inputs {

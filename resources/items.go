@@ -27,6 +27,9 @@ const (
 
 	ItemCabbage ItemKind = "cabbage"
 	ItemCotton  ItemKind = "cotton"
+	ItemCloth   ItemKind = "cloth"
+	ItemLeather ItemKind = "leather"
+	ItemVenison ItemKind = "venison"
 )
 
 // ItemDef is everything about an item kind.
@@ -60,7 +63,10 @@ var Items = map[ItemKind]ItemDef{
 	ItemDarkOakArrows: {"Dark oak arrows", "dark oak arrows", "Made from dark oak logs. Stacks 50 to a slot.", 50, 0},
 
 	ItemCabbage: {"Cabbage", "cabbages", "Grown on farms. Eaten in fights to heal 30 health.", 20, 30},
-	ItemCotton:  {"Cotton", "cotton", "Grown on farms. The raw material for cloth.", 20, 0},
+	ItemCotton:  {"Cotton", "cotton", "Grown on farms. A tailor weaves 2 into a bolt of cloth.", 20, 0},
+	ItemCloth:   {"Cloth", "cloth", "Woven from cotton at a tailor, or taken from enemies. Tailors make cloth armour from it for mages and necromancers.", 20, 0},
+	ItemLeather: {"Leather", "leather", "From deer hunted in the forests, or taken from enemies. Tailors make leather armour from it for archers.", 20, 0},
+	ItemVenison: {"Venison", "venison", "Meat from a hunted deer. Eaten in fights to heal 25 health.", 20, 25},
 }
 
 // Lookups built from Items, kept for brevity at call sites.
