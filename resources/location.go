@@ -17,7 +17,7 @@ var landmarkNames = map[ObjectKind]string{
 	ObjectBank:       "the bank",
 	ObjectBlacksmith: "the blacksmith",
 	ObjectAnvil:      "the anvil",
-	ObjectIronRock:   "the iron rocks",
+	ObjectRock:       "the rocks",
 }
 
 // TileAt is the tile under the centre of a sprite whose top-left is at pos.
@@ -47,7 +47,7 @@ func (wm *WorldMap) Describe(tx, ty int) string {
 		p := &wm.Places[i]
 		d := max(abs(p.X-tx), abs(p.Y-ty))
 		if d <= p.Radius {
-			if p.Kind == PlaceVillage {
+			if p.Kind == PlaceVillage || p.Kind == PlaceForest {
 				return "in " + p.Name
 			}
 			return "at " + p.Name

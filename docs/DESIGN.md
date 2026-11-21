@@ -14,30 +14,48 @@ bank bars ──► craft equipment at the anvil ──► better equipment make
 ```
 
 ### The action window
-- **Finding places.** A village, mine or named forest is *found* once the player walks into it (within its radius plus 2 tiles). Everyone starts having found their spawn village. Found places are listed with the actions available there:
-  - a mine offers **Mine iron**
-  - a forest offers **Chop wood**
-  - a village offers **Smelt iron** at its blacksmith and **Fletch arrows** at its fletcher's hut
+- **Finding places.** A village, mine, named forest or farm is *found* once the player walks into it (within its radius plus 2 tiles). Everyone starts having found their spawn village.
+- **Adding actions.** The window shows one row per action (Mine, Chop, Farm, Smelt, Fletch), at the **nearest found place** for it, with its distance and a button per material. Materials the player doesn't have the level for are greyed out with the level needed. Actions with no place found yet say what to look for.
 - **The action list** holds up to 5 actions. Clicking an action adds it to the end. Entries can be moved up or down or removed.
 - **Goals.** Each action has one goal, which the player can change at any time:
-  - **Until the bank has N** of the action's product: ore, logs, bars or arrows. New actions start at 100 ore, 100 logs, 50 bars or 500 arrows.
+  - **Until the bank has N** of the action's product. New actions start at 100 (ore, logs, crops), 50 bars or 500 arrows.
   - **For N minutes** of the character's time. The timer pauses while the list is stopped, and runs at 10% speed while the player is offline like everything else.
 - **Running the list.** **Start** works through the list from the top. When an action's goal is met, or its time is up, the character first banks anything it's carrying, then moves on. When the list is empty the character goes idle.
 - **Stop** halts the list where it is; anything carried stays in the backpack. Reordering or removing the running action stops it and starts whatever is now first.
 - **Clicks never cancel the list.** While the list is running, clicking the map does nothing. While it's stopped, clicking walks, which is how the player explores and finds new places.
 - **Failures.** If the bank account is full, or there's no way to a place, the list stops and the action stays in it, so the player can sort things out and press Start again.
 
-### Gathering: mining and chopping
-Mining and woodcutting work the same way, from *nodes*: iron rocks in a mine, trees in a named forest.
+### Skills
+The game is meant to be played for hundreds of hours, so skills level slowly, with lots to unlock on the way.
 
-| | Mining | Chopping |
-|---|---|---|
-| Where | the action's mine | the action's forest |
-| Gives | 1 iron ore per 2 s swing | 1 log per 3 s chop |
-| A node holds | 5–10 ore | 1–4 logs |
-| When empty | depleted rock for 30 s | felled tree for 60 s |
+- **Five skills:** Mining, Woodcutting, Farming, Smithing (smelting), Fletching. Each action trains one.
+- **Levels 1–99.** The XP curve roughly doubles every seven levels: level 2 at 83 XP, level 50 at about 100,000, level 99 at about 13 million.
+- **XP** comes from every item gathered, and every input crafted. Higher tiers give more.
+- **Speed.** Each level takes 0.4% off that skill's step time, so level 99 works in about 61% of the base time.
+- **Tiers.** Levels unlock materials:
 
-Only trees inside a named forest can be chopped; scattered trees are scenery. A node with no walkable tile beside it is skipped.
+| Skill | Level 1 | 15 | 30 | 45 |
+|---|---|---|---|---|
+| Mining | copper (10 XP) | iron (25) | gold (45) | mithril (80) |
+| Woodcutting | oak (10) | pine (25) | maple (45) | dark oak (80) |
+| Smithing | copper bars (12) | iron bars (28) | gold bars (50) | mithril bars (90) |
+| Fletching | oak arrows (12) | pine arrows (28) | maple arrows (50) | dark oak arrows (90) |
+| Farming | cabbages (8) | cotton at level 10 (18) | | |
+
+- **Level-ups** post a congratulations message in the player's chat.
+- The **Skills window** shows each level with a progress bar to the next.
+
+### Gathering: mining, chopping and farming
+All three work the same way, from *nodes* of the chosen material at the action's place.
+
+| | Mining | Chopping | Farming |
+|---|---|---|---|
+| Where | a mine | a named forest | a farm |
+| Base speed | 1 ore per 2 s | 1 log per 3 s | 1 crop per 2.5 s |
+| A node holds | 5–10 ore | 1–4 logs | 2–5 crops |
+| When empty | depleted rock, 30 s | felled tree, 60 s | harvested plot, 45 s |
+
+Mines are ranked by distance from the spawn: the nearest has copper and iron, the next iron and gold, the farthest gold and mithril. Forests have whichever trees grew there. Every farm has rows of cabbages and cotton. Only trees inside a named forest can be chopped; scattered trees are scenery. A node with no walkable tile beside it is skipped.
 
 ### Mining
 - Mines only at the action's mine. The character walks to a free rock there and mines one **iron ore** per swing.
@@ -54,7 +72,7 @@ Both run in trips from the action's village:
 | | Smelting | Fletching |
 |---|---|---|
 | Station | blacksmith | fletcher's hut |
-| Makes | 1 iron bar from 1 ore, 3 s | 10 arrows from 1 log, 2 s |
+| Makes | 1 bar from 1 ore, 3 s | 10 arrows from 1 log, 2 s |
 | Ends early | "No ore to smelt" | "No logs to fletch" |
 
 ### Items and stacking
@@ -65,10 +83,11 @@ Backpacks and bank accounts are made of slots.
 
 | Item | Bank stack limit |
 |---|---|
-| Iron ore | 10 |
-| Iron bar | 20 |
-| Logs | 20 |
-| Arrows | 50 (also 50 in the backpack) |
+| Ores (each kind) | 10 |
+| Bars (each kind) | 20 |
+| Logs (each kind) | 20 |
+| Arrows (each kind) | 50 (also 50 in the backpack) |
+| Cabbage, cotton | 20 |
 
 A container is full for an item when every slot is used and every stack of that item is at its limit.
 
@@ -122,6 +141,7 @@ The island is generated by `server/worldgen.go` from a fixed seed, so it's the s
 - **Villages** (4): a cobbled square with the bank, blacksmith and anvil on its north side, a fletcher's hut on its south side, and cottages around it. The village nearest the middle, Oakhaven, has a tower and is where everyone spawns.
 - **Mines** (3): a patch of stony ground with six iron rocks, on higher ground away from villages.
 - **Roads** link the villages (a minimum spanning tree) and run from each mine to its nearest village. They prefer open ground, merge where they meet, clear trees in their way, and cross rivers on wooden bridges.
+- **Farms** (3): a tilled field a short walk from a village, with rows of cabbages and cotton, each row beside a walkable one. Roads lead to them and never cut through the crops.
 - **Named forests** (4): the largest woods get a name (Whisperwood, Elderglade, Mossy Hollow, Thornwood) and become places where trees can be chopped.
 - **Forests** grow where a second noise field is high: dense woods on a darker forest floor with mushrooms, thinning out at the edges, with some autumn-coloured patches. Elsewhere there are scattered trees, bushes, flower meadows and pebbles.
 - **Reachability.** After generation, every bank, blacksmith, anvil and rock is checked to be walkable from the spawn; anything cut off would get a road.
@@ -134,12 +154,15 @@ The island is generated by `server/worldgen.go` from a fixed seed, so it's the s
 | 2 Decor | flowers, pebbles, mushrooms, stones, rubble | never |
 
 ### Places
-Villages, mines and the largest forests are named and listed in `WorldMap.Places`. The info panel describes a location as "in Oakhaven", "at Ironridge Mine" or "near Saltmere", and the names float over the map.
+Villages, mines, farms and the largest forests are named and listed in `WorldMap.Places`, with the materials each gathering place offers. The info panel describes a location as "in Oakhaven", "at Ironridge Mine" or "near Saltmere", and the names float over the map.
 
 ### Sprites
 | Thing | Sprite (environments.png) |
 |---|---|
-| Iron rock / depleted | 90 grey boulder / 107 small rock |
+| Copper / iron / gold / mithril rock | 90 tinted orange / 90 / 91 yellow boulder / 90 tinted blue |
+| Depleted rock | 107 small rock |
+| Cabbage / cotton / harvested plot | 79 bush / 111 white flowers / 244 |
+| Farm field | 206 tilled soil |
 | Bank | 92 stone house front |
 | Blacksmith | 93 wooden hut front |
 | Anvil | 175 anvil |
@@ -148,10 +171,10 @@ Villages, mines and the largest forests are named and listed in `WorldMap.Places
 | Cottage / tower | 95 / 94 |
 | River | 115 water |
 | Road / bridge / square | 191 dirt / 13 planks / 108 cobblestone |
-| Trees | 74, 78, 80, 75 (autumn), 79 (bush) |
+| Trees | oak 74, pine 80, maple 75 (autumn), dark oak 78; bush 79 |
 | Decor | 111, 112 flowers; 119 pebbles; 109 mushroom; 118 stones; 123 rubble |
 
-The sprite sheet has no dedicated iron ore art. The grey boulder stands in until there's something better.
+The sprite sheet has no ore-specific rocks. Copper and mithril are the iron rock drawn with a colour tint (`resources.TintedTiles`, sprite numbers past the end of the sheet).
 
 ## Architecture decisions
 
@@ -177,8 +200,10 @@ Each phase is one PR and leaves the game playable.
 2. **Server-authoritative movement.** World goroutine and command channel, click-to-move with A*, client renders the server's position, WASD removed. *(done)*
 3. **Mining and inventory.** Action system with the rules above, the mining loop, rock claiming, depletion and respawn, backpack and per-player bank accounts, an inventory window, and new messages for inventory, action state and rock state. *(done)*
 4. **Smelting and the action window.** Found places, a 5-action list with amount or time goals, smelting trips. *(done)*
-5. **Crafting and equipment.** Anvil recipe window, equipment slots and stat effects.
-6. **Persistence.** Save characters, inventories and banks to disk on a Docker volume, and hash passwords. Until this lands, every deploy wipes progress.
+5. **Skills, tiers and farms.** Five skills levelling 1–99, four material tiers each, farms with cabbages and cotton, a nearest-place action window, a skills window. *(done)*
+6. **Equipment, combat and health.** An equipment window, fighting skills, player health and healing (cabbages and other food), and camps on the map where fighting enemies for loot is an action.
+7. **Crafting.** Anvil recipes from bars, weaving cloth from cotton, equipment stats.
+8. **Persistence.** Save characters, inventories and banks to disk on a Docker volume, and hash passwords. Until this lands, every deploy wipes progress.
 
 ## Decisions
 

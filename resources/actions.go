@@ -3,45 +3,122 @@ package resources
 type ActionKind string
 
 const (
-	ActionMine   ActionKind = "mine"   // mine iron at a mine, banking it
-	ActionChop   ActionKind = "chop"   // chop logs in a forest, banking them
-	ActionSmelt  ActionKind = "smelt"  // smelt banked ore into bars at a village blacksmith
+	ActionMine   ActionKind = "mine"   // gather ore at a mine
+	ActionChop   ActionKind = "chop"   // gather logs in a forest
+	ActionFarm   ActionKind = "farm"   // gather crops at a farm
+	ActionSmelt  ActionKind = "smelt"  // turn banked ore into bars at a village blacksmith
 	ActionFletch ActionKind = "fletch" // turn banked logs into arrows at a village fletcher
 )
 
 // ActionKinds lists the actions in the order the action window shows them.
-var ActionKinds = []ActionKind{ActionMine, ActionChop, ActionSmelt, ActionFletch}
+var ActionKinds = []ActionKind{ActionMine, ActionChop, ActionFarm, ActionSmelt, ActionFletch}
 
-// ActionNames is how each action reads in the UI.
+// ActionNames is the verb for each action; with a material it reads
+// "Mine copper", "Fletch oak arrows".
 var ActionNames = map[ActionKind]string{
-	ActionMine:   "Mine iron",
-	ActionChop:   "Chop wood",
-	ActionSmelt:  "Smelt iron",
-	ActionFletch: "Fletch arrows",
+	ActionMine:   "Mine",
+	ActionChop:   "Chop",
+	ActionFarm:   "Farm",
+	ActionSmelt:  "Smelt",
+	ActionFletch: "Fletch",
 }
 
 // ActionPlaceKind is the kind of place each action happens at.
 var ActionPlaceKind = map[ActionKind]PlaceKind{
 	ActionMine:   PlaceMine,
 	ActionChop:   PlaceForest,
+	ActionFarm:   PlaceFarm,
 	ActionSmelt:  PlaceVillage,
 	ActionFletch: PlaceVillage,
 }
 
-// ActionProducts is the item an action's amount goal counts in the bank.
-var ActionProducts = map[ActionKind]ItemKind{
-	ActionMine:   ItemIronOre,
-	ActionChop:   ItemLogs,
-	ActionSmelt:  ItemIronIngot,
-	ActionFletch: ItemArrows,
+// ActionSkill is the skill each action trains, and which sets its speed
+// and the materials it can use.
+var ActionSkill = map[ActionKind]Skill{
+	ActionMine:   SkillMining,
+	ActionChop:   SkillWoodcutting,
+	ActionFarm:   SkillFarming,
+	ActionSmelt:  SkillSmithing,
+	ActionFletch: SkillFletching,
 }
+
+// Gathering actions take materials from nodes at a place; crafting actions
+// turn one item from the bank into another.
+func IsGathering(k ActionKind) bool { return k == ActionMine || k == ActionChop || k == ActionFarm }
 
 // ActionDefaultAmounts is the bank total a new action aims for.
 var ActionDefaultAmounts = map[ActionKind]int{
 	ActionMine:   100,
 	ActionChop:   100,
+	ActionFarm:   100,
 	ActionSmelt:  50,
 	ActionFletch: 500,
+}
+
+// Material is one tier an action can work with.
+type Material struct {
+	ID    string   // unique within the action, e.g. "copper"
+	Label string   // as it reads after the action's verb: "copper", "oak arrows"
+	Level int      // skill level needed
+	XP    int      // XP per item gathered, or per input crafted
+	Item  ItemKind // what it gives: ore, logs, crops, bars, arrows
+	Input ItemKind // crafting only: what it uses from the bank
+	Node  int      // gathering only: the object sprite it's gathered from
+}
+
+// ActionMaterials lists each action's tiers, lowest first.
+var ActionMaterials = map[ActionKind][]Material{
+	ActionMine: {
+		{ID: "copper", Label: "copper", Level: 1, XP: 10, Item: ItemCopperOre, Node: TileCopperRock},
+		{ID: "iron", Label: "iron", Level: 15, XP: 25, Item: ItemIronOre, Node: TileIronRock},
+		{ID: "gold", Label: "gold", Level: 30, XP: 45, Item: ItemGoldOre, Node: TileGoldRock},
+		{ID: "mithril", Label: "mithril", Level: 45, XP: 80, Item: ItemMithrilOre, Node: TileMithrilRock},
+	},
+	ActionChop: {
+		{ID: "oak", Label: "oak", Level: 1, XP: 10, Item: ItemOakLogs, Node: TileTree1},
+		{ID: "pine", Label: "pine", Level: 15, XP: 25, Item: ItemPineLogs, Node: TilePine},
+		{ID: "maple", Label: "maple", Level: 30, XP: 45, Item: ItemMapleLogs, Node: TileAutumnTree},
+		{ID: "darkoak", Label: "dark oak", Level: 45, XP: 80, Item: ItemDarkOakLogs, Node: TileTree2},
+	},
+	ActionFarm: {
+		{ID: "cabbage", Label: "cabbages", Level: 1, XP: 8, Item: ItemCabbage, Node: TileCabbage},
+		{ID: "cotton", Label: "cotton", Level: 10, XP: 18, Item: ItemCotton, Node: TileCotton},
+	},
+	ActionSmelt: {
+		{ID: "copper", Label: "copper bars", Level: 1, XP: 12, Item: ItemCopperBar, Input: ItemCopperOre},
+		{ID: "iron", Label: "iron bars", Level: 15, XP: 28, Item: ItemIronIngot, Input: ItemIronOre},
+		{ID: "gold", Label: "gold bars", Level: 30, XP: 50, Item: ItemGoldBar, Input: ItemGoldOre},
+		{ID: "mithril", Label: "mithril bars", Level: 45, XP: 90, Item: ItemMithrilBar, Input: ItemMithrilOre},
+	},
+	ActionFletch: {
+		{ID: "oak", Label: "oak arrows", Level: 1, XP: 12, Item: ItemOakArrows, Input: ItemOakLogs},
+		{ID: "pine", Label: "pine arrows", Level: 15, XP: 28, Item: ItemPineArrows, Input: ItemPineLogs},
+		{ID: "maple", Label: "maple arrows", Level: 30, XP: 50, Item: ItemMapleArrows, Input: ItemMapleLogs},
+		{ID: "darkoak", Label: "dark oak arrows", Level: 45, XP: 90, Item: ItemDarkOakArrows, Input: ItemDarkOakLogs},
+	},
+}
+
+// FindMaterial looks up one of an action's materials.
+func FindMaterial(kind ActionKind, id string) (Material, bool) {
+	for _, m := range ActionMaterials[kind] {
+		if m.ID == id {
+			return m, true
+		}
+	}
+	return Material{}, false
+}
+
+// NodeMaterial is the gathering action and material for an object sprite,
+// if it's something that can be gathered.
+func NodeMaterial(gid int) (ActionKind, Material, bool) {
+	for _, k := range ActionKinds {
+		for _, m := range ActionMaterials[k] {
+			if m.Node != 0 && m.Node == gid {
+				return k, m, true
+			}
+		}
+	}
+	return "", Material{}, false
 }
 
 type GoalKind string
@@ -59,16 +136,24 @@ const (
 
 // ActionSpec is one entry in a player's action list.
 type ActionSpec struct {
-	Kind    ActionKind `json:"kind"`
-	Place   string     `json:"place"`
-	Goal    GoalKind   `json:"goal"`
-	Amount  int        `json:"amount"`
-	Minutes int        `json:"minutes"`
+	Kind     ActionKind `json:"kind"`
+	Material string     `json:"material"` // a Material ID for this kind
+	Place    string     `json:"place"`
+	Goal     GoalKind   `json:"goal"`
+	Amount   int        `json:"amount"`
+	Minutes  int        `json:"minutes"`
 }
 
 // Product is the item an action's amount goal counts in the bank.
 func (a ActionSpec) Product() ItemKind {
-	return ActionProducts[a.Kind]
+	m, _ := FindMaterial(a.Kind, a.Material)
+	return m.Item
+}
+
+// Label is how the action reads: "Mine copper", "Smelt iron bars".
+func (a ActionSpec) Label() string {
+	m, _ := FindMaterial(a.Kind, a.Material)
+	return ActionNames[a.Kind] + " " + m.Label
 }
 
 // QueuedAction is an entry in the action list as the server reports it.

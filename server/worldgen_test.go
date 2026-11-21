@@ -43,8 +43,8 @@ func TestIslandHasVillagesAndMines(t *testing.T) {
 	if got := countKind(testIsland, resources.ObjectBank); got != villageCount {
 		t.Errorf("%d banks, want one per village", got)
 	}
-	if got := countKind(testIsland, resources.ObjectIronRock); got < mineCount*4 {
-		t.Errorf("only %d iron rocks", got)
+	if got := countKind(testIsland, resources.ObjectRock); got < mineCount*4 {
+		t.Errorf("only %d rocks", got)
 	}
 }
 
@@ -67,7 +67,9 @@ func TestEverythingIsReachableFromSpawn(t *testing.T) {
 		}
 	}
 	for _, p := range wm.Places {
-		if p.Kind != resources.PlaceForest && !reach[tile{p.X, p.Y}] {
+		// Forest and farm centres can be a tree or crop; their own tests
+		// check the plants can be reached.
+		if (p.Kind == resources.PlaceVillage || p.Kind == resources.PlaceMine) && !reach[tile{p.X, p.Y}] {
 			t.Errorf("can't walk to the middle of %s", p.Name)
 		}
 	}
@@ -192,5 +194,65 @@ func TestWorldMapSurvivesWireDecoding(t *testing.T) {
 	if !reflect.DeepEqual(got.Layers[2].Data, wm.Layers[2].Data) || !reflect.DeepEqual(got.Places, wm.Places) ||
 		got.SpawnX != wm.SpawnX || len(got.Objects) != len(wm.Objects) {
 		t.Fatal("decoded map lost data")
+	}
+}
+
+func TestMinesGetHarderFurtherOut(t *testing.T) {
+	spawn := tile{testIsland.SpawnX, testIsland.SpawnY}
+	var mines []resources.Place
+	for _, p := range testIsland.Places {
+		if p.Kind == resources.PlaceMine {
+			mines = append(mines, p)
+		}
+	}
+	nearest := mines[0]
+	for _, m := range mines {
+		if octile(tile{m.X, m.Y}, spawn) < octile(tile{nearest.X, nearest.Y}, spawn) {
+			nearest = m
+		}
+	}
+	if len(nearest.Materials) == 0 || nearest.Materials[0] != "copper" {
+		t.Errorf("the nearest mine, %s, should have copper for new players: %v", nearest.Name, nearest.Materials)
+	}
+	all := map[string]bool{}
+	for _, m := range mines {
+		for _, id := range m.Materials {
+			all[id] = true
+		}
+	}
+	for _, m := range resources.ActionMaterials[resources.ActionMine] {
+		if !all[m.ID] {
+			t.Errorf("no mine has %s", m.ID)
+		}
+	}
+}
+
+func TestFarms(t *testing.T) {
+	w := NewWorld(testIsland)
+	reach := reachable(&w.wm, tile{w.wm.SpawnX, w.wm.SpawnY})
+	farms := 0
+	for _, pl := range w.wm.Places {
+		if pl.Kind != resources.PlaceFarm {
+			continue
+		}
+		farms++
+		crops := map[string]int{}
+		for _, n := range w.nodes {
+			if n.place != pl.Name {
+				continue
+			}
+			for _, d := range neighbours {
+				if reach[n.t.add(d)] {
+					crops[n.material.ID]++
+					break
+				}
+			}
+		}
+		if crops["cabbage"] < 16 || crops["cotton"] < 8 {
+			t.Errorf("%s has %v reachable crops", pl.Name, crops)
+		}
+	}
+	if farms != farmCount {
+		t.Errorf("%d farms, want %d", farms, farmCount)
 	}
 }

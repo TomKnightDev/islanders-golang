@@ -137,6 +137,7 @@ type InventoryContents struct {
 	Found   []string       `json:"found"`   // names of places the player has found
 	Actions []QueuedAction `json:"actions"` // the action list; [0] runs first
 	Running bool           `json:"running"` // whether the list is being worked through
+	Skills  []SkillState   `json:"skills"`
 }
 
 func NewInventoryMessage(contents InventoryContents) *Message {

@@ -2,11 +2,14 @@ package gui
 
 import (
 	"fmt"
+	"slices"
+	"strings"
 	"time"
 
 	"github.com/gabstv/ebiten-imgui/renderer"
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/inkyblackness/imgui-go/v4"
+	"github.com/tomknightdev/islanders-golang/client/entities"
 	"github.com/tomknightdev/islanders-golang/resources"
 )
 
@@ -20,6 +23,7 @@ var dimText = imgui.Vec4{X: 0.7, Y: 0.75, Z: 0.7, W: 1}
 // done there, and the action list the character works through.
 type Actions struct {
 	mgr    *renderer.Manager
+	player *entities.Player
 	places map[string]resources.Place
 	// Send queues a command for the server.
 	Send func(resources.ActionCommandContents)
@@ -34,8 +38,8 @@ type Actions struct {
 	editing [resources.MaxActions][2]bool
 }
 
-func NewActions(mgr *renderer.Manager, places []resources.Place) *Actions {
-	a := &Actions{mgr: mgr, places: map[string]resources.Place{}}
+func NewActions(mgr *renderer.Manager, player *entities.Player, places []resources.Place) *Actions {
+	a := &Actions{mgr: mgr, player: player, places: map[string]resources.Place{}}
 	for _, p := range places {
 		a.places[p.Name] = p
 	}
@@ -90,29 +94,85 @@ func (a *Actions) controls() {
 	}
 }
 
-func (a *Actions) foundPlaces() {
-	imgui.Text("Places you've found")
-	full := len(a.state.Actions) >= resources.MaxActions
+// level is the player's level in a skill, from the latest server state.
+func (a *Actions) level(s resources.Skill) int {
+	for _, st := range a.state.Skills {
+		if st.Skill == s {
+			return st.Level
+		}
+	}
+	return 1
+}
+
+// nearestFound is the closest found place of a kind to the player.
+func (a *Actions) nearestFound(kind resources.PlaceKind) (resources.Place, int, bool) {
+	var best resources.Place
+	bestDist, ok := 0, false
+	px, py := 0, 0
+	if a.player != nil {
+		px, py = resources.TileAt(a.player.Position[0], a.player.Position[1])
+	}
 	for _, name := range a.state.Found {
-		place, ok := a.places[name]
-		if !ok {
+		pl, known := a.places[name]
+		if !known || pl.Kind != kind {
 			continue
 		}
-		for _, kind := range resources.ActionKinds {
-			if resources.ActionPlaceKind[kind] != place.Kind {
+		if d := max(abs(pl.X-px), abs(pl.Y-py)); !ok || d < bestDist {
+			best, bestDist, ok = pl, d, true
+		}
+	}
+	return best, bestDist, ok
+}
+
+var placeHints = map[resources.PlaceKind]string{
+	resources.PlaceMine:    "find a mine first",
+	resources.PlaceForest:  "find a named forest first",
+	resources.PlaceFarm:    "find a farm first",
+	resources.PlaceVillage: "find a village first",
+}
+
+// foundPlaces offers each action once, at the nearest place found for it,
+// with a button per material. Tiers the player hasn't the level for are
+// shown greyed out with the level they need.
+func (a *Actions) foundPlaces() {
+	imgui.Text("Add an action")
+	full := len(a.state.Actions) >= resources.MaxActions
+	for _, kind := range resources.ActionKinds {
+		verb := resources.ActionNames[kind]
+		place, dist, ok := a.nearestFound(resources.ActionPlaceKind[kind])
+		if !ok {
+			dimmed(verb + ": " + placeHints[resources.ActionPlaceKind[kind]])
+			continue
+		}
+		imgui.Text(fmt.Sprintf("%s at %s", verb, place.Name))
+		imgui.SameLine()
+		dimmed(fmt.Sprintf("%d tiles away", dist))
+
+		skill := resources.ActionSkill[kind]
+		lvl := a.level(skill)
+		first := true
+		for _, m := range resources.ActionMaterials[kind] {
+			if resources.IsGathering(kind) && !slices.Contains(place.Materials, m.ID) {
 				continue
 			}
-			if button(resources.ActionNames[kind]+"##"+name, !full) {
+			if !first {
+				imgui.SameLine()
+			}
+			first = false
+			label := strings.ToUpper(m.Label[:1]) + m.Label[1:]
+			if lvl < m.Level {
+				button(fmt.Sprintf("%s (%s %d)##%s%s", label, resources.SkillNames[skill], m.Level, kind, m.ID), false)
+				continue
+			}
+			if button(label+"##"+string(kind)+m.ID, !full) {
 				a.send(resources.ActionCommandContents{Op: resources.ActionOpAdd, Action: resources.ActionSpec{
-					Kind: kind, Place: name, Goal: resources.GoalAmount,
+					Kind: kind, Material: m.ID, Place: place.Name, Goal: resources.GoalAmount,
 					Amount: resources.ActionDefaultAmounts[kind], Minutes: defaultMinutes,
 				}})
 			}
-			imgui.SameLine()
-			imgui.Text(name)
 		}
 	}
-	dimmed("Walk into a village, mine or forest to find it.")
+	dimmed("Walk into a village, mine, forest or farm to find it.")
 }
 
 func (a *Actions) list() {
@@ -135,7 +195,7 @@ func (a *Actions) row(i int, q resources.QueuedAction) {
 	spec := q.ActionSpec
 	last := len(a.state.Actions) - 1
 
-	imgui.Text(fmt.Sprintf("%d. %s at %s", i+1, resources.ActionNames[spec.Kind], spec.Place))
+	imgui.Text(fmt.Sprintf("%d. %s at %s", i+1, spec.Label(), spec.Place))
 	imgui.SameLine()
 	if button("Up", i > 0) {
 		a.send(resources.ActionCommandContents{Op: resources.ActionOpUp, Index: i})

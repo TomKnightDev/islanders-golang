@@ -3,48 +3,83 @@ package resources
 type ItemKind string
 
 const (
-	ItemIronOre   ItemKind = "ironOre"
-	ItemIronIngot ItemKind = "ironIngot" // shown as "Iron bar"
-	ItemLogs      ItemKind = "logs"
-	ItemArrows    ItemKind = "arrows"
+	ItemCopperOre  ItemKind = "copperOre"
+	ItemIronOre    ItemKind = "ironOre"
+	ItemGoldOre    ItemKind = "goldOre"
+	ItemMithrilOre ItemKind = "mithrilOre"
+
+	ItemCopperBar  ItemKind = "copperBar"
+	ItemIronIngot  ItemKind = "ironIngot" // shown as "Iron bar"
+	ItemGoldBar    ItemKind = "goldBar"
+	ItemMithrilBar ItemKind = "mithrilBar"
+
+	ItemOakLogs     ItemKind = "logs"
+	ItemPineLogs    ItemKind = "pineLogs"
+	ItemMapleLogs   ItemKind = "mapleLogs"
+	ItemDarkOakLogs ItemKind = "darkOakLogs"
+
+	ItemOakArrows     ItemKind = "arrows"
+	ItemPineArrows    ItemKind = "pineArrows"
+	ItemMapleArrows   ItemKind = "mapleArrows"
+	ItemDarkOakArrows ItemKind = "darkOakArrows"
+
+	ItemCabbage ItemKind = "cabbage"
+	ItemCotton  ItemKind = "cotton"
 )
 
-// StackLimits is how many of an item fit in one slot of a stacking
-// inventory (the bank).
-var StackLimits = map[ItemKind]int{
-	ItemIronOre:   10,
-	ItemIronIngot: 20,
-	ItemLogs:      20,
-	ItemArrows:    50,
+// ItemDef is everything about an item kind.
+type ItemDef struct {
+	Name      string
+	Unit      string // how a quantity reads: "100 ore", "20 arrows"
+	Desc      string // shown when hovering over the item
+	Stack     int    // per bank slot
+	PackStack int    // per backpack slot; 0 means one item per slot
 }
 
-// BackpackStackLimits is how many of an item share one backpack slot. Most
-// items take a slot each; arrows stack.
-var BackpackStackLimits = map[ItemKind]int{
-	ItemArrows: 50,
+var Items = map[ItemKind]ItemDef{
+	ItemCopperOre:  {"Copper ore", "copper ore", "Mined from copper rocks. Smelt it into copper bars at a blacksmith.", 10, 0},
+	ItemIronOre:    {"Iron ore", "iron ore", "Mined from iron rocks. Smelt it into iron bars at a blacksmith.", 10, 0},
+	ItemGoldOre:    {"Gold ore", "gold ore", "Mined from gold rocks. Smelt it into gold bars at a blacksmith.", 10, 0},
+	ItemMithrilOre: {"Mithril ore", "mithril ore", "Mined from rare blue mithril rocks. Smelt it into mithril bars.", 10, 0},
+
+	ItemCopperBar:  {"Copper bar", "copper bars", "Smelted from copper ore. For crafting equipment (coming soon).", 20, 0},
+	ItemIronIngot:  {"Iron bar", "iron bars", "Smelted from iron ore. For crafting equipment (coming soon).", 20, 0},
+	ItemGoldBar:    {"Gold bar", "gold bars", "Smelted from gold ore. For crafting equipment (coming soon).", 20, 0},
+	ItemMithrilBar: {"Mithril bar", "mithril bars", "Smelted from mithril ore. For crafting equipment (coming soon).", 20, 0},
+
+	ItemOakLogs:     {"Oak logs", "oak logs", "Chopped from oaks. A fletcher turns each log into 10 oak arrows.", 20, 0},
+	ItemPineLogs:    {"Pine logs", "pine logs", "Chopped from pines. A fletcher turns each log into 10 pine arrows.", 20, 0},
+	ItemMapleLogs:   {"Maple logs", "maple logs", "Chopped from autumn maples. A fletcher turns each log into 10 maple arrows.", 20, 0},
+	ItemDarkOakLogs: {"Dark oak logs", "dark oak logs", "Chopped from dark oaks. A fletcher turns each log into 10 dark oak arrows.", 20, 0},
+
+	ItemOakArrows:     {"Oak arrows", "oak arrows", "Made from oak logs. Stacks 50 to a slot, even in the backpack.", 50, 50},
+	ItemPineArrows:    {"Pine arrows", "pine arrows", "Made from pine logs. Stacks 50 to a slot, even in the backpack.", 50, 50},
+	ItemMapleArrows:   {"Maple arrows", "maple arrows", "Made from maple logs. Stacks 50 to a slot, even in the backpack.", 50, 50},
+	ItemDarkOakArrows: {"Dark oak arrows", "dark oak arrows", "Made from dark oak logs. Stacks 50 to a slot, even in the backpack.", 50, 50},
+
+	ItemCabbage: {"Cabbage", "cabbages", "Grown on farms. Food; it will heal you once health arrives.", 20, 0},
+	ItemCotton:  {"Cotton", "cotton", "Grown on farms. The raw material for cloth.", 20, 0},
 }
 
-var ItemNames = map[ItemKind]string{
-	ItemIronOre:   "Iron ore",
-	ItemIronIngot: "Iron bar",
-	ItemLogs:      "Logs",
-	ItemArrows:    "Arrows",
-}
+// Lookups built from Items, kept for brevity at call sites.
+var (
+	StackLimits         = map[ItemKind]int{}
+	BackpackStackLimits = map[ItemKind]int{}
+	ItemNames           = map[ItemKind]string{}
+	ItemUnits           = map[ItemKind]string{}
+	ItemDescriptions    = map[ItemKind]string{}
+)
 
-// ItemUnits is how a quantity of the item reads: "100 ore", "20 arrows".
-var ItemUnits = map[ItemKind]string{
-	ItemIronOre:   "ore",
-	ItemIronIngot: "bars",
-	ItemLogs:      "logs",
-	ItemArrows:    "arrows",
-}
-
-// ItemDescriptions are shown when hovering over an item.
-var ItemDescriptions = map[ItemKind]string{
-	ItemIronOre:   "Mined from iron rocks. Smelt it into bars at a blacksmith.",
-	ItemIronIngot: "Smelted from iron ore. Used for crafting at the anvil (coming soon).",
-	ItemLogs:      "Chopped from trees in the forests. A fletcher turns each log into 10 arrows.",
-	ItemArrows:    "Made from logs at a fletcher's hut. Stacks 50 to a slot, even in the backpack.",
+func init() {
+	for k, d := range Items {
+		StackLimits[k] = d.Stack
+		if d.PackStack > 0 {
+			BackpackStackLimits[k] = d.PackStack
+		}
+		ItemNames[k] = d.Name
+		ItemUnits[k] = d.Unit
+		ItemDescriptions[k] = d.Desc
+	}
 }
 
 type Stack struct {

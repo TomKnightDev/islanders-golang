@@ -92,6 +92,7 @@ type player struct {
 	actions  []*queuedAction // the action list; [0] is the one that runs
 	running  bool            // working through the action list
 	found    map[string]bool // places this player has found
+	xp       map[resources.Skill]int
 	// ticks is this character's own clock. It advances every world tick
 	// while the player is online and every offlineSlowdown ticks while
 	// they're offline, so idle progress runs slower without them.
@@ -193,6 +194,7 @@ func (w *World) login(username, password string, sess *session) (*player, error)
 			bank:     resources.NewInventory(bankSlots, true),
 			activity: activityIdle,
 			found:    map[string]bool{},
+			xp:       map[resources.Skill]int{},
 		}
 		// Everyone knows the village they start in.
 		if pl := w.placeAt(tile{w.wm.SpawnX, w.wm.SpawnY}, resources.PlaceVillage); pl != nil {

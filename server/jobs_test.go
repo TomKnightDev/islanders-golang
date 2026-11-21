@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/tomknightdev/islanders-golang/resources"
@@ -20,21 +21,25 @@ func jobWorld(t *testing.T) *World {
 	t.Helper()
 	wm := testMap(20, 20)
 	add := func(id uint16, kind resources.ObjectKind, x, y int) {
-		wm.Layers[resources.LayerObject].Data[y*wm.Width+x] = resources.ObjectTiles[kind]
+		gid := resources.ObjectTiles[kind]
+		if kind == resources.ObjectRock {
+			gid = resources.TileCopperRock
+		}
+		wm.Layers[resources.LayerObject].Data[y*wm.Width+x] = gid
 		wm.Objects = append(wm.Objects, resources.WorldObject{ID: id, Kind: kind, X: x, Y: y})
 	}
 	add(1, resources.ObjectBank, 2, 2)
 	add(2, resources.ObjectBlacksmith, 6, 2)
-	add(3, resources.ObjectIronRock, 10, 10)
-	add(4, resources.ObjectIronRock, 14, 10)
+	add(3, resources.ObjectRock, 10, 10)
+	add(4, resources.ObjectRock, 14, 10)
 	add(5, resources.ObjectFletcher, 8, 2)
 	for _, tr := range []tile{{15, 15}, {17, 15}, {16, 18}} {
 		wm.Layers[resources.LayerObject].Data[tr.y*wm.Width+tr.x] = resources.TileTree1
 	}
 	wm.Places = []resources.Place{
 		{Name: testVillage, Kind: resources.PlaceVillage, X: 4, Y: 4, Radius: 4},
-		{Name: testMine, Kind: resources.PlaceMine, X: 12, Y: 10, Radius: 4},
-		{Name: testWood, Kind: resources.PlaceForest, X: 16, Y: 16, Radius: 3},
+		{Name: testMine, Kind: resources.PlaceMine, X: 12, Y: 10, Radius: 4, Materials: []string{"copper"}},
+		{Name: testWood, Kind: resources.PlaceForest, X: 16, Y: 16, Radius: 3, Materials: []string{"oak"}},
 	}
 	wm.SpawnX, wm.SpawnY = 4, 5
 	return NewWorld(wm)
@@ -54,11 +59,11 @@ func joinAt(t *testing.T, w *World, name string, at tile) *player {
 }
 
 func mineFor(amount int) resources.ActionSpec {
-	return resources.ActionSpec{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalAmount, Amount: amount}
+	return resources.ActionSpec{Kind: resources.ActionMine, Material: "copper", Place: testMine, Goal: resources.GoalAmount, Amount: amount}
 }
 
 func smeltFor(amount int) resources.ActionSpec {
-	return resources.ActionSpec{Kind: resources.ActionSmelt, Place: testVillage, Goal: resources.GoalAmount, Amount: amount}
+	return resources.ActionSpec{Kind: resources.ActionSmelt, Material: "copper", Place: testVillage, Goal: resources.GoalAmount, Amount: amount}
 }
 
 func addAction(w *World, p *player, a resources.ActionSpec) {
@@ -81,8 +86,8 @@ func runUntil(t *testing.T, w *World, max int, what string, cond func() bool) {
 	t.Fatalf("timed out waiting for: %s", what)
 }
 
-func ore(inv resources.Inventory) int  { return inv.Count(resources.ItemIronOre) }
-func bars(inv resources.Inventory) int { return inv.Count(resources.ItemIronIngot) }
+func ore(inv resources.Inventory) int  { return inv.Count(resources.ItemCopperOre) }
+func bars(inv resources.Inventory) int { return inv.Count(resources.ItemCopperBar) }
 
 func TestMineUntilBankHasAmount(t *testing.T) {
 	w := jobWorld(t)
@@ -108,7 +113,7 @@ func TestMineForTime(t *testing.T) {
 	w := jobWorld(t)
 	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalTime, Minutes: 1})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Material: "copper", Place: testMine, Goal: resources.GoalTime, Minutes: 1})
 	run(w, p)
 
 	runUntil(t, w, ticks(swingTime)*40, "time up", func() bool { return p.job != nil && p.job.finishing })
@@ -126,7 +131,7 @@ func TestMineForTime(t *testing.T) {
 func TestSmeltUntilBankHasAmount(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
-	p.bank.Add(resources.ItemIronOre, 30)
+	p.bank.Add(resources.ItemCopperOre, 30)
 	addAction(w, p, smeltFor(25))
 	run(w, p)
 
@@ -140,7 +145,7 @@ func TestSmeltUntilBankHasAmount(t *testing.T) {
 func TestSmeltStopsWhenOreRunsOut(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
-	p.bank.Add(resources.ItemIronOre, 7)
+	p.bank.Add(resources.ItemCopperOre, 7)
 	addAction(w, p, smeltFor(100))
 	run(w, p)
 
@@ -156,7 +161,7 @@ func TestSmeltStopsWhenOreRunsOut(t *testing.T) {
 func TestSmeltTiming(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
-	p.bank.Add(resources.ItemIronOre, 3)
+	p.bank.Add(resources.ItemCopperOre, 3)
 	addAction(w, p, smeltFor(3))
 	run(w, p)
 	runUntil(t, w, 2000, "smelting", func() bool { return p.job != nil && p.job.state == stateCrafting })
@@ -240,10 +245,10 @@ func TestActionValidation(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
 	bad := []resources.ActionSpec{
-		{Kind: resources.ActionMine, Place: testVillage, Goal: resources.GoalAmount, Amount: 5}, // not a mine
-		{Kind: resources.ActionSmelt, Place: testMine, Goal: resources.GoalAmount, Amount: 5},   // no blacksmith
-		{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalAmount, Amount: 0},
-		{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalTime, Minutes: 0},
+		{Kind: resources.ActionMine, Material: "copper", Place: testVillage, Goal: resources.GoalAmount, Amount: 5}, // not a mine
+		{Kind: resources.ActionSmelt, Material: "copper", Place: testMine, Goal: resources.GoalAmount, Amount: 5},   // no blacksmith
+		{Kind: resources.ActionMine, Material: "copper", Place: testMine, Goal: resources.GoalAmount, Amount: 0},
+		{Kind: resources.ActionMine, Material: "copper", Place: testMine, Goal: resources.GoalTime, Minutes: 0},
 		{Kind: "fish", Place: testMine, Goal: resources.GoalAmount, Amount: 5},
 	}
 	for _, a := range bad {
@@ -287,7 +292,7 @@ func TestStopPausesTimer(t *testing.T) {
 	w := jobWorld(t)
 	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Place: testMine, Goal: resources.GoalTime, Minutes: 5})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Material: "copper", Place: testMine, Goal: resources.GoalTime, Minutes: 5})
 	run(w, p)
 	for i := 0; i < 100; i++ {
 		w.tick()
@@ -373,7 +378,7 @@ func TestBankFullStopsTheList(t *testing.T) {
 	w.nodes[tile{10, 10}].amount = 100
 	p := joinAt(t, w, "tom", tile{9, 10})
 	p.bank = resources.NewInventory(1, true)
-	p.bank.Add(resources.ItemIronOre, 5) // room for 5 more only
+	p.bank.Add(resources.ItemCopperOre, 5) // room for 5 more only
 	addAction(w, p, mineFor(50))
 	run(w, p)
 
@@ -405,7 +410,7 @@ func TestBankAccountsArePrivate(t *testing.T) {
 	w := jobWorld(t)
 	a := joinAt(t, w, "a", tile{4, 5})
 	b := joinAt(t, w, "b", tile{4, 6})
-	a.bank.Add(resources.ItemIronOre, 3)
+	a.bank.Add(resources.ItemCopperOre, 3)
 	addAction(w, a, smeltFor(3))
 	run(w, a)
 	runUntil(t, w, 5000, "a done", func() bool { return len(a.actions) == 0 })
@@ -468,8 +473,8 @@ func TestInventoryReportsListAndPlaces(t *testing.T) {
 	if len(inv.Found) != 1 || inv.Found[0] != testVillage {
 		t.Errorf("found %v", inv.Found)
 	}
-	p.bank.Add(resources.ItemIronIngot, 4)
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionSmelt, Place: testVillage, Goal: resources.GoalTime, Minutes: 2})
+	p.bank.Add(resources.ItemCopperBar, 4)
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionSmelt, Material: "copper", Place: testVillage, Goal: resources.GoalTime, Minutes: 2})
 	addAction(w, p, smeltFor(10))
 	w.tick()
 	inv = lastInventory(t, s)
@@ -503,8 +508,8 @@ func TestActionTimingForProgressBar(t *testing.T) {
 	}
 }
 
-func logs(inv resources.Inventory) int   { return inv.Count(resources.ItemLogs) }
-func arrows(inv resources.Inventory) int { return inv.Count(resources.ItemArrows) }
+func logs(inv resources.Inventory) int   { return inv.Count(resources.ItemOakLogs) }
+func arrows(inv resources.Inventory) int { return inv.Count(resources.ItemOakArrows) }
 
 func TestChopWoodFellsAndRegrowsTrees(t *testing.T) {
 	w := jobWorld(t)
@@ -514,7 +519,7 @@ func TestChopWoodFellsAndRegrowsTrees(t *testing.T) {
 		}
 	}
 	p := joinAt(t, w, "tom", tile{14, 16})
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionChop, Place: testWood, Goal: resources.GoalAmount, Amount: 5})
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionChop, Material: "oak", Place: testWood, Goal: resources.GoalAmount, Amount: 5})
 	run(w, p)
 
 	runUntil(t, w, 20000, "chopped 5 logs", func() bool { return len(p.actions) == 0 })
@@ -539,8 +544,8 @@ func TestChopWoodFellsAndRegrowsTrees(t *testing.T) {
 func TestFletchArrows(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
-	p.bank.Add(resources.ItemLogs, 25)
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFletch, Place: testVillage, Goal: resources.GoalAmount, Amount: 200})
+	p.bank.Add(resources.ItemOakLogs, 25)
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFletch, Material: "oak", Place: testVillage, Goal: resources.GoalAmount, Amount: 200})
 	run(w, p)
 
 	runUntil(t, w, 20000, "fletched", func() bool { return len(p.actions) == 0 })
@@ -551,7 +556,7 @@ func TestFletchArrows(t *testing.T) {
 	// 200 arrows at 50 a slot.
 	slots := 0
 	for _, s := range p.bank.Stacks {
-		if s.Kind == resources.ItemArrows {
+		if s.Kind == resources.ItemOakArrows {
 			slots++
 		}
 	}
@@ -563,13 +568,105 @@ func TestFletchArrows(t *testing.T) {
 func TestFletchingFillsBackpackWithStackedArrows(t *testing.T) {
 	w := jobWorld(t)
 	p := joinAt(t, w, "tom", tile{4, 5})
-	p.bank.Add(resources.ItemLogs, 20)
-	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFletch, Place: testVillage, Goal: resources.GoalAmount, Amount: 1000})
+	p.bank.Add(resources.ItemOakLogs, 20)
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFletch, Material: "oak", Place: testVillage, Goal: resources.GoalAmount, Amount: 1000})
 	run(w, p)
 	runUntil(t, w, 20000, "heading back with arrows", func() bool {
 		return p.job != nil && p.job.state == stateWalkToBank && arrows(p.backpack) > 0
 	})
 	if arrows(p.backpack) != 200 || len(p.backpack.Stacks) != 4 {
 		t.Errorf("carrying %d arrows in %d slots, want 200 in 4", arrows(p.backpack), len(p.backpack.Stacks))
+	}
+}
+
+func TestHigherTiersNeedLevels(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", tile{4, 5})
+	iron := resources.ActionSpec{Kind: resources.ActionSmelt, Material: "iron", Place: testVillage, Goal: resources.GoalAmount, Amount: 5}
+	addAction(w, p, iron)
+	if len(p.actions) != 0 {
+		t.Fatal("level 1 smith shouldn't be able to smelt iron")
+	}
+	p.xp[resources.SkillSmithing] = resources.XPForLevel(15)
+	addAction(w, p, iron)
+	if len(p.actions) != 1 {
+		t.Fatal("level 15 smith should be able to smelt iron")
+	}
+	// A mine only offers the ore it has.
+	p.xp[resources.SkillMining] = resources.XPForLevel(99)
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionMine, Material: "gold", Place: testMine, Goal: resources.GoalAmount, Amount: 5})
+	if len(p.actions) != 1 {
+		t.Error("Test Mine has no gold")
+	}
+}
+
+func TestGatheringEarnsXPAndLevelsUp(t *testing.T) {
+	w := jobWorld(t)
+	w.nodes[tile{10, 10}].amount = 100
+	s := testSession()
+	p, _ := w.login("tom", "pw", s)
+	p.found[testMine] = true
+	p.pos[0], p.pos[1] = tile{9, 10}.pixel()
+	addAction(w, p, mineFor(9))
+	run(w, p)
+	runUntil(t, w, 20000, "mined", func() bool { return len(p.actions) == 0 })
+
+	copper, _ := resources.FindMaterial(resources.ActionMine, "copper")
+	if got := p.xp[resources.SkillMining]; got != 9*copper.XP {
+		t.Errorf("mining XP %d, want %d", got, 9*copper.XP)
+	}
+	if p.level(resources.SkillMining) != 2 {
+		t.Errorf("90 XP should be level 2, got %d", p.level(resources.SkillMining))
+	}
+	congratulated := false
+	for _, m := range drain(s) {
+		if m.MessageType == resources.ChatMessage && strings.Contains(m.Contents.(string), "Mining level is now 2") {
+			congratulated = true
+		}
+	}
+	if !congratulated {
+		t.Error("no level-up message")
+	}
+}
+
+func TestHigherLevelsWorkFaster(t *testing.T) {
+	w := jobWorld(t)
+	p := joinAt(t, w, "tom", tile{4, 5})
+	base := ticks(swingTime)
+	if got := p.skillTicks(swingTime, resources.SkillMining); got != base {
+		t.Errorf("level 1: %d ticks, want %d", got, base)
+	}
+	p.xp[resources.SkillMining] = resources.XPForLevel(99)
+	if got := float64(p.skillTicks(swingTime, resources.SkillMining)) / float64(base); got > 0.62 || got < 0.6 {
+		t.Errorf("level 99 takes %.2f of the base time, want about 0.61", got)
+	}
+}
+
+func TestFarming(t *testing.T) {
+	w := jobWorld(t)
+	// A small farm: two cabbages and one cotton plant, each with room around it.
+	for _, c := range []struct {
+		t   tile
+		gid int
+	}{{tile{3, 15}, resources.TileCabbage}, {tile{5, 15}, resources.TileCabbage}, {tile{3, 17}, resources.TileCotton}} {
+		w.wm.Layers[resources.LayerObject].Data[c.t.y*w.wm.Width+c.t.x] = c.gid
+	}
+	w.wm.Places = append(w.wm.Places, resources.Place{Name: "Test Farm", Kind: resources.PlaceFarm, X: 4, Y: 16, Radius: 2, Materials: []string{"cabbage", "cotton"}})
+	w.initNodes()
+	p := joinAt(t, w, "tom", tile{4, 13})
+	p.found["Test Farm"] = true
+
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFarm, Material: "cotton", Place: "Test Farm", Goal: resources.GoalAmount, Amount: 3})
+	if len(p.actions) != 0 {
+		t.Fatal("cotton needs Farming 10")
+	}
+	addAction(w, p, resources.ActionSpec{Kind: resources.ActionFarm, Material: "cabbage", Place: "Test Farm", Goal: resources.GoalAmount, Amount: 3})
+	run(w, p)
+	runUntil(t, w, 20000, "harvested", func() bool { return len(p.actions) == 0 })
+	if got := p.bank.Count(resources.ItemCabbage); got != 3 {
+		t.Errorf("bank has %d cabbages, want 3", got)
+	}
+	if p.xp[resources.SkillFarming] == 0 {
+		t.Error("farming should train Farming")
 	}
 }

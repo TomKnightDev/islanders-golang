@@ -24,7 +24,7 @@ func TestGridRef(t *testing.T) {
 func TestLocationAndLandmark(t *testing.T) {
 	wm := WorldMap{Objects: []WorldObject{
 		{Kind: ObjectBank, X: 47, Y: 44},
-		{Kind: ObjectIronRock, X: 59, Y: 57},
+		{Kind: ObjectRock, X: 59, Y: 57},
 	}}
 	if got := Location(50, 50); got != "F6 (50, 50)" {
 		t.Errorf("Location = %q", got)
@@ -35,7 +35,7 @@ func TestLocationAndLandmark(t *testing.T) {
 	if got := wm.Describe(50, 51); got != "" {
 		t.Errorf("open ground should have no landmark, got %q", got)
 	}
-	if got := wm.Describe(60, 58); got != "near the iron rocks" {
+	if got := wm.Describe(60, 58); got != "near the rocks" {
 		t.Errorf("by a rock: %q", got)
 	}
 }

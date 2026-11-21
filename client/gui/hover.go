@@ -1,7 +1,6 @@
 package gui
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -34,24 +33,29 @@ func (h *Hover) Update() error {
 		return nil
 	}
 	gid := wm.Layers[resources.LayerObject].Data[ty*wm.Width+tx]
-	info, ok := resources.ObjectInfo[gid]
-	if !ok {
-		return nil
-	}
-	name, desc := info.Name, info.Desc
-
-	switch {
-	case resources.IsTree(gid):
-		if forest := h.placeAt(tx, ty, resources.PlaceForest); forest != nil {
-			desc = fmt.Sprintf("Chop it for logs: add Chop wood at %s in the Actions window.", forest.Name)
-		} else {
-			desc = "A tree. Only trees in a named forest can be chopped."
+	var name, desc string
+	if kind, _, ok := resources.NodeMaterial(gid); ok {
+		info, _ := resources.NodeInfo(gid)
+		pl := h.placeAt(tx, ty, resources.ActionPlaceKind[kind])
+		switch {
+		case pl != nil:
+			name, desc = info.Name+" in "+pl.Name, info.Desc
+		case kind == resources.ActionChop:
+			name, desc = info.Name, "Only trees in a named forest can be chopped."
+		default:
+			// Bushes and flowers outside farms are just scenery.
+			obj, ok := resources.ObjectInfo[gid]
+			if !ok {
+				return nil
+			}
+			name, desc = obj.Name, obj.Desc
 		}
-	case gid == resources.TileIronRock || gid == resources.TileIronRockDepleted:
-		if mine := h.placeAt(tx, ty, resources.PlaceMine); mine != nil {
-			name += " at " + mine.Name
+	} else {
+		obj, ok := resources.ObjectInfo[gid]
+		if !ok {
+			return nil
 		}
-	default:
+		name, desc = obj.Name, obj.Desc
 		if village := h.placeAt(tx, ty, resources.PlaceVillage); village != nil {
 			name = village.Name + "'s " + strings.ToLower(name[:1]) + name[1:]
 		}

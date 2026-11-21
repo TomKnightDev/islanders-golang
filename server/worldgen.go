@@ -42,12 +42,23 @@ var (
 	villageNames = []string{"Oakhaven", "Saltmere", "Brindlewick", "Fernhollow", "Gullcrest"}
 	mineNames    = []string{"Ironridge Mine", "Old Quarry", "Deepdelve Mine", "Greystone Pit"}
 	forestNames  = []string{"Whisperwood", "Elderglade", "Mossy Hollow", "Thornwood", "Amberwood"}
+	farmNames    = []string{"Meadowbrook Farm", "Willowbank Farm", "Hillcrest Farm", "Sunfield Farm"}
 )
+
+// mineOres gives each mine's rocks, matched to mineRockOffsets. Mines are
+// ranked by distance from the spawn, so the nearest has the easiest ore and
+// the farthest the hardest.
+var mineOres = [][]int{
+	{resources.TileCopperRock, resources.TileCopperRock, resources.TileIronRock, resources.TileCopperRock, resources.TileCopperRock, resources.TileIronRock},
+	{resources.TileIronRock, resources.TileIronRock, resources.TileGoldRock, resources.TileIronRock, resources.TileGoldRock, resources.TileIronRock},
+	{resources.TileGoldRock, resources.TileMithrilRock, resources.TileGoldRock, resources.TileMithrilRock, resources.TileGoldRock, resources.TileMithrilRock},
+}
 
 const (
 	villageCount   = 4
 	mineCount      = 3
 	riverCount     = 3
+	farmCount      = 3
 	forestCount    = 4  // the largest woods get a name and can be chopped
 	minForestSize  = 60 // tiles of forest floor before a wood can be named
 	villageSpacing = 34 // tiles between village centres
@@ -95,7 +106,8 @@ func generateWorld(seed int64) resources.WorldMap {
 	mainland := g.mainland()
 	villages := g.placeVillages(mainland)
 	mines := g.placeMines(mainland, villages)
-	g.buildRoads(villages, mines)
+	farms := g.placeFarms(mainland, villages, mines)
+	g.buildRoads(villages, append(mines, farms...))
 	g.growPlants()
 	g.nameForests()
 	g.ensureReachable()
@@ -334,15 +346,58 @@ func (g *worldGen) placeMines(mainland []bool, villages []tile) []tile {
 		}
 	}
 	sites := g.pickSites(candidates, mineCount, mineSpacing, villages, 22)
+	sort.SliceStable(sites, func(i, j int) bool { return octile(sites[i], villages[0]) < octile(sites[j], villages[0]) })
 	for i, s := range sites {
-		g.buildMine(s, mineNames[i%len(mineNames)])
+		g.buildMine(s, mineNames[i%len(mineNames)], mineOres[min(i, len(mineOres)-1)])
+	}
+	return sites
+}
+
+// placeFarms puts farms on open lowland a short walk from the villages.
+func (g *worldGen) placeFarms(mainland []bool, villages, mines []tile) []tile {
+	water := g.waterDistance()
+	var candidates []tile
+	for y := 8; y < g.h-8; y += 2 {
+		for x := 8; x < g.w-8; x += 2 {
+			t := tile{x, y}
+			if !mainland[g.at(t)] || water[g.at(t)] < 7 || g.keepOut[g.at(t)] || g.elev[g.at(t)] > 0.62 {
+				continue
+			}
+			near := math.MaxInt
+			for _, v := range villages {
+				near = min(near, max(abs(v.x-x), abs(v.y-y)))
+			}
+			if near >= 12 && near <= 22 {
+				candidates = append(candidates, t)
+			}
+		}
+	}
+	sites := g.pickSites(candidates, farmCount, 22, append(append([]tile(nil), villages...), mines...), 12)
+	for i, s := range sites {
+		g.buildFarm(s, farmNames[i%len(farmNames)])
 	}
 	return sites
 }
 
 func (g *worldGen) addObject(t tile, kind resources.ObjectKind) {
-	g.objects[g.at(t)] = resources.ObjectTiles[kind]
+	g.addObjectTile(t, kind, resources.ObjectTiles[kind])
+}
+
+func (g *worldGen) addObjectTile(t tile, kind resources.ObjectKind, gid int) {
+	g.objects[g.at(t)] = gid
 	g.objs = append(g.objs, resources.WorldObject{ID: uint16(len(g.objs) + 1), Kind: kind, X: t.x, Y: t.y})
+}
+
+// materialsOf lists the gatherable material IDs among the given sprites, in
+// tier order.
+func materialsOf(kind resources.ActionKind, gids map[int]bool) []string {
+	var ids []string
+	for _, m := range resources.ActionMaterials[kind] {
+		if gids[m.Node] {
+			ids = append(ids, m.ID)
+		}
+	}
+	return ids
 }
 
 func (g *worldGen) reserve(c tile, radius int) {
@@ -387,7 +442,7 @@ func (g *worldGen) buildVillage(c tile, name string, capital bool) {
 	g.places = append(g.places, resources.Place{Name: name, Kind: resources.PlaceVillage, X: c.x, Y: c.y, Radius: 6})
 }
 
-func (g *worldGen) buildMine(c tile, name string) {
+func (g *worldGen) buildMine(c tile, name string, ores []int) {
 	g.reserve(c, 5)
 	for y := c.y - 4; y <= c.y+4; y++ {
 		for x := c.x - 4; x <= c.x+4; x++ {
@@ -403,20 +458,54 @@ func (g *worldGen) buildMine(c tile, name string) {
 			}
 		}
 	}
-	for _, off := range mineRockOffsets {
+	present := map[int]bool{}
+	for i, off := range mineRockOffsets {
 		t := c.add(off)
 		if g.land(t) && !g.river[g.at(t)] {
 			g.decor[g.at(t)] = resources.TileNone
-			g.addObject(t, resources.ObjectIronRock)
+			g.addObjectTile(t, resources.ObjectRock, ores[i])
+			present[ores[i]] = true
 		}
 	}
-	g.places = append(g.places, resources.Place{Name: name, Kind: resources.PlaceMine, X: c.x, Y: c.y, Radius: 5})
+	g.places = append(g.places, resources.Place{
+		Name: name, Kind: resources.PlaceMine, X: c.x, Y: c.y, Radius: 5,
+		Materials: materialsOf(resources.ActionMine, present),
+	})
+}
+
+// buildFarm lays out tilled fields with rows of crops, each row next to a
+// walkable row so every plant can be reached.
+//
+//	. . . . . . . . . . .      : tilled soil (walkable)
+//	c c c c c c c c c . .      c cabbages, w cotton
+//	: : : : : : : : : : :
+//	w w w w w w w w w : :
+//	: : : : : : : : : : :
+//	c c c c c c c c c : :
+//	: : : : : : : : : : :
+func (g *worldGen) buildFarm(c tile, name string) {
+	g.reserve(c, 6)
+	for y := c.y - 3; y <= c.y+3; y++ {
+		for x := c.x - 5; x <= c.x+5; x++ {
+			g.ground[g.at(tile{x, y})] = resources.TileField
+		}
+	}
+	rows := map[int]int{-2: resources.TileCabbage, 0: resources.TileCotton, 2: resources.TileCabbage}
+	for dy, crop := range rows {
+		for x := c.x - 4; x <= c.x+3; x++ {
+			g.objects[g.at(tile{x, c.y + dy})] = crop
+		}
+	}
+	g.places = append(g.places, resources.Place{
+		Name: name, Kind: resources.PlaceFarm, X: c.x, Y: c.y, Radius: 5,
+		Materials: materialsOf(resources.ActionFarm, map[int]bool{resources.TileCabbage: true, resources.TileCotton: true}),
+	})
 }
 
 // --- roads ---
 
 // buildRoads joins the villages with a minimum spanning tree of roads and
-// gives every mine a road to its nearest village.
+// gives every outpost (mine, farm) a road to its nearest village.
 func (g *worldGen) buildRoads(villages, mines []tile) {
 	joined := []tile{villages[0]}
 	rest := append([]tile(nil), villages[1:]...)
@@ -452,6 +541,8 @@ func (g *worldGen) roadCost(t tile) float64 {
 	switch {
 	case !g.land(t), g.objects[i] != resources.TileNone && !isPlant(g.objects[i]):
 		return -1
+	case g.ground[i] == resources.TileField && g.objects[i] != resources.TileNone:
+		return -1 // crops aren't cleared like wild plants
 	case g.ground[i] == resources.TileRoad, g.ground[i] == resources.TileBridge, g.ground[i] == resources.TilePlaza:
 		return 0.5
 	case g.river[i]:
@@ -642,7 +733,18 @@ func (g *worldGen) nameForests() {
 			}
 		}
 		radius := min(10, max(5, int(math.Sqrt(float64(len(wood))))/2+1))
-		g.places = append(g.places, resources.Place{Name: forestNames[n%len(forestNames)], Kind: resources.PlaceForest, X: centre.x, Y: centre.y, Radius: radius})
+		trees := map[int]bool{}
+		for y := centre.y - radius; y <= centre.y+radius; y++ {
+			for x := centre.x - radius; x <= centre.x+radius; x++ {
+				if t := (tile{x, y}); g.inside(t) && resources.IsTree(g.objects[g.at(t)]) {
+					trees[g.objects[g.at(t)]] = true
+				}
+			}
+		}
+		g.places = append(g.places, resources.Place{
+			Name: forestNames[n%len(forestNames)], Kind: resources.PlaceForest, X: centre.x, Y: centre.y, Radius: radius,
+			Materials: materialsOf(resources.ActionChop, trees),
+		})
 	}
 }
 

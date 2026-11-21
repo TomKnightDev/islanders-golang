@@ -95,8 +95,8 @@ func TestBackpackDoesNotStack(t *testing.T) {
 
 func TestArrowsStackInTheBackpack(t *testing.T) {
 	pack := NewInventory(20, false)
-	pack.Add(ItemLogs, 3)
-	if got := pack.Add(ItemArrows, 120); got != 120 || len(pack.Stacks) != 6 {
+	pack.Add(ItemOakLogs, 3)
+	if got := pack.Add(ItemOakArrows, 120); got != 120 || len(pack.Stacks) != 6 {
 		t.Errorf("3 logs + 120 arrows should take 6 slots (50+50+20), got %d stacks", len(pack.Stacks))
 	}
 }

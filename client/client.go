@@ -44,6 +44,7 @@ var InfoWindow = &gui.Info{}
 var InventoryWindow = &gui.Inventory{}
 var ActionBar = gui.NewActionBar()
 var ActionsWindow = &gui.Actions{}
+var SkillsWindow = &gui.Skills{}
 var world *entities.World
 var client = &Client{}
 
@@ -212,7 +213,7 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 			client.SendChan <- resources.NewActionCommandMessage(c)
 		}
 	}()
-	ActionsWindow = gui.NewActions(g.renderMgr, worldMap.Places)
+	ActionsWindow = gui.NewActions(g.renderMgr, client.Player, worldMap.Places)
 	ActionsWindow.Send = func(c resources.ActionCommandContents) {
 		select {
 		case actionOut <- c:
@@ -220,6 +221,9 @@ func handleConnectResponse(message *resources.Message, g *Game) {
 		}
 	}
 	g.Gui = append(g.Gui, ActionsWindow)
+
+	SkillsWindow = gui.NewSkills(g.renderMgr)
+	g.Gui = append(g.Gui, SkillsWindow)
 
 	g.Gui = append(g.Gui, gui.NewHover(worldMap, func() (int, int) {
 		wx, wy := cam.GetCursorCoords()
@@ -334,6 +338,7 @@ func receiveInventoryMessage(message *resources.Message) {
 	InventoryWindow.Contents = contents
 	ActionBar.Set(contents.Activity, contents.ActionSeconds, contents.ActionElapsed)
 	ActionsWindow.SetState(contents)
+	SkillsWindow.SetState(contents.Skills)
 }
 
 func receiveObjectUpdateMessage(message *resources.Message) {
