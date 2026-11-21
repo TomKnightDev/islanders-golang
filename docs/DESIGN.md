@@ -260,8 +260,9 @@ Each phase is one PR and leaves the game playable.
 5. **Skills, tiers and farms.** Five skills levelling 1–99, four material tiers each, farms with cabbages and cotton, a nearest-place action window, a skills window. *(done)*
 6. **Equipment, combat and health.** Five combat skills, health and food, an equipment window, four tiered camps with enemies and loot, the Fight action. Also half-speed actions and walking, a draggable camera, the route line, and a Windows build in CI. *(done)*
 6½. **Classes and magic.** A character creation screen with four classes (warrior, archer, mage, necromancer), the Magic skill and mage and necromancer staves. Also full speed while offline, doubled action timers, and stamina with inns in every village. *(done)*
-7. **Crafting.** Make the gear that camps drop: swords, helmets, platebodies and shields from bars at the anvil, bows at the fletcher; weave cotton into cloth and cloth armour; cook or prepare better food. Equipment stats already exist (`resources.Equipment`). An item quality and improving system is proposed in `docs/CRAFTING-QUALITY.md`.
-8. **Persistence.** Save characters (skills, health, bank, equipment, action lists, found places) to disk on a Docker volume, and hash passwords. Until this lands, every deploy wipes progress, which hurts more now there's combat and gear; consider doing it before crafting.
+7. **Crafting and the economy.** Built in the order set out in `docs/ECONOMY.md`: coins and merchants, item quality and tools, making and improving, wear and repair, per-village player markets, village orders, rarity.
+   Original crafting notes: Make the gear that camps drop: swords, helmets, platebodies and shields from bars at the anvil, bows at the fletcher; weave cotton into cloth and cloth armour; cook or prepare better food. Equipment stats already exist (`resources.Equipment`). An item quality and improving system is proposed in `docs/CRAFTING-QUALITY.md`. The economy built on it (coins, merchants, a player market, village orders) is proposed in `docs/ECONOMY.md`, with a suggested order.
+8. **Persistence.** Save characters (skills, health, bank, equipment, action lists, found places, coins, listings) to disk on a Docker volume, and hash passwords. Deferred until development settles (decided 2026-11-21); until then every deploy wipes progress.
 
 ## Decisions
 
