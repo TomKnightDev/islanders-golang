@@ -33,7 +33,6 @@ type Player struct {
 	// FollowCam keeps the camera on the character; dragging the map turns it
 	// off until the player asks to follow again.
 	FollowCam  bool
-	camReady   bool
 	pressing   bool
 	dragging   bool
 	pressAt    image.Point
@@ -44,10 +43,9 @@ type Player struct {
 	path []image.Point
 }
 
-const (
-	followEase    = 0.12 // share of the gap to the character the camera closes each frame
-	dragThreshold = 6    // pixels the mouse must move before a press is a drag, not a click
-)
+// dragThreshold is how far, in pixels, the mouse must move before a press
+// is a drag rather than a click.
+const dragThreshold = 6
 
 var (
 	pathColour = color.RGBA{R: 0xff, G: 0xf0, B: 0xa0, A: 0xb0}
@@ -115,15 +113,8 @@ func (p *Player) Update() error {
 		p.path = p.path[1:]
 	}
 
-	// The camera eases towards the character instead of snapping.
 	if p.FollowCam {
-		tx, ty := p.Position[0]+float64(resources.TileSize)/2, p.Position[1]+float64(resources.TileSize)/2
-		if !p.camReady {
-			p.Cam.SetPosition(tx, ty)
-			p.camReady = true
-		} else {
-			p.Cam.SetPosition(p.Cam.X+(tx-p.Cam.X)*followEase, p.Cam.Y+(ty-p.Cam.Y)*followEase)
-		}
+		p.Cam.SetPosition(p.Position[0]+float64(resources.TileSize)/2, p.Position[1]+float64(resources.TileSize)/2)
 	}
 
 	// Zoom

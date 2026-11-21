@@ -130,7 +130,7 @@ Every village has a bank building, and every player has their own bank account, 
 Each time the game loads, the windows snap to their places: **Info** top left with **Skills** below it, **Actions** top right (the action picker opens beside it), **Inventory** bottom right, and **Chat** bottom left with its message box along the bottom (Enter sends). The progress bar sits bottom middle. Windows can be moved during a session.
 
 ### Camera and route
-The camera eases after the character rather than snapping. Click and drag the map to look around; a plain click still walks there. While the camera is free, a **Follow my character** button at the top of the screen brings it back. Your own route is drawn as a line from your character to where they're heading; nobody else sees it.
+The camera follows the character. Click and drag the map to look around; a plain click still walks there. While the camera is free, a **Follow my character** button at the top of the screen brings it back. Your own route is drawn as a line from your character to where they're heading; nobody else sees it.
 
 ### Hover information
 Pointing at a building, rock or tree on the map shows a tooltip with its name and what it's for, including where it is ("Saltmere's bank", "Iron rock at Old Quarry") and, for trees, whether they can be chopped. Items in the inventory window have tooltips too. The inventory window doesn't show the current activity; the progress bar does.
@@ -232,7 +232,7 @@ Each phase is one PR and leaves the game playable.
 3. **Mining and inventory.** Action system with the rules above, the mining loop, rock claiming, depletion and respawn, backpack and per-player bank accounts, an inventory window, and new messages for inventory, action state and rock state. *(done)*
 4. **Smelting and the action window.** Found places, a 5-action list with amount or time goals, smelting trips. *(done)*
 5. **Skills, tiers and farms.** Five skills levelling 1–99, four material tiers each, farms with cabbages and cotton, a nearest-place action window, a skills window. *(done)*
-6. **Equipment, combat and health.** Five combat skills, health and food, an equipment window, four tiered camps with enemies and loot, the Fight action. Also half-speed actions and walking, an easing and draggable camera, the route line, and a Windows build in CI. *(done)*
+6. **Equipment, combat and health.** Five combat skills, health and food, an equipment window, four tiered camps with enemies and loot, the Fight action. Also half-speed actions and walking, a draggable camera, the route line, and a Windows build in CI. *(done)*
 7. **Crafting.** Anvil recipes from bars, weaving cloth from cotton, equipment stats.
 8. **Persistence.** Save characters, inventories and banks to disk on a Docker volume, and hash passwords. Until this lands, every deploy wipes progress.
 
